@@ -3,7 +3,6 @@ mod breach_check;
 mod browser_bridge;
 mod crypto;
 mod github_sync;
-mod import_1pux;
 mod json_transfer;
 mod secure_store;
 mod shell;
@@ -14,7 +13,6 @@ mod vault;
 
 use breach_check::BreachCheckResult;
 use github_sync::{download_snapshot, upload_snapshot, GitHubSyncConfig, SyncResult};
-use import_1pux::preview_1pux_file;
 use json_transfer::{preview_export, read_export, write_backup};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -42,23 +40,9 @@ struct AppStatus {
     unlocked: bool,
 }
 
-#[derive(Deserialize)]
-struct Import1PuxRequest {
-    path: String,
-}
-
-#[derive(Serialize)]
-struct Import1PuxResult {
-    total_items: usize,
-    imported_items: usize,
-    unknown_items: usize,
-}
-
 #[derive(Serialize)]
 struct ImportPreviewResult {
     total_items: usize,
-    importable_items: usize,
-    unknown_items: usize,
     sample_titles: Vec<String>,
     encrypted: bool,
 }
@@ -333,7 +317,7 @@ fn generate_totp_code(secret: String) -> Result<TotpCode, String> {
 #[tauri::command]
 fn pick_import_file() -> Result<Option<String>, String> {
     Ok(rfd::FileDialog::new()
-        .add_filter("Imports", &["1pux", "json"])
+        .add_filter("Passless backup", &["json"])
         .pick_file()
         .map(|path| path.to_string_lossy().to_string()))
 }
@@ -442,56 +426,13 @@ fn unlock_with_biometrics(state: State<AppState>) -> Result<Vec<LoginItem>, Stri
 }
 
 #[tauri::command]
-fn import_1pux_file(
-    input: Import1PuxRequest,
-    state: State<AppState>,
-) -> Result<Import1PuxResult, String> {
-    let session = current_session(&state)?;
-    let preview =
-        preview_1pux_file(&PathBuf::from(input.path)).map_err(|error| error.to_string())?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
-    let mut service = VaultService::new(connection);
-    let imported_items = service
-        .import_login_items(&session, preview.login_items)
-        .map_err(String::from)?;
-
-    Ok(Import1PuxResult {
-        total_items: preview.total_items,
-        imported_items,
-        unknown_items: preview.unknown_items,
-    })
-}
-
-#[tauri::command]
 fn preview_import_file(input: BackupRequest) -> Result<ImportPreviewResult, String> {
-    let path = PathBuf::from(input.path);
-    if path
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
-    {
-        let preview = preview_export(&path, &input.password).map_err(|error| error.to_string())?;
-        return Ok(ImportPreviewResult {
-            total_items: preview.total_items,
-            importable_items: preview.total_items,
-            unknown_items: 0,
-            sample_titles: preview.sample_titles,
-            encrypted: preview.encrypted,
-        });
-    }
-
-    let preview = preview_1pux_file(&path).map_err(|error| error.to_string())?;
+    let preview =
+        preview_export(&PathBuf::from(input.path), &input.password).map_err(|error| error.to_string())?;
     Ok(ImportPreviewResult {
         total_items: preview.total_items,
-        importable_items: preview.login_items.len(),
-        unknown_items: preview.unknown_items,
-        sample_titles: preview
-            .login_items
-            .iter()
-            .take(5)
-            .map(|item| item.title.clone())
-            .collect(),
-        encrypted: false,
+        sample_titles: preview.sample_titles,
+        encrypted: preview.encrypted,
     })
 }
 
@@ -689,7 +630,6 @@ pub fn run() {
             can_use_biometrics,
             unlock_with_biometrics,
             preview_import_file,
-            import_1pux_file,
             export_backup_file,
             import_json_file,
             watchtower_report,

@@ -6,31 +6,35 @@
     <title>Passless</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
-  <body class="m-0 w-[280px] bg-slate-50 font-sans text-[13px] text-slate-950">
-    <main class="grid gap-3 p-3.5">
-      <header class="grid gap-0.5">
-        <strong class="text-sm font-bold">Passless</strong>
-        <span class="text-slate-500" id="status">Checking app...</span>
+  <body class="m-0 bg-surface font-sans text-body text-text">
+    <main class="grid gap-200 p-200">
+      <header class="grid gap-025">
+        <h1 class="text-heading-xsmall font-bold">Passless</h1>
+        <span class="text-body-small text-text-subtle" data-i18n="statusChecking" id="status">Checking app…</span>
       </header>
-      <label class="grid gap-1.5 font-semibold text-slate-500">
-        Pairing token
-        <input
-          class="h-[30px] rounded-md border border-slate-300 bg-white px-2 font-sans text-slate-950 outline-none"
-          id="token"
-          placeholder="Paste token from app"
-        />
+      <label class="grid gap-075 text-body-small text-text-subtle">
+        <span data-i18n="pairingTokenLabel">Pairing token</span>
+        <input data-i18n-placeholder="tokenPlaceholder" id="token" placeholder="Paste token from app" />
       </label>
       <button
-        class="min-h-[34px] rounded-md border border-blue-600 bg-blue-600 px-3 font-bold text-white"
+        class="min-h-400 rounded-medium border border-transparent bg-background-brand-bold px-150 py-075 font-medium text-text-inverse transition-colors duration-short ease-out-practical hover:bg-background-brand-bold-hovered active:bg-background-brand-bold-pressed"
+        data-i18n="saveToken"
         id="save-token"
         type="button"
       >
         Save token
       </button>
-      <button class="min-h-[34px] rounded-md border border-blue-600 bg-blue-600 px-3 font-bold text-white" id="fill" type="button">
+      <button
+        class="min-h-400 rounded-medium border border-border bg-background-neutral-subtle px-150 py-075 font-medium text-text transition-colors duration-short ease-out-practical hover:bg-background-neutral-subtle-hovered active:bg-background-neutral-subtle-pressed"
+        data-i18n="fillPage"
+        id="fill"
+        type="button"
+      >
         Fill current page
       </button>
-      <p class="m-0 text-slate-500">Keep the Passless desktop app unlocked for autofill and save prompts.</p>
+      <p class="m-0 text-body text-text" data-i18n="footerHint">
+        Keep the Passless desktop app unlocked for autofill and save prompts.
+      </p>
     </main>
     <script src="popup.js"></script>
   </body>

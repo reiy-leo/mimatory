@@ -50,16 +50,8 @@ export type PasswordGeneratorOptions = {
   symbols: boolean
 }
 
-export type Import1PuxResult = {
-  total_items: number
-  imported_items: number
-  unknown_items: number
-}
-
 export type ImportPreviewResult = {
   total_items: number
-  importable_items: number
-  unknown_items: number
   sample_titles: string[]
   encrypted: boolean
 }
@@ -171,7 +163,6 @@ export const vaultApi = {
   githubDownload: (config: GitHubSyncConfig) => invoke<number>('github_sync_download', { config }),
   githubUpload: (config: GitHubSyncConfig) => invoke<SyncResult>('github_sync_upload', { config }),
   hideQuickAccess: () => invoke<void>('hide_quick_access'),
-  import1Pux: (path: string) => invoke<Import1PuxResult>('import_1pux_file', { input: { path } }),
   importBackup: (path: string, password: string) => invoke<number>('import_json_file', { input: { password, path } }),
   initialize: () => invoke<AppStatus>('initialize_database'),
   isAutostartEnabled: () => invoke<boolean>('is_autostart_enabled'),

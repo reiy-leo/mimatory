@@ -1,7 +1,7 @@
 {
 	"action": {
 		"default_popup": "popup.html",
-		"default_title": "Passless"
+		"default_title": "__MSG_extensionName__"
 	},
 	"content_scripts": [
 		{
@@ -10,10 +10,11 @@
 			"run_at": "document_idle"
 		}
 	],
-	"description": "Autofill and save logins through the local Passless desktop app.",
+	"default_locale": "en",
+	"description": "__MSG_extensionDescription__",
 	"host_permissions": ["http://127.0.0.1:17891/*", "<all_urls>"],
 	"manifest_version": 3,
-	"name": "Passless Autofill",
+	"name": "__MSG_extensionName__",
 	"permissions": ["activeTab", "scripting", "storage"],
 	"version": "0.1.0"
 }

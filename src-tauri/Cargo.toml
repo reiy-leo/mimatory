@@ -40,4 +40,3 @@ tauri-plugin-single-instance = "2.5.2"
 thiserror = "2"
 tiny_http = "0.12"
 uuid = { version = "1", features = ["v4"] }
-zip = "2"

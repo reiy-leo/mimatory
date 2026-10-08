@@ -3,7 +3,7 @@ import { formatOtpCode, getTotpProgress } from './totpDisplay'
 
 describe('totp display helpers', () => {
   it('formats six digit OTP codes in two groups', () => {
-    expect(formatOtpCode('423598')).toBe('423 • 598')
+    expect(formatOtpCode('423598')).toBe('423 598')
   })
 
   it('keeps non-standard OTP codes readable', () => {

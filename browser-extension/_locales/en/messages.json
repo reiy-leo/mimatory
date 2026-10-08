@@ -1,0 +1,35 @@
+{
+	"extensionDescription": {
+		"message": "Autofill and save logins through the local Passless desktop app."
+	},
+	"extensionName": {
+		"message": "Passless Autofill"
+	},
+	"fillPage": {
+		"message": "Fill current page"
+	},
+	"footerHint": {
+		"message": "Keep the Passless desktop app unlocked for autofill and save prompts."
+	},
+	"pairingTokenLabel": {
+		"message": "Pairing token"
+	},
+	"saveToken": {
+		"message": "Save token"
+	},
+	"statusChecking": {
+		"message": "Checking app…"
+	},
+	"statusConnected": {
+		"message": "Desktop app connected"
+	},
+	"statusUnavailable": {
+		"message": "Desktop app unavailable"
+	},
+	"tokenPlaceholder": {
+		"message": "Paste token from app"
+	},
+	"tokenSaved": {
+		"message": "Pairing token saved"
+	}
+}

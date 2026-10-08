@@ -16,6 +16,7 @@ import {
   Eye,
   EyeOff,
   Fingerprint,
+  GripVertical,
   Group,
   IdCard,
   KeyRound,
@@ -26,7 +27,6 @@ import {
   Mail,
   MapPin,
   NotebookTabs,
-  PackageOpen,
   Paperclip,
   Phone,
   Plus,
@@ -73,14 +73,7 @@ import {
   type SecurityPreferences,
   saveSecurityPreferences,
 } from './app/securityPreferences'
-import {
-  applyThemeColor,
-  getInitialTheme,
-  getInitialThemeColor,
-  type Theme,
-  type ThemeColorName,
-  themeColors,
-} from './app/theme'
+import { getInitialTheme, type Theme } from './app/theme'
 import { formatOtpCode, getTotpProgress } from './app/totpDisplay'
 import {
   type AppStatus,
@@ -212,18 +205,18 @@ const sectionMenuHeight = Math.ceil(sectionChildOptions.length / 2) * menuRowHei
 const loginSectionFieldTypes = ['otp', 'sign_in_with', 'passkey']
 
 const categoryItems = [
-  { colorClass: 'text-cyan-500', icon: KeyRound, itemType: 'login' },
-  { colorClass: 'text-amber-500', icon: NotebookTabs, itemType: 'secure_note' },
-  { colorClass: 'text-sky-500', icon: CreditCard, itemType: 'credit_card' },
-  { colorClass: 'text-emerald-500', icon: IdCard, itemType: 'identity' },
-  { colorClass: 'text-slate-400', icon: KeyRound, itemType: 'password' },
-  { colorClass: 'text-amber-500', icon: Terminal, itemType: 'ssh_key' },
-  { colorClass: 'text-orange-500', icon: DollarSign, itemType: 'bank_account' },
-  { colorClass: 'text-emerald-600', icon: Database, itemType: 'database' },
-  { colorClass: 'text-pink-500', icon: Mail, itemType: 'email' },
-  { colorClass: 'text-blue-500', icon: Router, itemType: 'router' },
-  { colorClass: 'text-slate-500', icon: Server, itemType: 'server' },
-  { colorClass: 'text-blue-500', icon: BadgeCheck, itemType: 'software_license' },
+  { colorClass: 'text-accent-icon-teal', icon: KeyRound, itemType: 'login' },
+  { colorClass: 'text-accent-icon-yellow', icon: NotebookTabs, itemType: 'secure_note' },
+  { colorClass: 'text-accent-icon-blue', icon: CreditCard, itemType: 'credit_card' },
+  { colorClass: 'text-accent-icon-green', icon: IdCard, itemType: 'identity' },
+  { colorClass: 'text-accent-icon-gray', icon: KeyRound, itemType: 'password' },
+  { colorClass: 'text-accent-icon-yellow', icon: Terminal, itemType: 'ssh_key' },
+  { colorClass: 'text-accent-icon-orange', icon: DollarSign, itemType: 'bank_account' },
+  { colorClass: 'text-accent-icon-lime', icon: Database, itemType: 'database' },
+  { colorClass: 'text-accent-icon-magenta', icon: Mail, itemType: 'email' },
+  { colorClass: 'text-accent-icon-blue', icon: Router, itemType: 'router' },
+  { colorClass: 'text-accent-icon-gray', icon: Server, itemType: 'server' },
+  { colorClass: 'text-accent-icon-blue', icon: BadgeCheck, itemType: 'software_license' },
 ] as const
 
 function parseSectionFields(value: string): SectionChildField[] {
@@ -397,6 +390,7 @@ function OtpFieldActions({
               seconds: preview.secondsRemaining,
             })}
             className="otp-countdown"
+            role="timer"
           >
             <span aria-hidden="true" className="otp-countdown-ring" />
             <span>{preview.secondsRemaining.toString().padStart(2, '0')}</span>
@@ -445,22 +439,22 @@ function toInput(form: LoginFormState): LoginItemInput {
 
 const itemTypes = [
   ['login', 'Login'],
-  ['secure_note', 'Secure Note'],
-  ['credit_card', 'Credit Card'],
+  ['secure_note', 'Secure note'],
+  ['credit_card', 'Credit card'],
   ['identity', 'Identity'],
   ['password', 'Password'],
-  ['ssh_key', 'SSH Key'],
-  ['bank_account', 'Bank Account'],
+  ['ssh_key', 'SSH key'],
+  ['bank_account', 'Bank account'],
   ['passport', 'Passport'],
-  ['driver_license', 'Driver License'],
+  ['driver_license', 'Driver license'],
   ['wifi', 'Wi-Fi'],
-  ['api_credential', 'API Credential'],
+  ['api_credential', 'API credential'],
   ['server', 'Server'],
   ['database', 'Database'],
   ['email', 'Email'],
   ['router', 'Router'],
-  ['software_license', 'Software License'],
-  ['crypto_wallet', 'Crypto Wallet'],
+  ['software_license', 'Software license'],
+  ['crypto_wallet', 'Crypto wallet'],
 ] as const
 
 const settingsTabLabels: Record<SettingsTab, string> = {
@@ -530,9 +524,6 @@ function VaultWindow() {
   const [theme, setTheme] = useState<Theme>(() =>
     getInitialTheme(localStorage.getItem('passless-theme'), window.matchMedia('(prefers-color-scheme: dark)').matches),
   )
-  const [themeColor, setThemeColor] = useState<ThemeColorName>(() =>
-    getInitialThemeColor(localStorage.getItem('passless-theme-color')),
-  )
   const [, setLanguage] = useState<SupportedLanguage>(() =>
     getInitialLanguage(localStorage.getItem('passless-language')),
   )
@@ -543,25 +534,10 @@ function VaultWindow() {
   }, [theme])
 
   useEffect(() => {
-    applyThemeColor(themeColor)
-    localStorage.setItem('passless-theme-color', themeColor)
-  }, [themeColor])
-
-  useEffect(() => {
     let unlisten: (() => void) | undefined
     listen<Theme>('passless-theme-changed', (event) => setTheme(event.payload)).then((nextUnlisten) => {
       unlisten = nextUnlisten
     })
-    return () => unlisten?.()
-  }, [])
-
-  useEffect(() => {
-    let unlisten: (() => void) | undefined
-    listen<ThemeColorName>('passless-theme-color-changed', (event) => setThemeColor(event.payload)).then(
-      (nextUnlisten) => {
-        unlisten = nextUnlisten
-      },
-    )
     return () => unlisten?.()
   }, [])
 
@@ -1349,21 +1325,23 @@ function VaultWindow() {
                 value={masterPassword}
               />
               <button
+                aria-label={t('vault.showPassword')}
                 className="compact-unlock-icon-button"
                 onClick={() => setShowPassword((value) => !value)}
                 title={t('vault.showPassword')}
                 type="button"
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
               {showTouchIdUnlock ? (
                 <button
+                  aria-label={t('lock.unlockWithTouchId')}
                   className="compact-unlock-icon-button"
                   onClick={handleBiometricUnlock}
                   title={t('lock.unlockWithTouchId')}
                   type="button"
                 >
-                  <Fingerprint size={20} strokeWidth={1.8} />
+                  <Fingerprint size={16} strokeWidth={1.5} />
                 </button>
               ) : null}
             </div>
@@ -1378,7 +1356,7 @@ function VaultWindow() {
         <section className="lock-panel">
           <div className="brand large">
             <div className="brand-mark">
-              <Lock size={22} />
+              <Lock size={16} />
             </div>
             <div>
               <strong>Passless</strong>
@@ -1415,11 +1393,12 @@ function VaultWindow() {
   }
 
   return (
-    <main className="app-shell" style={{ gridTemplateColumns: `244px ${itemListWidth}px 6px minmax(0, 1fr)` }}>
-      <aside aria-label="Primary navigation" className="sidebar" data-tauri-drag-region="deep">
+    <main className="app-shell" style={{ '--item-list-width': `${itemListWidth}px` } as CSSProperties}>
+      <h1 className="sr-only">{t('landmarks.vaultItems')}</h1>
+      <aside aria-label={t('landmarks.primaryNavigation')} className="sidebar" data-tauri-drag-region="deep">
         <div className="brand">
           <div className="brand-mark">
-            <Lock size={18} />
+            <Lock size={16} />
           </div>
           <div>
             <strong>Passless</strong>
@@ -1437,14 +1416,14 @@ function VaultWindow() {
                 onClick={() => setActiveNavigation(item.id)}
                 type="button"
               >
-                <Icon size={17} />
+                <Icon size={16} />
                 <span>{t(`nav.${item.id}`)}</span>
               </button>
             )
           })}
         </nav>
 
-        <div aria-label={t('common.categories')} className="category-nav">
+        <nav aria-label={t('common.categories')} className="category-nav">
           <div className="sidebar-section-title">
             <span>{t('common.categories')}</span>
           </div>
@@ -1459,24 +1438,29 @@ function VaultWindow() {
                   onClick={() => setActiveNavigation(id)}
                   type="button"
                 >
-                  <Icon className={category.colorClass} size={17} />
+                  <Icon className={category.colorClass} size={16} />
                   <span>{t(`itemTypes.${category.itemType}`)}</span>
                 </button>
               )
             })}
           </div>
-        </div>
+        </nav>
 
         <div className="sidebar-footer">
           <button className="theme-toggle" onClick={openSettingsWindow} type="button">
             <Cog size={16} />
             {t('common.settings')}
           </button>
-          <div aria-label={t('common.archive')} className="sidebar-archive">
+          <section aria-label={t('common.archive')} className="sidebar-archive">
             <div className="sidebar-section-title">
               <span>{t('common.archive')}</span>
-              <button onClick={loadArchivedItems} title={t('common.refreshArchive')} type="button">
-                <RefreshCw size={13} />
+              <button
+                aria-label={t('common.refreshArchive')}
+                onClick={loadArchivedItems}
+                title={t('common.refreshArchive')}
+                type="button"
+              >
+                <RefreshCw size={16} />
               </button>
             </div>
             <div className="sidebar-archive-list">
@@ -1493,15 +1477,16 @@ function VaultWindow() {
               ))}
               {archivedItems.length === 0 ? <p>{t('common.noArchivedItems')}</p> : null}
             </div>
-          </div>
+          </section>
         </div>
       </aside>
 
       <header className="top-search-bar" data-tauri-drag-region="deep">
         <div className="top-search-wrap">
           <label className="top-search-box">
-            <Search size={18} />
+            <Search size={16} />
             <input
+              aria-label={t('vault.searchAllItems')}
               onChange={(event) => setTopSearch(event.target.value)}
               placeholder={t('vault.searchAllItems')}
               ref={topSearchInputRef}
@@ -1524,12 +1509,12 @@ function VaultWindow() {
           ) : null}
         </div>
         <button className="top-new-item-button" onClick={handleNewItem} type="button">
-          <Plus size={18} />
+          <Plus size={16} />
           {t('vault.newItem')}
         </button>
       </header>
 
-      <section aria-label="Vault items" className="item-list">
+      <section aria-label={t('landmarks.vaultItems')} className="item-list">
         <div className="sync-state">
           {error ? <AlertCircle size={16} /> : <ShieldCheck size={16} />}
           <span>{error ?? databaseLabel}</span>
@@ -1537,7 +1522,7 @@ function VaultWindow() {
 
         {activeNavigation === 'generator' ? (
           <div className="sidebar-tool-panel">
-            <KeyRound size={18} />
+            <KeyRound size={16} />
             <strong>{t('vault.passwordGenerator')}</strong>
             <p>{t('vault.generatorHint')}</p>
           </div>
@@ -1545,7 +1530,7 @@ function VaultWindow() {
 
         {activeNavigation === 'watchtower' ? (
           <div className="sidebar-tool-panel">
-            <ShieldCheck size={18} />
+            <ShieldCheck size={16} />
             <strong>{t('integrations.watchtower')}</strong>
             <p>{t('vault.watchtowerHint')}</p>
             <button className="secondary-button" onClick={openSettingsWindow} type="button">
@@ -1583,7 +1568,7 @@ function VaultWindow() {
         type="button"
       />
 
-      <section aria-label="Item details" className="detail-pane">
+      <section aria-label={t('landmarks.itemDetails')} className="detail-pane">
         <div className="detail-topbar" data-tauri-drag-region="deep">
           <div className="vault-picker-row">
             <label className="vault-picker">
@@ -1600,6 +1585,7 @@ function VaultWindow() {
               </select>
             </label>
             <button
+              aria-label={t('vault.createVault', { defaultValue: 'Create vault' })}
               className="icon-button vault-add-button"
               onClick={handleCreateVault}
               title={t('vault.createVault', { defaultValue: 'Create vault' })}
@@ -1636,10 +1622,10 @@ function VaultWindow() {
           <section className="generator-pane">
             <div className="detail-header">
               <div className="large-icon">
-                <KeyRound size={24} />
+                <KeyRound size={16} />
               </div>
               <div>
-                <h1>{t('vault.passwordGenerator')}</h1>
+                <h2>{t('vault.passwordGenerator')}</h2>
                 <p>
                   {t('vault.generatorDescription', {
                     defaultValue: 'Create a password with precise length and character controls.',
@@ -1725,6 +1711,7 @@ function VaultWindow() {
                   <div className="large-icon">{form.title.slice(0, 1).toUpperCase() || '+'}</div>
                   <div>
                     <input
+                      aria-label={t('vault.loginTitle')}
                       className="title-input"
                       onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
                       placeholder={t('vault.loginTitle')}
@@ -1733,22 +1720,22 @@ function VaultWindow() {
                     <p>{selectedItem ? t('vault.loginItem') : t('vault.newLoginItem')}</p>
                   </div>
                   <button
+                    aria-label={t('vault.favorite')}
                     className={form.favorite ? 'icon-button active' : 'icon-button'}
                     onClick={handleFavorite}
                     title={t('vault.favorite')}
                     type="button"
                   >
-                    <Star size={18} />
+                    <Star size={16} />
                   </button>
                 </div>
 
                 <div className="form-grid onepassword-form">
                   {template.credentials ? (
                     <div className="wide onepassword-group">
-                      <label className="onepassword-field text-xs">
+                      <label className="onepassword-field">
                         {t('vault.username')}
                         <input
-                          className="text-sm"
                           onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))}
                           value={form.username}
                         />
@@ -1763,16 +1750,27 @@ function VaultWindow() {
                             value={form.password}
                           />
                           <button
+                            aria-label={t('vault.showPassword')}
                             onClick={() => setShowPassword((value) => !value)}
                             title={t('vault.showPassword')}
                             type="button"
                           >
                             {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                           </button>
-                          <button onClick={copyPassword} title={t('vault.copyPassword')} type="button">
+                          <button
+                            aria-label={t('vault.copyPassword')}
+                            onClick={copyPassword}
+                            title={t('vault.copyPassword')}
+                            type="button"
+                          >
                             <Copy size={16} />
                           </button>
-                          <button onClick={handleGeneratePassword} title={t('vault.generatePassword')} type="button">
+                          <button
+                            aria-label={t('vault.generatePassword')}
+                            onClick={handleGeneratePassword}
+                            title={t('vault.generatePassword')}
+                            type="button"
+                          >
                             <KeyRound size={16} />
                           </button>
                         </span>
@@ -1823,12 +1821,13 @@ function VaultWindow() {
                               ) : null}
                             </div>
                             <button
+                              aria-label={t('vault.removeField')}
                               className="round-remove-button"
                               onClick={() => removeCustomField(index)}
                               title={t('vault.removeField')}
                               type="button"
                             >
-                              <CircleMinus size={18} />
+                              <CircleMinus size={16} />
                             </button>
                           </div>
                         </div>
@@ -1857,19 +1856,20 @@ function VaultWindow() {
                               />
                             </div>
                             <button
+                              aria-label={t('vault.removeWebsite')}
                               className="round-remove-button"
                               disabled={form.urlsInput.length <= 1}
                               onClick={() => removeWebsite(index)}
                               title={t('vault.removeWebsite')}
                               type="button"
                             >
-                              <CircleMinus size={18} />
+                              <CircleMinus size={16} />
                             </button>
                           </div>
                         ))}
                       </div>
                       <button className="inline-add-button" onClick={addWebsite} type="button">
-                        <Plus size={15} />
+                        <Plus size={16} />
                         {t('vault.addAnotherWebsite')}
                       </button>
                     </div>
@@ -1896,9 +1896,7 @@ function VaultWindow() {
                       <div className="custom-field-list">
                         {detailCustomFields.map(({ field, index }) => (
                           <div className="custom-field-row" key={`${field.field_type}-${index}`}>
-                            <span aria-hidden="true" className="drag-handle">
-                              ☰
-                            </span>
+                            <GripVertical aria-hidden="true" className="drag-handle" size={14} />
                             {field.field_type === 'section' ? (
                               <div className="section-field-card">
                                 <input
@@ -1935,12 +1933,13 @@ function VaultWindow() {
                                         />
                                       </div>
                                       <button
+                                        aria-label={t('vault.removeField')}
                                         className="round-remove-button"
                                         onClick={() => removeSectionChild(index, childIndex)}
                                         title={t('vault.removeField')}
                                         type="button"
                                       >
-                                        <CircleMinus size={18} />
+                                        <CircleMinus size={16} />
                                       </button>
                                     </div>
                                   ))}
@@ -1950,7 +1949,7 @@ function VaultWindow() {
                                   onClick={(event) => toggleSectionMenu(index, event.currentTarget)}
                                   type="button"
                                 >
-                                  <Plus size={15} />
+                                  <Plus size={16} />
                                   {t('vault.addFieldToSection')}
                                 </button>
                                 {sectionMenuIndex === index ? (
@@ -1965,7 +1964,9 @@ function VaultWindow() {
                                         <option.icon aria-hidden="true" size={15} />
                                         <span className="menu-option-label">
                                           <span>{t(option.labelKey)}</span>
-                                          {'descriptionKey' in option ? <small>{t(option.descriptionKey)}</small> : null}
+                                          {'descriptionKey' in option ? (
+                                            <small>{t(option.descriptionKey)}</small>
+                                          ) : null}
                                         </span>
                                       </button>
                                     ))}
@@ -2021,7 +2022,7 @@ function VaultWindow() {
                                       onClick={() => chooseAttachmentForField(index)}
                                       type="button"
                                     >
-                                      <Paperclip size={15} />
+                                      <Paperclip size={16} />
                                       {field.value ? t('vault.changeAttachment') : t('vault.chooseAttachment')}
                                     </button>
                                     {field.value.startsWith('attachment://') ? (
@@ -2038,19 +2039,20 @@ function VaultWindow() {
                                 ) : null}
                                 {field.field_type === 'related_item' && field.value ? (
                                   <div className="field-inline-actions related-item-preview">
-                                    <Link size={15} />
+                                    <Link size={16} />
                                     <small>{itemTitleById(items, field.value)}</small>
                                   </div>
                                 ) : null}
                               </div>
                             )}
                             <button
+                              aria-label={t('vault.removeField')}
                               className="round-remove-button"
                               onClick={() => removeCustomField(index)}
                               title={t('vault.removeField')}
                               type="button"
                             >
-                              <CircleMinus size={18} />
+                              <CircleMinus size={16} />
                             </button>
                           </div>
                         ))}
@@ -2110,7 +2112,7 @@ function VaultWindow() {
               </div>
             </form>
 
-            {operationMessage ? <div className="success-banner mt-7 max-w-[760px]">{operationMessage}</div> : null}
+            {operationMessage ? <div className="success-banner mt-300 max-w-content">{operationMessage}</div> : null}
           </>
         )}
       </section>
@@ -2145,7 +2147,6 @@ function SettingsWindow() {
   const [status, setStatus] = useState<AppStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [operationMessage, setOperationMessage] = useState<string | null>(null)
-  const [importPath, setImportPath] = useState('')
   const [importPreview, setImportPreview] = useState<ImportPreviewResult | null>(null)
   const [jsonPath, setJsonPath] = useState('')
   const [backupPassword, setBackupPassword] = useState('')
@@ -2165,9 +2166,6 @@ function SettingsWindow() {
   const [theme, setTheme] = useState<Theme>(() =>
     getInitialTheme(localStorage.getItem('passless-theme'), window.matchMedia('(prefers-color-scheme: dark)').matches),
   )
-  const [themeColor, setThemeColor] = useState<ThemeColorName>(() =>
-    getInitialThemeColor(localStorage.getItem('passless-theme-color')),
-  )
   const [language, setLanguage] = useState<SupportedLanguage>(() =>
     getInitialLanguage(localStorage.getItem('passless-language')),
   )
@@ -2178,25 +2176,10 @@ function SettingsWindow() {
   }, [theme])
 
   useEffect(() => {
-    applyThemeColor(themeColor)
-    localStorage.setItem('passless-theme-color', themeColor)
-  }, [themeColor])
-
-  useEffect(() => {
     let unlisten: (() => void) | undefined
     listen<Theme>('passless-theme-changed', (event) => setTheme(event.payload)).then((nextUnlisten) => {
       unlisten = nextUnlisten
     })
-    return () => unlisten?.()
-  }, [])
-
-  useEffect(() => {
-    let unlisten: (() => void) | undefined
-    listen<ThemeColorName>('passless-theme-color-changed', (event) => setThemeColor(event.payload)).then(
-      (nextUnlisten) => {
-        unlisten = nextUnlisten
-      },
-    )
     return () => unlisten?.()
   }, [])
 
@@ -2269,33 +2252,12 @@ function SettingsWindow() {
 
   async function chooseImportFile() {
     const path = await vaultApi.pickImportFile()
-    if (path) {
-      if (path.endsWith('.json')) setJsonPath(path)
-      else setImportPath(path)
-    }
+    if (path) setJsonPath(path)
   }
 
   async function chooseExportFile() {
     const path = await vaultApi.pickExportFile()
     if (path) setJsonPath(path)
-  }
-
-  async function handleImport1Pux() {
-    setError(null)
-    setOperationMessage(null)
-    try {
-      const result = await vaultApi.import1Pux(importPath)
-      await notifyVaultChanged()
-      setOperationMessage(
-        t('messages.imported1pux', {
-          imported: result.imported_items,
-          total: result.total_items,
-          unknown: result.unknown_items,
-        }),
-      )
-    } catch (nextError) {
-      setError(String(nextError))
-    }
   }
 
   async function handlePreviewImport(path: string) {
@@ -2431,11 +2393,6 @@ function SettingsWindow() {
     await emit('passless-theme-changed', nextTheme)
   }
 
-  async function updateThemeColor(nextThemeColor: ThemeColorName) {
-    setThemeColor(nextThemeColor)
-    await emit('passless-theme-color-changed', nextThemeColor)
-  }
-
   async function updateLanguage(nextLanguage: SupportedLanguage) {
     setLanguage(nextLanguage)
     localStorage.setItem('passless-language', nextLanguage)
@@ -2463,14 +2420,14 @@ function SettingsWindow() {
       <aside className="settings-sidebar h-full" data-tauri-drag-region="deep">
         <div className="settings-title">
           <div className="brand-mark">
-            <Cog size={18} />
+            <Cog size={16} />
           </div>
           <div>
             <strong>{t('settings.title')}</strong>
             <span>{t('settings.subtitle')}</span>
           </div>
         </div>
-        <nav aria-label="Settings sections" className="settings-tabs">
+        <nav aria-label={t('landmarks.settingsSections')} className="settings-tabs">
           {settingsTabs.map((id) => (
             <button
               className={activeTab === id ? 'active' : ''}
@@ -2551,14 +2508,16 @@ function SettingsWindow() {
               <p>{t('settings.appearanceDescription')}</p>
               <div className="integration-actions">
                 <button
-                  className={theme === 'light' ? 'primary-button' : 'secondary-button'}
+                  aria-pressed={theme === 'light'}
+                  className="segment-button secondary-button"
                   onClick={() => updateTheme('light')}
                   type="button"
                 >
                   {t('settings.light')}
                 </button>
                 <button
-                  className={theme === 'dark' ? 'primary-button' : 'secondary-button'}
+                  aria-pressed={theme === 'dark'}
+                  className="segment-button secondary-button"
                   onClick={() => updateTheme('dark')}
                   type="button"
                 >
@@ -2566,78 +2525,11 @@ function SettingsWindow() {
                 </button>
               </div>
             </div>
-            <div className="integration-card">
-              <h2>{t('settings.themeColor')}</h2>
-              <p>{t('settings.themeColorDescription')}</p>
-              <div aria-label={t('settings.themeColor')} className="theme-color-grid" role="radiogroup">
-                {themeColors.map((color) => (
-                  <button
-                    aria-checked={themeColor === color.name}
-                    className={themeColor === color.name ? 'theme-color-option active' : 'theme-color-option'}
-                    key={color.name}
-                    onClick={() => updateThemeColor(color.name)}
-                    role="radio"
-                    type="button"
-                  >
-                    <span style={{ backgroundColor: color.value }} />
-                    <strong>{color.label}</strong>
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         ) : null}
 
         {activeTab === 'import-export' ? (
           <div className="settings-section">
-            <div className="integration-card">
-              <h2>{t('integrations.import1pux')}</h2>
-              <p>{t('integrations.import1puxDescription')}</p>
-              <label>
-                {t('integrations.filePath')}
-                <input
-                  onChange={(event) => setImportPath(event.target.value)}
-                  placeholder="/path/to/export.1pux"
-                  value={importPath}
-                />
-              </label>
-              <div className="integration-actions">
-                <button className="secondary-button" onClick={chooseImportFile} type="button">
-                  {t('common.chooseFile')}
-                </button>
-                <button
-                  className="secondary-button"
-                  disabled={!importPath}
-                  onClick={() => handlePreviewImport(importPath)}
-                  type="button"
-                >
-                  {t('integrations.previewImport', { defaultValue: 'Preview import' })}
-                </button>
-                <button
-                  className="secondary-button"
-                  disabled={!importPath || locked}
-                  onClick={handleImport1Pux}
-                  type="button"
-                >
-                  <PackageOpen size={16} />
-                  {t('integrations.import1puxAction')}
-                </button>
-              </div>
-              {importPreview ? (
-                <div className="import-preview">
-                  <strong>
-                    {t('integrations.importPreviewSummary', {
-                      defaultValue: '{{importable}} of {{total}} items importable, {{unknown}} unknown',
-                      importable: importPreview.importable_items,
-                      total: importPreview.total_items,
-                      unknown: importPreview.unknown_items,
-                    })}
-                  </strong>
-                  {importPreview.sample_titles.length ? <small>{importPreview.sample_titles.join(', ')}</small> : null}
-                </div>
-              ) : null}
-            </div>
-
             <div className="integration-card">
               <h2>{t('integrations.vaultBackup')}</h2>
               <p>{t('integrations.vaultBackupDescription')}</p>
@@ -2659,6 +2551,9 @@ function SettingsWindow() {
               </label>
               <p>{t('integrations.backupPasswordHint')}</p>
               <div className="integration-actions">
+                <button className="secondary-button" onClick={chooseImportFile} type="button">
+                  {t('common.chooseFile')}
+                </button>
                 <button className="secondary-button" onClick={chooseExportFile} type="button">
                   {t('common.chooseExportPath')}
                 </button>
@@ -2668,7 +2563,7 @@ function SettingsWindow() {
                   onClick={() => handlePreviewImport(jsonPath)}
                   type="button"
                 >
-                  {t('integrations.previewImport', { defaultValue: 'Preview import' })}
+                  {t('integrations.previewImport')}
                 </button>
                 <button
                   className="secondary-button"
@@ -2692,12 +2587,7 @@ function SettingsWindow() {
                   <strong>
                     {importPreview.encrypted && importPreview.total_items === 0
                       ? t('integrations.encryptedBackupNotice')
-                      : t('integrations.importPreviewSummary', {
-                          defaultValue: '{{importable}} of {{total}} items importable, {{unknown}} unknown',
-                          importable: importPreview.importable_items,
-                          total: importPreview.total_items,
-                          unknown: importPreview.unknown_items,
-                        })}
+                      : t('integrations.importPreviewSummary', { total: importPreview.total_items })}
                   </strong>
                   {importPreview.sample_titles.length ? <small>{importPreview.sample_titles.join(', ')}</small> : null}
                 </div>
@@ -3150,14 +3040,14 @@ function QuickAccessWindow() {
   return (
     <main className="quick-access-shell" onKeyDown={handleKeyDown}>
       <header className="quick-access-header" data-tauri-drag-region>
-        <strong>{t('quickAccess.title')}</strong>
+        <h1>{t('quickAccess.title')}</h1>
         <button className="quick-access-close" onClick={() => void vaultApi.hideQuickAccess()} type="button">
-          <X size={14} />
+          <X size={16} />
         </button>
       </header>
 
       <div className="quick-access-search" data-tauri-drag-region>
-        <Search size={14} />
+        <Search size={16} />
         <input
           aria-label={t('quickAccess.searchPlaceholder')}
           onChange={(event) => setQuery(event.target.value)}

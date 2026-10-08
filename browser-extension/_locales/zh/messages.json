@@ -1,0 +1,35 @@
+{
+	"extensionDescription": {
+		"message": "通过本地 Passless 桌面应用自动填充并保存登录信息。"
+	},
+	"extensionName": {
+		"message": "Passless 自动填充"
+	},
+	"fillPage": {
+		"message": "填充当前页面"
+	},
+	"footerHint": {
+		"message": "请保持 Passless 桌面应用处于解锁状态，才能使用自动填充和保存提示。"
+	},
+	"pairingTokenLabel": {
+		"message": "配对令牌"
+	},
+	"saveToken": {
+		"message": "保存令牌"
+	},
+	"statusChecking": {
+		"message": "正在检查应用…"
+	},
+	"statusConnected": {
+		"message": "桌面应用已连接"
+	},
+	"statusUnavailable": {
+		"message": "桌面应用不可用"
+	},
+	"tokenPlaceholder": {
+		"message": "粘贴应用中的配对令牌"
+	},
+	"tokenSaved": {
+		"message": "配对令牌已保存"
+	}
+}

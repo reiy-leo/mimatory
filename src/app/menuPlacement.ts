@@ -8,11 +8,7 @@ const MENU_GAP = 6
  * Only the roomier side is worth picking when neither side fits: the menu caps its own
  * height and scrolls, so a tight viewport should still favour the larger gap.
  */
-export function getMenuPlacement(input: {
-  menuHeight: number
-  spaceAbove: number
-  spaceBelow: number
-}): MenuPlacement {
+export function getMenuPlacement(input: { menuHeight: number; spaceAbove: number; spaceBelow: number }): MenuPlacement {
   const { menuHeight, spaceAbove, spaceBelow } = input
   if (spaceBelow >= menuHeight) return 'below'
   if (spaceAbove >= menuHeight) return 'above'
@@ -38,9 +34,10 @@ export function getMenuAnchorStyle(input: {
     spaceAbove: rect.top,
     spaceBelow: viewportHeight - rect.bottom,
   })
-  const vertical = placement === 'above'
-    ? { bottom: viewportHeight - rect.top + MENU_GAP, top: undefined }
-    : { bottom: undefined, top: rect.bottom + MENU_GAP }
+  const vertical =
+    placement === 'above'
+      ? { bottom: viewportHeight - rect.top + MENU_GAP, top: undefined }
+      : { bottom: undefined, top: rect.bottom + MENU_GAP }
 
   return {
     placement,

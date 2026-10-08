@@ -1,3 +1,84 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Token values from DESIGN.md (Atlassian, revision 0.0.7, light theme). The extension is a
+   separate document from the desktop app, so it cannot read src/styles.css `:root` — this block
+   must stay in sync with it. Values are verbatim from the contract; never add a one-off hex. */
+@layer base {
+  :root {
+    --color-text: #292a2e;
+    --color-text-subtle: #505258;
+    --color-text-subtlest: #6b6e76;
+    --color-text-inverse: #ffffff;
+    --color-surface: #ffffff;
+    --color-border: #0b120e24;
+    --color-border-input: #8c8f97;
+    --color-border-focused: #4688ec;
+    --color-background-input: #ffffff;
+    --color-background-input-hovered: #f8f8f8;
+    --color-background-neutral-subtle: #00000000;
+    --color-background-neutral-subtle-hovered: #0515240f;
+    --color-background-neutral-subtle-pressed: #0b120e24;
+    --color-background-brand-bold: #1868db;
+    --color-background-brand-bold-hovered: #1558bc;
+    --color-background-brand-bold-pressed: #144794;
+    --radius-medium: 0.375rem;
+    --space-025: 0.125rem;
+    --space-050: 0.25rem;
+    --measure-popup: 280px;
+    --border-width-default: 0.0625rem;
+    --border-width-focused: 0.125rem;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color-scheme: light;
+  }
+
+  html {
+    /* The browser, not the design system, fixes the popup width. */
+    @apply w-popup;
+  }
+
+  body {
+    color: var(--color-text);
+    background: var(--color-surface);
+    @apply m-0 text-body;
+  }
+
+  button,
+  input {
+    font: inherit;
+  }
+
+  button {
+    @apply cursor-pointer;
+  }
+
+  input {
+    color: var(--color-text);
+    background: var(--color-background-input);
+    border: var(--border-width-default) solid var(--color-border-input);
+    border-radius: var(--radius-medium);
+    @apply px-075 py-075 text-body;
+  }
+
+  input::placeholder {
+    color: var(--color-text-subtlest);
+  }
+
+  input:hover {
+    background: var(--color-background-input-hovered);
+  }
+
+  input:focus,
+  button:focus {
+    border-color: var(--color-border-focused);
+  }
+
+  /* Focus ring contract: 2px border-focused, offset 2px. Never outline:none without this. */
+  input:focus-visible,
+  button:focus-visible {
+    outline: var(--border-width-focused) solid var(--color-border-focused);
+    outline-offset: var(--space-025);
+  }
+}

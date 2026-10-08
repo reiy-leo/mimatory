@@ -2,140 +2,287 @@
 @tailwind components;
 @tailwind utilities;
 
-/* No-ligatures variant: `!=`, `->`, `//` must never fuse inside a secret. */
-@font-face {
-  font-family: "JetBrains Mono";
-  font-style: normal;
-  font-weight: 600;
-  font-display: block;
-  src: url("/fonts/JetBrainsMonoNL-SemiBold.ttf") format("truetype");
-}
-
 @layer base {
+  /* Token values from DESIGN.md (Atlassian, revision 0.0.7, light theme). Key names match the
+     YAML frontmatter 1:1 so any value here is verifiable against the contract. Component rules
+     read the alias layer below, never these directly. */
   :root {
-    /* Cupertino Vault design tokens — light appearance. */
-    --color-surface: #faf9fe;
-    --color-surface-dim: #dad9df;
-    --color-surface-bright: #faf9fe;
-    --color-surface-container-lowest: #ffffff;
-    --color-surface-container-low: #f4f3f8;
-    --color-surface-container: #eeedf3;
-    --color-surface-container-high: #e9e7ed;
-    --color-surface-container-highest: #e3e2e7;
-    --color-surface-variant: #e3e2e7;
-    --color-surface-tint: #005bc0;
-    --color-on-surface: #1a1b1f;
-    --color-on-surface-variant: #414754;
-    --color-inverse-surface: #2f3034;
-    --color-inverse-on-surface: #f1f0f5;
-    --color-outline: #727785;
-    --color-outline-variant: #c1c6d6;
-    --color-background: #faf9fe;
-    --color-on-background: #1a1b1f;
-    --color-primary: #005abe;
-    --color-on-primary: #ffffff;
-    --color-primary-container: #0572ec;
-    --color-on-primary-container: #ffffff;
-    --color-inverse-primary: #adc7ff;
-    --color-primary-fixed: #d8e2ff;
-    --color-primary-fixed-dim: #adc7ff;
-    --color-on-primary-fixed: #001a41;
-    --color-on-primary-fixed-variant: #004493;
-    --color-secondary: #006e26;
-    --color-on-secondary: #ffffff;
-    --color-secondary-container: #64fd7d;
-    --color-on-secondary-container: #007328;
-    --color-secondary-fixed: #6cff82;
-    --color-secondary-fixed-dim: #47e266;
-    --color-on-secondary-fixed: #002106;
-    --color-on-secondary-fixed-variant: #00531a;
-    --color-tertiary: #875100;
-    --color-on-tertiary: #ffffff;
-    --color-tertiary-container: #a96700;
-    --color-on-tertiary-container: #ffffff;
-    --color-tertiary-fixed: #ffddbb;
-    --color-tertiary-fixed-dim: #ffb868;
-    --color-on-tertiary-fixed: #2b1700;
-    --color-on-tertiary-fixed-variant: #673d00;
-    --color-error: #ba1a1a;
-    --color-on-error: #ffffff;
-    --color-error-container: #ffdad6;
-    --color-on-error-container: #93000a;
-    --color-system-blue: #0071e3;
-    --color-vault-vibrant-blue: #0572ec;
-    --color-security-green: #34c759;
-    --color-warning-amber: #ff9500;
-    --color-critical-red: #ff3b30;
-    --color-secure-mask-dot: #48484a;
-    --color-sidebar-light-tint: rgb(246 246 246 / 75%);
-    --color-sidebar-dark-tint: rgb(30 30 30 / 75%);
-    --color-divider-light: #e5e5ea;
-    --color-divider-dark: #2c2c2e;
-    --color-card-bg-light: #ffffff;
-    --color-card-bg-dark: #1c1c1e;
+    /* Neutrals: text and icons */
+    --color-text: #292a2e;
+    --color-text-subtle: #505258;
+    --color-text-subtlest: #6b6e76;
+    --color-text-selected: #1868db;
+    --color-text-disabled: #080f214a;
+    --color-text-inverse: #ffffff;
+    --color-text-brand: #1868db;
+    --color-icon: #292a2e;
+    --color-icon-subtle: #505258;
+    --color-icon-subtlest: #6b6e76;
+    --color-icon-selected: #1868db;
+    --color-icon-disabled: #080f214a;
+    --color-icon-inverse: #ffffff;
+    --color-icon-brand: #1868db;
 
-    /* Semantic aliases: the component layer reads these, so a theme change re-points
-       this group instead of restyling the ~340 selectors that consume it. */
-    --theme-color: var(--color-vault-vibrant-blue);
-    --theme-bg-2: var(--color-background);
-    --theme-text-70: var(--color-on-surface);
-    --theme-panel: var(--color-card-bg-light);
-    --theme-border: var(--color-divider-light);
-    --theme-hover: color-mix(in srgb, var(--color-vault-vibrant-blue) 10%, transparent);
-    --theme-selected: color-mix(in srgb, var(--color-vault-vibrant-blue) 14%, transparent);
-    --theme-shadow: 0 10px 26px rgb(28 43 70 / 10%);
-    --passless-sidebar-bg: var(--color-surface-container-low);
-    --passless-sidebar-text: var(--color-on-surface);
-    --passless-sidebar-active: var(--color-primary-container);
-    --passless-sidebar-active-text: var(--color-on-primary-container);
-    --passless-surface: var(--color-surface-container-lowest);
-    --passless-surface-muted: var(--color-surface);
-    --passless-surface-raised: var(--color-surface-container-low);
-    --passless-text: var(--color-on-surface);
-    --passless-border: var(--color-divider-light);
-    --passless-border-soft: color-mix(in srgb, var(--color-divider-light) 64%, transparent);
-    --passless-control-hover: var(--theme-hover);
-    --passless-control-active: var(--theme-selected);
-    --passless-accent: var(--color-vault-vibrant-blue);
-    --passless-accent-soft: color-mix(in srgb, var(--color-vault-vibrant-blue) 9%, transparent);
-    --passless-shadow-soft: var(--theme-shadow);
-    font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    /* Neutrals: surfaces and the four elevation planes */
+    --color-surface: #ffffff;
+    --color-surface-sunken: #f8f8f8;
+    --color-surface-raised: #ffffff;
+    --color-surface-overlay: #ffffff;
+
+    /* Neutrals: borders, links, interaction */
+    --color-border: #0b120e24;
+    --color-border-bold: #7d818a;
+    --color-border-input: #8c8f97;
+    --color-border-focused: #4688ec;
+    --color-border-selected: #1868db;
+    --color-border-disabled: #0515240f;
+    --color-border-inverse: #ffffff;
+    --color-link: #1868db;
+    --color-link-pressed: #1558bc;
+    --color-link-visited: #803fa5;
+    --color-link-visited-pressed: #48245d;
+    --color-background-neutral-subtle: #00000000;
+    --color-background-neutral-subtle-hovered: #0515240f;
+    --color-background-neutral-subtle-pressed: #0b120e24;
+    --color-background-neutral-bold: #292a2e;
+    --color-background-neutral-bold-hovered: #3b3d42;
+    --color-background-neutral-bold-pressed: #505258;
+    --color-background-input: #ffffff;
+    --color-background-input-hovered: #f8f8f8;
+    --color-background-input-pressed: #ffffff;
+    --color-background-disabled: #0515240f;
+    --color-background-selected: #e9f2fe;
+    --color-background-selected-hovered: #cfe1fd;
+    --color-background-selected-pressed: #8fb8f6;
+    --color-background-selected-bold: #1868db;
+    --color-interaction-hovered: #00000029;
+    --color-interaction-pressed: #00000052;
+    --color-skeleton: #0515240f;
+    --color-blanket: #050c1f75;
+
+    /* Semantic roles: brand, danger, warning, success, information, discovery */
+    --color-background-brand-bold: #1868db;
+    --color-background-brand-bold-hovered: #1558bc;
+    --color-background-brand-bold-pressed: #144794;
+    --color-background-brand-subtlest: #e9f2fe;
+    --color-text-danger: #ae2e24;
+    --color-icon-danger: #c9372c;
+    --color-border-danger: #e2483d;
+    --color-background-danger: #ffeceb;
+    --color-background-danger-subtle: #fd9891;
+    --color-background-danger-bold: #c9372c;
+    --color-background-danger-bold-hovered: #ae2e24;
+    --color-background-danger-bold-pressed: #872821;
+    --color-text-warning: #9e4c00;
+    --color-text-warning-inverse: #292a2e;
+    --color-icon-warning: #e06c00;
+    --color-icon-warning-inverse: #292a2e;
+    --color-border-warning: #e06c00;
+    --color-background-warning: #fff5db;
+    --color-background-warning-subtle: #fbd779;
+    --color-background-warning-bold: #fbc828;
+    --color-background-warning-bold-hovered: #fca700;
+    --color-background-warning-bold-pressed: #f68909;
+    --color-text-success: #4c6b1f;
+    --color-icon-success: #6a9a23;
+    --color-border-success: #6a9a23;
+    --color-background-success: #efffd6;
+    --color-background-success-subtle: #b3df72;
+    --color-background-success-bold: #5b7f24;
+    --color-background-success-bold-hovered: #4c6b1f;
+    --color-background-success-bold-pressed: #3f5224;
+    --color-text-information: #1558bc;
+    --color-icon-information: #357de8;
+    --color-border-information: #357de8;
+    --color-background-information: #e9f2fe;
+    --color-background-information-subtle: #8fb8f6;
+    --color-background-information-bold: #1868db;
+    --color-text-discovery: #803fa5;
+    --color-icon-discovery: #af59e1;
+    --color-border-discovery: #af59e1;
+    --color-background-discovery: #f8eefe;
+    --color-background-discovery-subtle: #d8a0f7;
+    --color-background-discovery-bold: #964ac0;
+
+    /* Accent ramps: decoration only (tags), never status */
+    --color-text-accent-gray: #505258;
+    --color-text-accent-red: #ae2e24;
+    --color-text-accent-orange: #9e4c00;
+    --color-text-accent-yellow: #7f5f01;
+    --color-text-accent-green: #216e4e;
+    --color-text-accent-lime: #4c6b1f;
+    --color-text-accent-teal: #206a83;
+    --color-text-accent-blue: #1558bc;
+    --color-text-accent-purple: #803fa5;
+    --color-text-accent-magenta: #943d73;
+    --color-border-accent-gray: #7d818a;
+    --color-border-accent-red: #e2483d;
+    --color-border-accent-orange: #e06c00;
+    --color-border-accent-yellow: #b38600;
+    --color-border-accent-green: #22a06b;
+    --color-border-accent-lime: #6a9a23;
+    --color-border-accent-teal: #2898bd;
+    --color-border-accent-blue: #357de8;
+    --color-border-accent-purple: #af59e1;
+    --color-border-accent-magenta: #cd519d;
+    --color-icon-accent-lime: #6a9a23;
+    --color-icon-accent-red: #c9372c;
+    --color-icon-accent-orange: #e06c00;
+    --color-icon-accent-yellow: #b38600;
+    --color-icon-accent-green: #22a06b;
+    --color-icon-accent-teal: #2898bd;
+    --color-icon-accent-blue: #357de8;
+    --color-icon-accent-purple: #af59e1;
+    --color-icon-accent-magenta: #cd519d;
+    --color-icon-accent-gray: #7d818a;
+
+    /* Radius: t-shirt scale, chosen by component class, not taste */
+    --radius-xsmall: 0.125rem;
+    --radius-small: 0.25rem;
+    --radius-medium: 0.375rem;
+    --radius-large: 0.5rem;
+    --radius-xlarge: 0.75rem;
+    --radius-xxlarge: 1rem;
+    --radius-full: 624.9375rem;
+    --radius-tile: 25%;
+
+    /* Spacing: 8px base. Tight interiors 0-100, roomy 150-300, page level 400+. */
+    --space-0: 0rem;
+    --space-025: 0.125rem;
+    --space-050: 0.25rem;
+    --space-075: 0.375rem;
+    --space-100: 0.5rem;
+    --space-150: 0.75rem;
+    --space-200: 1rem;
+    --space-250: 1.25rem;
+    --space-300: 1.5rem;
+    --space-400: 2rem;
+    --space-500: 2.5rem;
+    --space-600: 3rem;
+    --space-800: 4rem;
+    --space-1000: 5rem;
+
+    /* Border widths: resting, selected, focused */
+    --border-width-default: 0.0625rem;
+    --border-width-selected: 0.125rem;
+    --border-width-focused: 0.125rem;
+
+    /* Elevation: the only three shadows the system allows */
+    --shadow-raised: 0px 1px 1px #1e1f2140, 0px 0px 1px #1e1f214f;
+    --shadow-overlay: 0px 8px 12px #1e1f2126, 0px 0px 1px #1e1f214f;
+    --shadow-overflow: 0px 0px 8px #1e1f2129, 0px 0px 1px #1e1f211f;
+
+    /* Motion: interactions 50-150ms, transitions 150-400ms, no bounce in product UI */
+    --duration-instant: 0ms;
+    --duration-xxshort: 50ms;
+    --duration-xshort: 100ms;
+    --duration-short: 150ms;
+    --duration-medium: 200ms;
+    --duration-long: 250ms;
+    --duration-xlong: 400ms;
+    --duration-xxlong: 600ms;
+    --easing-out-practical: cubic-bezier(0.4, 1, 0.6, 1);
+    --easing-in-practical: cubic-bezier(0.6, 0, 0.8, 0.6);
+    --easing-out-bold: cubic-bezier(0, 0.4, 0, 1);
+    --easing-inout-bold: cubic-bezier(0.4, 0, 0, 1);
+
+    /* Weights */
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+    --weight-bold: 653;
+
+    /* Alias layer: the component rules read these, so a theme change re-points this group
+       instead of restyling the ~340 selectors that consume it. */
+    --theme-color: var(--color-background-brand-bold);
+    --theme-bg-2: var(--color-surface);
+    --theme-text-70: var(--color-text);
+    --theme-panel: var(--color-surface);
+    --theme-border: var(--color-border);
+    --theme-hover: var(--color-background-neutral-subtle-hovered);
+    --theme-selected: var(--color-background-selected);
+    --theme-shadow: var(--shadow-raised);
+    --passless-sidebar-bg: var(--color-surface-sunken);
+    --passless-sidebar-text: var(--color-text-subtle);
+    --passless-sidebar-active: var(--color-background-selected);
+    --passless-sidebar-active-text: var(--color-text-selected);
+    --passless-surface: var(--color-surface);
+    --passless-surface-muted: var(--color-surface-sunken);
+    --passless-surface-raised: var(--color-surface-raised);
+    --passless-text: var(--color-text);
+    --passless-border: var(--color-border);
+    --passless-border-soft: var(--color-border);
+    --passless-control-hover: var(--color-background-neutral-subtle-hovered);
+    --passless-control-active: var(--color-background-neutral-subtle-pressed);
+    --passless-accent: var(--color-text-brand);
+    --passless-accent-soft: var(--color-background-brand-subtlest);
+    --passless-focus-ring: var(--color-border-focused);
+    --passless-shadow-soft: var(--shadow-raised);
+    /* Documented layout measures, not spacing steps: geometry the 8px grid does not cover.
+       Reference these through the Tailwind width/maxWidth keys, never as an arbitrary [390px]. */
+    --measure-content-max: 760px;
+    --measure-settings-max: 860px;
+    --measure-lock-panel: 390px;
+    --measure-detail-header: 720px;
+    --measure-sidebar: 244px;
+    --measure-item-list-min: 150px;
+    --measure-archive-list-max: 150px;
+    --measure-window-min: 960px;
+    --measure-settings-nav: 220px;
+    --measure-slider-min: 160px;
+    --measure-resizer: 6px;
+    --measure-item-list-default: 220px;
+    /* titleBarStyle: "Overlay" reserves the native traffic-light strip; never self-draw it. */
+    --measure-titlebar: 44px;
+    /* Atlassian Sans is proprietary; the contract's system fallback stack stands in for it,
+       and Atlassian Mono's JetBrains Mono lineage is carried by the platform mono. */
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
     font-synthesis: none;
     color-scheme: light;
     text-rendering: optimizeLegibility;
   }
 
-  /* The design package ships no dark token table, so these reuse the app's existing
-     dark values re-pointed onto the token names. Decision 7 still owes a real dark palette. */
+  /* DESIGN.md ships a light theme only (theme: light), so there is no Atlassian dark token table
+     to copy. These re-point the app's previously shipped dark values onto the new key names —
+     same appearance as before the migration, no invented Atlassian hexes. A real dark palette
+     per role is still owed: needs-design-decision. */
   :root[data-theme="dark"] {
     --color-surface: #111317;
-    --color-surface-container-lowest: #1c1c1e;
-    --color-surface-container-low: #1b1f26;
-    --color-surface-container: #171a20;
-    --color-surface-container-high: #242a33;
-    --color-surface-container-highest: #2f353f;
-    --color-surface-variant: #2f353f;
-    --color-on-surface: #e4e7ec;
-    --color-on-surface-variant: #c9ced8;
-    --color-inverse-surface: #f1f0f5;
-    --color-inverse-on-surface: #2f3034;
-    --color-outline: #8e8e93;
-    --color-outline-variant: #39465a;
-    --color-background: #000000;
-    --color-on-background: #f1f0f5;
-    --color-primary: #adc7ff;
-    --color-on-primary: #001a41;
-    --color-primary-container: #4b8cff;
-    --color-on-primary-container: #ffffff;
-    --color-inverse-primary: #005abe;
-    --color-primary-fixed: #004493;
-    --color-primary-fixed-dim: #4f79d3;
-    --color-vault-vibrant-blue: #86adff;
-    --color-card-bg-light: #1c1c1e;
-    --color-divider-light: #2c2c2e;
-    --color-secure-mask-dot: #aeaeb2;
-    --theme-shadow: 0 14px 32px rgb(0 0 0 / 34%);
+    --color-surface-sunken: #171a20;
+    --color-surface-raised: #1b1f26;
+    --color-surface-overlay: #1c1c1e;
+    --color-text: #e4e7ec;
+    --color-text-subtle: #c9ced8;
+    --color-text-subtlest: #8e8e93;
+    --color-text-inverse: #2f3034;
+    --color-text-selected: #86adff;
+    --color-text-brand: #86adff;
+    --color-icon: #e4e7ec;
+    --color-icon-subtle: #c9ced8;
+    --color-icon-subtlest: #8e8e93;
+    --color-icon-inverse: #2f3034;
+    --color-icon-selected: #86adff;
+    --color-icon-brand: #86adff;
+    --color-border: #2c2c2e;
+    --color-border-bold: #39465a;
+    --color-border-input: #8e8e93;
+    --color-border-focused: #4b8cff;
+    --color-border-selected: #4b8cff;
+    --color-link: #86adff;
+    --color-link-pressed: #adc7ff;
+    --color-background-input: #1c1c1e;
+    --color-background-input-hovered: #242a33;
+    --color-background-input-pressed: #1c1c1e;
+    --color-background-neutral-subtle-hovered: #242a33;
+    --color-background-neutral-subtle-pressed: #2f353f;
+    --color-background-neutral-bold: #f1f0f5;
+    --color-background-selected: #004493;
+    --color-background-selected-hovered: #4f79d3;
+    --color-background-brand-bold: #4b8cff;
+    --color-background-brand-bold-hovered: #86adff;
+    --color-background-brand-bold-pressed: #1868db;
+    --color-background-brand-subtlest: #001a41;
     --passless-sidebar-bg: #171d26;
     color-scheme: dark;
   }
@@ -145,7 +292,9 @@
   }
 
   body {
-    @apply m-0 h-screen min-w-[760px] overflow-hidden bg-slate-100 text-sm text-slate-950 dark:bg-zinc-950 dark:text-slate-100;
+    color: var(--color-text);
+    background: var(--color-surface);
+    @apply m-0 h-screen overflow-hidden text-body;
   }
 
   #root {
@@ -163,125 +312,159 @@
     @apply cursor-pointer;
   }
 
+  /* textfield-standard: background-input + border-input + radius-medium + body, padding space-075. */
   input,
   textarea,
   select {
-    background: var(--passless-surface);
-    border-color: var(--passless-border);
-    @apply w-full rounded-md text-slate-950 outline-none transition-[border-color,box-shadow,background-color] dark:text-slate-100;
+    color: var(--color-text);
+    background: var(--color-background-input);
+    border: var(--border-width-default) solid var(--color-border-input);
+    border-radius: var(--radius-medium);
+    @apply w-full text-body transition-colors duration-short ease-out-practical;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-text-subtlest);
   }
 
   input,
   select {
-    @apply h-10 px-2;
+    @apply h-400 px-075;
+  }
+
+  textarea {
+    @apply resize-y p-075;
+  }
+
+  /* Focus ring contract: 2px border-focused, offset 2px, ring radius = component radius + 2px.
+     Never `outline: none` without this replacement. */
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  a:focus-visible,
+  [role="checkbox"]:focus-visible,
+  [role="radio"]:focus-visible,
+  [tabindex]:focus-visible {
+    outline: var(--border-width-focused) solid var(--color-border-focused);
+    outline-offset: var(--space-025);
   }
 
   input:focus,
   textarea:focus,
   select:focus {
-    border-color: var(--passless-accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--passless-accent) 18%, transparent);
+    background: var(--color-background-input-pressed);
+    border-color: var(--color-border-focused);
   }
 
-  button:focus-visible,
-  input:focus-visible,
-  textarea:focus-visible,
-  select:focus-visible {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--passless-accent) 18%, transparent);
-    @apply outline-none;
+  input:disabled,
+  textarea:disabled,
+  select:disabled {
+    color: var(--color-text-disabled);
+    background: var(--color-background-disabled);
+    border-color: var(--color-border-disabled);
   }
 
   select {
-    background-image: url("data:image/svg+xml,%3Csvg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 10L12 14L16 10' stroke='%2364758B' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    /* Data-URI glyph: the stroke literal mirrors --color-icon-subtlest, which a background image
+       cannot resolve through currentColor. */
+    background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 10L12 14L16 10' stroke='%236B6E76' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: right 0.85rem center;
-    background-size: 18px 18px;
-    @apply appearance-none pr-2 font-semibold shadow-sm;
+    background-position: right var(--space-100) center;
+    background-size: 1rem 1rem;
+    @apply appearance-none pr-300;
   }
 
   select:hover {
-    background-color: var(--passless-control-hover);
+    background-color: var(--color-background-input-hovered);
   }
 
   :root[data-theme="dark"] select {
-    background-image: url("data:image/svg+xml,%3Csvg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 10L12 14L16 10' stroke='%23CBD5E1' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 10L12 14L16 10' stroke='%238E8E93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
 
-  textarea {
-    @apply resize-y p-2;
-  }
-
+  /* form-label: body-small in text-subtle. Paragraphs stay in `text` — the contract bans
+     demoting prose to text-subtle to fake hierarchy. */
   label {
-    @apply grid gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300;
+    color: var(--color-text-subtle);
+    @apply grid gap-050 text-body-small;
   }
 
   p {
-    @apply mt-1.5 mb-0 text-slate-500 dark:text-slate-400;
+    color: var(--color-text);
+    @apply mt-075 mb-0 text-body;
   }
 }
 
 @layer components {
+  /* Lock dialog: overlay plane, radius-xlarge per the modal-dialog recipe. */
   .lock-screen {
-    @apply grid h-screen overflow-auto place-items-center bg-slate-100 p-2 dark:bg-zinc-950;
+    @apply grid h-screen overflow-auto place-items-center bg-surface p-100;
   }
 
   .lock-panel {
-    @apply w-full max-w-[440px] rounded-lg border border-slate-200 bg-white p-2 shadow-2xl shadow-slate-900/10 dark:border-slate-800 dark:bg-zinc-900;
+    background: var(--color-surface-overlay);
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-overlay);
+    @apply w-full max-w-lock-panel rounded-xlarge border p-100;
   }
 
   .lock-panel form {
-    @apply mt-7 grid gap-4;
+    @apply mt-400 grid gap-300;
   }
 
   .lock-panel h1 {
-    @apply m-0 text-sm font-bold leading-tight text-slate-950 dark:text-slate-50;
+    @apply m-0 text-heading-small font-bold text-text;
   }
 
   .compact-lock-screen {
-    @apply flex h-screen items-center justify-center overflow-hidden bg-slate-50 p-7 dark:bg-zinc-950;
+    @apply flex h-screen items-center justify-center overflow-hidden bg-surface p-300;
   }
 
   .compact-unlock-form {
-    @apply grid w-full max-w-[340px] gap-2;
+    @apply grid w-full max-w-lock-panel gap-100;
   }
 
   .compact-password-control {
-    background: var(--passless-surface);
-    border-color: var(--passless-border);
-    @apply flex h-10 items-center rounded-[10px] border px-1 shadow-sm;
+    background: var(--color-background-input);
+    border-color: var(--color-border-input);
+    @apply flex h-400 items-center rounded-medium border px-050;
   }
 
   .compact-password-control:focus-within {
-    border-color: var(--passless-accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--passless-accent) 18%, transparent);
+    outline: var(--border-width-focused) solid var(--color-border-focused);
+    outline-offset: var(--space-025);
+    border-color: var(--color-border-focused);
   }
 
   .compact-password-control input {
-    color: var(--passless-text);
-    @apply min-w-0 flex-1 border-0 bg-transparent px-2 text-sm leading-none shadow-none outline-none;
+    color: var(--color-text);
+    @apply min-w-0 flex-1 border-0 bg-transparent px-100 text-body shadow-none;
   }
 
   .compact-password-control input::placeholder {
-    color: var(--color-outline);
+    color: var(--color-text-subtlest);
     opacity: 1;
   }
 
   .compact-unlock-icon-button {
-    color: var(--passless-accent);
-    @apply grid h-8 w-8 shrink-0 place-items-center rounded-md border-0 bg-transparent p-0;
+    color: var(--color-text-brand);
+    @apply grid h-300 w-300 shrink-0 place-items-center rounded-medium border-0 bg-transparent p-0;
   }
 
   .compact-unlock-icon-button:hover {
     background: var(--passless-control-hover);
   }
 
+  /* Role background + role border, body copy stays in --color-text. */
   .compact-lock-error {
-    @apply rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-200;
+    @apply rounded-medium border border-border-danger bg-background-danger px-100 py-050 text-body-small text-text;
   }
 
   .app-shell {
-    background: var(--passless-surface-muted);
-    @apply grid h-screen min-h-0 min-w-[960px] grid-rows-[58px_minmax(0,1fr)] overflow-hidden;
+    background: var(--passless-surface);
+    @apply grid h-screen min-h-0 min-w-window grid-rows-titlebar overflow-hidden;
   }
 
   .sidebar,
@@ -311,37 +494,37 @@
     color: var(--passless-sidebar-text);
     background: var(--passless-sidebar-bg);
     border-color: var(--passless-border);
-    @apply flex flex-col gap-6 border-r px-2 py-2;
+    @apply flex flex-col gap-300 border-r px-100 py-100;
   }
 
   .top-search-bar {
-    background: color-mix(in srgb, var(--passless-surface) 92%, var(--passless-surface-muted));
+    background: var(--passless-surface);
     border-color: var(--passless-border);
-    @apply col-start-2 col-span-3 grid min-h-0 grid-cols-[1fr_auto] items-center gap-4 border-b px-3;
+    @apply col-start-2 col-span-3 grid min-h-0 grid-cols-[1fr_auto] items-center gap-200 border-b px-150;
   }
 
   .column-resize-handle {
-    background: linear-gradient(to right, transparent 0 2px, var(--passless-border-soft) 2px 3px, transparent 3px);
+    background: var(--color-border-bold);
     @apply col-start-3 row-start-2 h-full w-full cursor-col-resize border-0;
   }
 
   .column-resize-handle:hover,
   .column-resize-handle:focus-visible {
-    background: linear-gradient(to right, transparent 0 1px, var(--passless-accent) 1px 4px, transparent 4px);
+    background: var(--color-border-selected);
   }
 
   .top-search-wrap {
-    @apply relative max-w-[760px];
+    @apply relative max-w-content;
   }
 
   .top-search-box {
-    background: var(--passless-surface-raised);
-    border-color: var(--passless-border);
-    @apply flex h-10 grid-cols-none items-center gap-2 rounded-lg border px-3 text-slate-500 shadow-sm dark:text-slate-400;
+    background: var(--color-background-input);
+    border-color: var(--color-border-input);
+    @apply flex h-400 grid-cols-none items-center gap-100 rounded-medium border px-150 text-text-subtlest;
   }
 
   .top-search-box input {
-    @apply h-auto border-0 bg-transparent p-0 text-sm font-medium text-slate-900 shadow-none outline-none dark:text-slate-100;
+    @apply h-auto border-0 bg-transparent p-0 text-body font-medium text-text shadow-none;
   }
 
   .top-search-box input:focus {
@@ -349,14 +532,14 @@
   }
 
   .top-search-results {
-    background: var(--passless-surface);
-    border-color: var(--passless-border);
-    box-shadow: var(--passless-shadow-soft);
-    @apply absolute left-0 right-0 top-[calc(100%+8px)] z-30 grid overflow-hidden rounded-lg border py-1.5;
+    background: var(--color-surface-overlay);
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-overlay);
+    @apply absolute left-0 right-0 top-[calc(100%+var(--space-100))] z-30 grid overflow-hidden rounded-large border py-075;
   }
 
   .top-search-results button {
-    @apply mx-1 flex min-h-[58px] items-center gap-3 rounded-md border-0 bg-transparent px-2 py-2 text-left text-slate-900 dark:text-slate-100;
+    @apply mx-050 flex min-h-600 items-center gap-150 rounded-medium border-0 bg-transparent px-100 py-100 text-left text-text;
   }
 
   .top-search-results button:hover {
@@ -369,26 +552,29 @@
   }
 
   .top-search-results button small {
-    @apply mt-0.5 text-sm text-slate-500 dark:text-slate-400;
+    @apply mt-025 text-body-small text-text-subtle;
   }
 
   .top-search-results p {
-    @apply m-0 px-2 py-2 text-sm text-slate-500;
+    @apply m-0 px-100 py-100 text-body;
   }
 
   .top-new-item-button {
-    color: white;
-    background: var(--passless-accent);
-    border-color: color-mix(in srgb, var(--passless-accent) 78%, black);
-    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-semibold;
+    color: var(--color-text-inverse);
+    background: var(--color-background-brand-bold);
+    @apply inline-flex min-h-400 items-center justify-center gap-075 rounded-medium border-transparent px-150 text-body font-medium;
   }
 
   .top-new-item-button:hover {
-    background: color-mix(in srgb, var(--passless-accent) 88%, black);
+    background: var(--color-background-brand-bold-hovered);
+  }
+
+  .top-new-item-button:active {
+    background: var(--color-background-brand-bold-pressed);
   }
 
   .brand {
-    @apply flex items-center gap-3 px-1.5;
+    @apply flex items-center gap-150 px-075;
   }
 
   .brand strong,
@@ -397,63 +583,48 @@
   }
 
   .brand span {
-    color: color-mix(in srgb, var(--passless-sidebar-text) 68%, transparent);
-    @apply mt-0.5 text-sm;
+    color: var(--color-text-subtlest);
+    @apply mt-025 text-body-small;
   }
 
   .brand-mark,
   .item-icon,
   .large-icon {
-    background: linear-gradient(
-      135deg,
-      var(--passless-accent),
-      color-mix(in srgb, var(--passless-accent) 62%, #23b38a)
-    );
-    @apply grid place-items-center text-white;
+    background: var(--color-background-brand-bold);
+    @apply grid place-items-center text-text-inverse;
   }
 
   .brand-mark {
-    @apply h-[34px] w-[34px] rounded-md;
+    @apply h-400 w-400 rounded-medium;
   }
 
   .brand.large .brand-mark {
-    @apply h-[42px] w-[42px];
+    @apply h-500 w-500;
   }
 
   .nav-list {
-    @apply grid gap-1;
+    @apply grid gap-050;
   }
 
   .nav-item {
-    @apply flex min-h-9 items-center gap-2.5 rounded-md border-0 bg-transparent px-2 text-left text-inherit no-underline transition-[background-color,color,box-shadow];
+    @apply flex min-h-400 items-center gap-100 rounded-medium border-0 bg-transparent px-100 text-left text-inherit no-underline transition-[background-color,color];
   }
 
   .nav-item:hover {
-    background: color-mix(in srgb, white 52%, transparent);
+    background: var(--color-background-neutral-subtle-hovered);
   }
 
   .nav-item.active {
-    color: var(--passless-sidebar-active-text);
-    background: linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--passless-sidebar-active) 92%, white),
-      var(--passless-sidebar-active)
-    );
-    box-shadow:
-      inset 0 0 0 1px color-mix(in srgb, white 22%, transparent),
-      0 5px 14px color-mix(in srgb, var(--passless-sidebar-active) 18%, transparent);
-  }
-
-  :root[data-theme="dark"] .nav-item:hover {
-    background: color-mix(in srgb, white 8%, transparent);
+    color: var(--color-text-selected);
+    background: var(--color-background-selected);
   }
 
   .category-nav {
-    @apply grid gap-2;
+    @apply grid gap-100;
   }
 
   .category-item {
-    @apply min-h-10;
+    @apply min-h-400;
   }
 
   .category-item.active svg {
@@ -461,16 +632,16 @@
   }
 
   .sidebar-footer {
-    @apply mt-auto grid gap-2;
+    @apply mt-auto grid gap-100;
   }
 
   .theme-toggle,
   .toolbar button,
   .password-control button,
   .icon-button {
-    background: var(--passless-surface);
+    background: var(--color-background-neutral-subtle);
     border-color: var(--passless-border);
-    @apply min-h-[34px] rounded-md border text-slate-950 transition-colors dark:text-slate-100;
+    @apply min-h-400 rounded-medium border text-text-subtle transition-colors;
   }
 
   .theme-toggle:hover,
@@ -481,116 +652,116 @@
   }
 
   .theme-toggle {
-    @apply inline-flex items-center justify-center gap-2 px-2 font-semibold;
+    @apply inline-flex items-center justify-center gap-100 px-100 font-medium;
   }
 
   .sidebar-section-title {
-    @apply flex items-center justify-between text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400;
+    @apply flex items-center justify-between text-body-small font-medium text-text-subtle;
   }
 
   .sidebar-section-title button {
-    background: color-mix(in srgb, var(--passless-surface) 72%, transparent);
-    border-color: color-mix(in srgb, var(--passless-border) 78%, transparent);
-    @apply grid h-7 w-7 place-items-center rounded-md border text-slate-600 dark:text-slate-300;
+    background: var(--color-background-neutral-subtle);
+    border-color: var(--passless-border);
+    @apply grid h-300 w-300 place-items-center rounded-medium border text-icon-subtle;
   }
 
   .sidebar-section-title button:hover {
-    background: var(--passless-surface);
+    background: var(--passless-control-hover);
   }
 
   .sidebar-archive {
-    background: color-mix(in srgb, var(--passless-surface) 58%, transparent);
-    border-color: color-mix(in srgb, var(--passless-border) 76%, transparent);
-    @apply grid gap-2 rounded-lg border p-2;
+    background: var(--passless-surface-muted);
+    border-color: var(--passless-border);
+    @apply grid gap-100 rounded-large border p-100;
   }
 
   .sidebar-archive-list {
-    @apply grid max-h-[160px] gap-1 overflow-auto;
+    @apply grid max-h-400 gap-050 overflow-auto;
   }
 
   .sidebar-archive-list button {
-    @apply flex min-h-9 items-center gap-2 rounded-md border border-transparent bg-transparent px-2 text-left text-slate-700 dark:text-slate-200;
+    @apply flex min-h-400 items-center gap-100 rounded-medium border border-transparent bg-transparent px-100 text-left text-text;
   }
 
   .sidebar-archive-list button:hover {
-    background: var(--passless-surface);
+    background: var(--passless-control-hover);
     border-color: var(--passless-border);
   }
 
   .sidebar-archive-list button span {
-    @apply grid h-6 w-6 flex-none place-items-center rounded-md bg-slate-200 text-sm font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300;
+    @apply grid h-300 w-300 flex-none place-items-center rounded-xsmall bg-background-neutral-subtle-hovered text-body-small font-medium text-text-subtle;
   }
 
   .sidebar-archive-list button strong {
-    @apply truncate text-sm font-semibold;
+    @apply truncate text-body font-medium;
   }
 
   .sidebar-archive-list p {
-    @apply m-0 px-1 text-sm text-slate-500;
+    @apply m-0 px-050 text-body;
   }
 
   .item-list {
     background: var(--passless-surface-muted);
     border-color: var(--passless-border);
-    @apply border-r px-2 py-2;
+    @apply border-r px-100 py-100;
   }
 
   .toolbar {
-    @apply flex gap-2.5;
+    @apply flex gap-100;
   }
 
   .toolbar button {
-    @apply inline-grid min-w-[38px] place-items-center px-2;
+    @apply inline-grid min-w-500 place-items-center px-100;
   }
 
   .search-box {
-    @apply flex h-[34px] flex-1 items-center gap-2 rounded-md border border-slate-300 bg-white px-2 dark:border-slate-700 dark:bg-slate-800;
+    @apply flex h-400 flex-1 items-center gap-100 rounded-medium border border-border-input bg-background-input px-100;
   }
 
   .search-box input {
-    @apply h-auto w-full border-0 bg-transparent p-0 text-inherit outline-none;
+    @apply h-auto w-full border-0 bg-transparent p-0 text-inherit;
   }
 
   .sync-state {
-    background: color-mix(in srgb, var(--passless-surface) 64%, transparent);
-    @apply my-3 flex min-h-8 items-center gap-2 rounded-md px-2 text-sm font-medium text-slate-600 dark:text-slate-300;
+    background: var(--color-background-brand-subtlest);
+    @apply my-150 flex min-h-400 items-center gap-100 rounded-medium px-100 text-body font-medium text-text-subtle;
   }
 
   .sidebar-tool-panel {
     background: var(--passless-surface);
     border-color: var(--passless-border);
-    @apply mb-3 grid gap-2 rounded-lg border p-2 text-sm text-slate-600 dark:text-slate-300;
+    @apply mb-150 grid gap-100 rounded-large border p-100 text-body text-text-subtle;
   }
 
   .sidebar-tool-panel strong {
-    @apply text-sm text-slate-950 dark:text-slate-100;
+    @apply text-body font-medium text-text;
   }
 
   .sidebar-tool-panel p {
-    @apply m-0 text-sm;
+    @apply m-0 text-body;
   }
 
   .rows {
-    @apply grid gap-1;
+    @apply grid gap-050;
   }
 
   .item-row {
-    @apply flex min-h-[58px] w-full items-center gap-3 rounded-md border border-transparent bg-transparent px-2 py-2 text-left text-inherit transition-[background-color,border-color,box-shadow,transform];
+    @apply flex min-h-600 w-full items-center gap-150 rounded-medium border border-transparent bg-transparent px-100 py-100 text-left text-inherit transition-[background-color,border-color];
   }
 
   .item-row:hover {
-    background: color-mix(in srgb, var(--passless-surface) 82%, transparent);
+    background: var(--passless-control-hover);
     border-color: var(--passless-border-soft);
   }
 
   .item-row.active {
-    background: var(--passless-control-active);
-    border-color: color-mix(in srgb, var(--passless-accent) 28%, var(--passless-border));
-    box-shadow: inset 3px 0 0 var(--passless-accent);
+    color: var(--color-text-selected);
+    background: var(--color-background-selected);
+    border-color: var(--color-border-selected);
   }
 
   .item-icon {
-    @apply h-[34px] w-[34px] flex-none rounded-lg;
+    @apply h-400 w-400 flex-none rounded-small;
   }
 
   .item-row strong,
@@ -599,54 +770,54 @@
   }
 
   .item-row small {
-    @apply mt-1 text-sm text-slate-500 dark:text-slate-400;
+    @apply mt-050 text-body-small text-text-subtle;
   }
 
   .row-star {
-    @apply ml-auto text-amber-500;
+    @apply ml-auto text-accent-yellow;
   }
 
   .empty-state {
-    @apply mx-2.5 my-5 text-sm text-slate-500;
+    @apply mx-100 my-250 text-body text-text-subtle;
   }
 
   .detail-pane {
     background: var(--passless-surface);
-    @apply px-4 py-3;
+    @apply px-200 py-150;
   }
 
   .detail-topbar {
     border-color: var(--passless-border-soft);
-    @apply mb-3 flex max-w-[760px] items-center justify-between gap-2 border-b pb-3;
+    @apply mb-150 flex max-w-content items-center justify-between gap-100 border-b pb-150;
   }
 
   .vault-picker {
-    @apply block min-w-[160px];
+    @apply block min-w-400;
   }
 
   .vault-picker-row {
-    @apply flex items-center gap-1.5;
+    @apply flex items-center gap-075;
   }
 
   .vault-add-button {
-    @apply h-9 w-9;
+    @apply h-400 w-400;
   }
 
   .vault-picker select,
   .type-picker {
     background-color: var(--passless-surface-muted);
     border-color: var(--passless-border);
-    @apply h-9 rounded-md px-2 pr-2 text-sm font-semibold shadow-none;
+    @apply h-400 rounded-medium px-100 pr-100 text-body font-medium shadow-none;
   }
 
   .detail-topbar-actions {
-    @apply flex items-center gap-2;
+    @apply flex items-center gap-100;
   }
 
   .top-edit-button {
-    background: var(--passless-surface);
+    background: var(--color-background-neutral-subtle);
     border-color: var(--passless-border);
-    @apply inline-flex min-h-9 items-center justify-center gap-2 rounded-md border px-2 text-sm font-semibold text-slate-700 transition-colors dark:text-slate-200;
+    @apply inline-flex min-h-400 items-center justify-center gap-100 rounded-medium border px-100 text-body font-medium text-text-subtle transition-colors;
   }
 
   .top-edit-button:hover {
@@ -656,29 +827,29 @@
   .type-display {
     background: var(--passless-surface-muted);
     border-color: var(--passless-border);
-    @apply inline-flex min-h-9 items-center rounded-md border px-2 text-sm font-semibold text-slate-500 dark:text-slate-300;
+    @apply inline-flex min-h-400 items-center rounded-medium border px-100 text-body font-medium text-text-subtle;
   }
 
   .detail-form {
-    @apply max-w-[760px];
+    @apply max-w-content;
   }
 
   .generator-pane {
-    @apply grid max-w-[760px] gap-5;
+    @apply grid max-w-content gap-250;
   }
 
-  .generator-pane h1 {
-    @apply m-0 text-sm font-bold leading-tight text-slate-950 dark:text-slate-100;
+  .generator-pane h2 {
+    @apply m-0 text-heading-small font-bold text-text;
   }
 
   .generator-output {
     background: var(--passless-surface-raised);
     border-color: var(--passless-border);
-    @apply grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-lg border p-2;
+    @apply grid grid-cols-[minmax(0,1fr)_auto] gap-100 rounded-large border p-100;
   }
 
   .generator-output input {
-    @apply h-10 border-0 bg-transparent font-mono text-sm font-semibold shadow-none;
+    @apply h-400 border-0 bg-transparent font-mono text-body font-medium shadow-none;
   }
 
   .generator-output input:focus {
@@ -688,24 +859,24 @@
   .generator-controls {
     background: var(--passless-surface-raised);
     border-color: var(--passless-border);
-    @apply grid gap-2 rounded-lg border p-2;
+    @apply grid gap-100 rounded-large border p-100;
   }
 
   .generator-length-control {
-    @apply grid grid-cols-[auto_minmax(160px,1fr)_72px] grid-rows-none items-center gap-3 text-sm font-semibold text-slate-700 dark:text-slate-200;
+    @apply grid grid-cols-slider-row grid-rows-none items-center gap-150 text-body font-medium text-text;
   }
 
   .generator-length-control input[type="range"] {
-    accent-color: var(--passless-accent);
-    @apply h-8 cursor-pointer border-0 bg-transparent p-0 shadow-none;
+    accent-color: var(--color-background-brand-bold);
+    @apply h-400 cursor-pointer border-0 bg-transparent p-0 shadow-none;
   }
 
   .generator-length-control input[type="number"] {
-    @apply h-9 text-center;
+    @apply h-400 text-center;
   }
 
   .generator-check-row {
-    @apply flex min-h-9 grid-cols-none items-center gap-2 rounded-md px-2 text-sm font-medium text-slate-700 dark:text-slate-200;
+    @apply flex min-h-400 grid-cols-none items-center gap-100 rounded-medium px-100 text-body font-medium text-text;
   }
 
   .generator-check-row:hover {
@@ -713,8 +884,8 @@
   }
 
   .generator-check-row input {
-    accent-color: var(--passless-accent);
-    @apply h-4 w-4;
+    accent-color: var(--color-background-brand-bold);
+    @apply h-200 w-200 rounded-small;
   }
 
   .generator-actions {
@@ -731,23 +902,23 @@
 
   .detail-header {
     border-color: var(--passless-border-soft);
-    @apply flex items-center gap-3 border-b pb-3;
+    @apply flex items-center gap-150 border-b pb-150;
   }
 
   .large-icon {
-    @apply h-16 w-16 rounded-[14px] text-sm font-extrabold;
+    @apply h-800 w-800 rounded-xlarge text-body font-bold;
   }
 
   .title-input {
-    @apply h-auto w-full max-w-[520px] border-0 bg-transparent p-0 text-sm font-bold leading-tight text-inherit outline-none;
+    @apply h-auto w-full max-w-content border-0 bg-transparent p-0 text-heading-medium font-bold text-inherit;
   }
 
   .form-grid {
-    @apply mt-7 grid max-w-[760px] grid-cols-2 gap-3.5;
+    @apply mt-400 grid max-w-content grid-cols-2 gap-300;
   }
 
   .onepassword-form {
-    @apply max-w-[760px] grid-cols-1 gap-4;
+    @apply max-w-content grid-cols-1 gap-200;
   }
 
   .wide {
@@ -755,19 +926,19 @@
   }
 
   .password-control {
-    @apply grid grid-cols-[1fr_34px_34px_34px] gap-1.5;
+    @apply grid grid-cols-password gap-075;
   }
 
   .password-control button,
   .icon-button {
-    @apply grid h-10 w-[34px] place-items-center;
+    @apply grid h-400 w-400 place-items-center;
   }
 
   .onepassword-group,
   .onepassword-block {
     background: var(--passless-surface-raised);
     border-color: var(--passless-border);
-    @apply overflow-hidden rounded-lg border;
+    @apply overflow-hidden rounded-large border;
   }
 
   .onepassword-group .onepassword-field + .onepassword-field {
@@ -776,24 +947,24 @@
   }
 
   .onepassword-field {
-    color: color-mix(in srgb, var(--passless-accent) 76%, #59606b);
-    @apply gap-1.5 p-3 text-sm font-semibold;
+    color: var(--color-text-subtle);
+    @apply gap-075 p-150 text-body font-medium;
   }
 
   .onepassword-field.standalone {
     background: var(--passless-surface-raised);
     border-color: var(--passless-border);
-    @apply rounded-lg border;
+    @apply rounded-large border;
   }
 
   .onepassword-field input,
   .onepassword-field textarea,
   .onepassword-field select {
-    @apply h-auto min-h-7 border-0 bg-transparent p-0 text-sm font-medium text-slate-900 shadow-none dark:text-slate-100;
+    @apply h-auto min-h-300 border-0 bg-transparent p-0 text-body font-medium text-text shadow-none;
   }
 
   .onepassword-field textarea {
-    @apply min-h-[72px] resize-none;
+    @apply min-h-500 resize-none;
   }
 
   .onepassword-field input:focus,
@@ -804,7 +975,7 @@
 
   .onepassword-field input::placeholder,
   .onepassword-field textarea::placeholder {
-    @apply text-slate-500;
+    @apply text-text-subtlest;
   }
 
   .website-section,
@@ -814,35 +985,35 @@
 
   .website-list,
   .custom-field-list {
-    @apply grid gap-3;
+    @apply grid gap-150;
   }
 
   .website-row {
     background: var(--passless-surface-raised);
     border-color: var(--passless-border);
-    @apply grid grid-cols-[1fr_44px] items-stretch overflow-hidden rounded-lg border;
+    @apply grid grid-cols-field items-stretch overflow-hidden rounded-large border;
   }
 
   .website-stack,
   .custom-field-stack {
-    @apply grid gap-0.5 px-2 py-2;
+    @apply grid gap-025 px-100 py-100;
   }
 
   .website-name-input,
   .website-address-input,
   .custom-field-name-input,
   .custom-field-value-input {
-    @apply h-auto min-h-0 border-0 bg-transparent p-0 shadow-none outline-none;
+    @apply h-auto min-h-0 border-0 bg-transparent p-0 shadow-none;
   }
 
   .website-name-input,
   .custom-field-name-input {
-    @apply text-sm font-medium leading-tight text-slate-600 dark:text-slate-400;
+    @apply text-body font-medium text-text-subtle;
   }
 
   .website-address-input,
   .custom-field-value-input {
-    @apply text-sm font-medium leading-snug text-slate-950 dark:text-slate-100;
+    @apply text-body font-medium text-text;
   }
 
   .website-name-input:focus,
@@ -856,31 +1027,31 @@
   .website-address-input::placeholder,
   .custom-field-name-input::placeholder,
   .custom-field-value-input::placeholder {
-    @apply text-slate-500;
+    @apply text-text-subtlest;
   }
 
   .website-row button,
   .custom-field-row button {
-    @apply grid place-items-center border-0 bg-transparent text-red-500 transition-colors;
+    @apply grid place-items-center border-0 bg-transparent text-icon-danger transition-colors;
   }
 
   .website-row button:hover,
   .custom-field-row button:hover {
-    background: color-mix(in srgb, #ef4444 10%, transparent);
+    background: var(--color-background-danger);
   }
 
   .website-row button:disabled {
-    @apply cursor-not-allowed text-slate-300 hover:bg-transparent dark:text-slate-700;
+    @apply cursor-not-allowed text-text-disabled hover:bg-transparent;
   }
 
   .round-remove-button svg {
-    @apply fill-white stroke-[2.4px] dark:fill-slate-900;
+    @apply fill-surface;
   }
 
   .inline-add-button,
   .add-more-button {
     color: var(--passless-accent);
-    @apply inline-flex min-h-9 items-center gap-2 rounded-md border border-transparent bg-transparent px-2 text-sm font-semibold transition-colors;
+    @apply inline-flex min-h-400 items-center gap-100 rounded-medium border border-transparent bg-transparent px-100 text-body font-medium transition-colors;
   }
 
   .inline-add-button:hover,
@@ -889,31 +1060,34 @@
   }
 
   .inline-add-button {
-    @apply mt-1 justify-start;
+    @apply mt-050 justify-start;
   }
 
   .custom-field-row {
     background: var(--passless-surface-raised);
     border-color: var(--passless-border);
-    @apply grid grid-cols-[34px_1fr_44px] items-stretch overflow-hidden rounded-lg border;
+    @apply grid grid-cols-handle-field items-stretch overflow-hidden rounded-large border;
   }
 
   .field-inline-actions {
-    @apply mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400;
+    @apply mt-100 flex flex-wrap items-center gap-100 text-body text-text-subtle;
   }
 
   .field-inline-actions .secondary-button {
-    @apply min-h-8 px-2 text-sm;
+    @apply min-h-300 px-100 text-body;
   }
 
   .field-inline-actions code {
-    @apply min-h-8 border-blue-100 bg-blue-50 px-2 py-1 text-sm font-bold tracking-wide text-blue-700 dark:border-blue-950 dark:bg-blue-950/50 dark:text-blue-200;
+    color: var(--color-text);
+    background: var(--color-background-neutral-subtle-hovered);
+    border-color: var(--color-border);
+    @apply min-h-300 rounded-small border px-050 py-025 text-code font-regular;
   }
 
   .otp-display-button {
     --otp-progress: 1;
     color: var(--passless-text);
-    @apply flex min-h-8 items-center gap-2 rounded-full border-0 bg-transparent px-0 py-0 text-left;
+    @apply flex min-h-400 items-center gap-100 rounded-full border-0 bg-transparent px-0 py-0 text-left;
   }
 
   .otp-display-button:hover .otp-code {
@@ -921,111 +1095,111 @@
   }
 
   .otp-code {
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-    @apply text-2xl font-semibold leading-none tracking-normal;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    @apply text-metric-medium;
   }
 
   .password-control input {
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-weight: 600;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-weight: var(--weight-medium);
   }
 
   .otp-countdown {
-    color: color-mix(in srgb, var(--passless-text) 58%, transparent);
-    background: color-mix(in srgb, var(--passless-border) 46%, transparent);
-    @apply flex h-7 items-center gap-1 rounded-full px-2 text-sm font-semibold;
+    color: var(--color-text-subtle);
+    background: var(--color-background-neutral-subtle-hovered);
+    @apply flex h-300 items-center gap-050 rounded-full px-100 text-body font-medium;
   }
 
   .otp-countdown-ring {
     position: relative;
-    background: conic-gradient(#f35c46 calc(var(--otp-progress) * 1turn), #d9d9df 0);
-    @apply h-4 w-4 rounded-full;
+    background: conic-gradient(var(--color-icon-danger) calc(var(--otp-progress) * 1turn), var(--color-border) 0);
+    @apply h-200 w-200 rounded-full;
   }
 
   .otp-countdown-ring::after {
     position: absolute;
-    inset: 5px;
+    inset: var(--space-050);
     content: "";
-    background: var(--passless-surface-raised);
-    border-radius: 999px;
+    background: var(--color-surface);
+    border-radius: var(--radius-full);
   }
 
   .field-inline-actions small {
-    @apply max-w-[420px] truncate text-sm;
+    @apply max-w-lock-panel truncate text-body;
   }
 
   .related-item-preview {
-    @apply text-blue-600 dark:text-blue-300;
+    @apply text-text-brand;
   }
 
   .section-field-card {
-    @apply grid gap-2 px-2 py-2;
+    @apply grid gap-100 px-100 py-100;
   }
 
   .section-name-input {
-    @apply text-sm font-bold text-slate-800 dark:text-slate-100;
+    @apply text-body font-medium text-text;
   }
 
   .section-child-list {
-    @apply grid gap-2;
+    @apply grid gap-100;
   }
 
   .section-child-row {
     background: var(--passless-surface);
     border-color: var(--passless-border-soft);
-    @apply grid grid-cols-[1fr_34px] overflow-hidden rounded-md border;
+    @apply grid grid-cols-field overflow-hidden rounded-large border;
   }
 
   .section-child-row .custom-field-stack {
-    @apply px-2 py-2;
+    @apply px-100 py-075;
   }
 
   .section-child-row .round-remove-button {
-    @apply w-[34px];
+    @apply w-400;
   }
 
   .section-add-button {
-    @apply mt-0 min-h-8 justify-start px-0 text-sm;
+    @apply mt-0 min-h-300 justify-start px-0 text-body;
   }
 
   .section-add-menu {
-    @apply z-20 grid max-h-[calc(100vh-24px)] grid-cols-2 gap-x-1 overflow-auto;
+    @apply z-20 grid max-h-[calc(100vh-var(--space-300))] grid-cols-2 gap-x-050 overflow-auto;
   }
 
   .item-search-wrap {
-    @apply grid gap-1;
+    @apply grid gap-050;
   }
 
   .item-search-list {
-    @apply grid max-h-[220px] overflow-auto;
+    @apply grid max-h-600 overflow-auto;
   }
 
   .item-search-empty {
-    @apply mx-1 px-2 py-1;
+    @apply mx-050 px-100 py-050;
   }
 
   .login-custom-field {
-    @apply grid gap-1;
+    @apply grid gap-050;
   }
 
   .login-custom-field-value {
-    @apply grid grid-cols-[1fr_34px] items-start gap-1;
+    @apply grid grid-cols-field items-start gap-050;
   }
 
   .login-custom-field-control {
-    @apply grid gap-1;
+    @apply grid gap-050;
   }
 
   .login-custom-field .round-remove-button {
-    @apply grid h-7 w-[34px] place-items-center border-0 bg-transparent text-red-500 transition-colors;
+    @apply grid h-300 w-400 place-items-center border-0 bg-transparent text-icon-danger transition-colors;
   }
 
   .login-custom-field .round-remove-button:hover {
-    background: color-mix(in srgb, #ef4444 10%, transparent);
+    background: var(--color-background-danger);
   }
 
   .drag-handle {
-    @apply grid place-items-center text-sm leading-none text-slate-400;
+    @apply grid place-items-center text-body text-text-subtlest;
   }
 
   .add-more-wrap {
@@ -1035,27 +1209,27 @@
   .add-more-button {
     background: var(--passless-surface-muted);
     border-color: var(--passless-border-soft);
-    @apply mt-3 w-full justify-start rounded-md border px-2 text-left;
+    @apply mt-150 w-full justify-start rounded-medium border px-100 text-left;
   }
 
   .add-more-button svg:last-child {
-    @apply ml-auto text-slate-600 dark:text-slate-300;
+    @apply ml-auto text-icon-subtle;
   }
 
   .add-more-button svg:first-child {
-    @apply text-blue-600 dark:text-blue-300;
+    @apply text-icon-brand;
   }
 
   .add-more-menu {
-    background: var(--passless-surface);
-    border-color: var(--passless-border);
-    box-shadow: var(--passless-shadow-soft);
+    background: var(--color-surface-overlay);
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-overlay);
     /* Anchored to the viewport in JS, so the panel never inherits the row's clip. */
-    @apply z-20 grid max-h-[calc(100vh-24px)] overflow-auto rounded-lg border py-2;
+    @apply z-20 grid max-h-[calc(100vh-var(--space-300))] overflow-auto rounded-large border py-100;
   }
 
   .menu-option {
-    @apply mx-1 grid min-h-11 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-slate-900 dark:text-slate-100;
+    @apply mx-050 grid min-h-400 rounded-medium border-0 bg-transparent px-100 py-075 text-left text-text;
   }
 
   .menu-option:hover {
@@ -1063,15 +1237,15 @@
   }
 
   .menu-option span {
-    @apply text-sm font-normal leading-snug;
+    @apply text-body font-regular;
   }
 
   .menu-option small {
-    @apply mt-0.5 text-sm text-slate-500 dark:text-slate-400;
+    @apply mt-025 text-body-small text-text-subtle;
   }
 
   .menu-option.separated {
-    @apply mt-2 border-t border-slate-200 pt-2 dark:border-slate-800;
+    @apply mt-100 border-t border-border pt-100;
   }
 
   .detail-header .icon-button {
@@ -1079,34 +1253,37 @@
   }
 
   .icon-button.active {
-    @apply text-amber-500;
+    @apply text-icon-selected;
   }
 
   .detail-actions {
-    @apply mt-5 flex max-w-[760px] items-center justify-end gap-2.5;
+    @apply mt-250 flex max-w-content items-center justify-end gap-100;
   }
 
   .primary-button,
   .secondary-button,
   .danger-button {
-    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3 font-semibold transition-[background-color,border-color,box-shadow,color];
+    @apply inline-flex min-h-400 items-center justify-center gap-075 rounded-medium px-150 font-medium transition-[background-color,border-color,color];
   }
 
+  /* button-primary: filled brand, borderless. */
   .primary-button {
-    background: var(--passless-accent);
-    border-color: color-mix(in srgb, var(--passless-accent) 82%, black);
-    box-shadow: 0 1px 1px rgb(0 0 0 / 10%);
-    @apply border text-white disabled:cursor-not-allowed disabled:opacity-55;
+    background: var(--color-background-brand-bold);
+    @apply border-transparent text-text-inverse disabled:cursor-not-allowed;
   }
 
   .primary-button:hover {
-    background: color-mix(in srgb, var(--passless-accent) 88%, black);
+    background: var(--color-background-brand-bold-hovered);
+  }
+
+  .primary-button:active {
+    background: var(--color-background-brand-bold-pressed);
   }
 
   .secondary-button {
-    background: var(--passless-surface);
+    background: var(--color-background-neutral-subtle);
     border-color: var(--passless-border);
-    @apply border text-slate-950 disabled:cursor-not-allowed disabled:opacity-55 dark:text-slate-100;
+    @apply border text-text-subtle disabled:cursor-not-allowed;
   }
 
   .secondary-button:hover {
@@ -1114,65 +1291,89 @@
   }
 
   .danger-button {
-    background: color-mix(in srgb, #ef4444 8%, var(--passless-surface));
-    border-color: color-mix(in srgb, #ef4444 22%, var(--passless-border));
-    @apply border text-red-700 dark:text-red-200;
+    background: var(--color-background-danger-bold);
+    border-color: var(--color-background-danger-bold);
+    @apply border-transparent text-text-inverse;
   }
 
   .danger-button:hover {
-    background: color-mix(in srgb, #ef4444 14%, var(--passless-surface));
+    background: var(--color-background-danger-bold-hovered);
   }
 
+  /* button-disabled: the fill and label both step back, and hover no longer responds. */
+  .primary-button:disabled,
+  .secondary-button:disabled,
+  .danger-button:disabled,
+  .primary-button:disabled:hover,
+  .secondary-button:disabled:hover,
+  .danger-button:disabled:hover {
+    color: var(--color-text-disabled);
+    background: transparent;
+    border-color: var(--color-border-disabled);
+  }
+
+  /* A two-choice toggle marks its active member with button-selected, never with the primary action. */
+  .segment-button[aria-pressed="true"] {
+    color: var(--color-text-selected);
+    background: var(--color-background-selected);
+    border-color: var(--color-border-selected);
+  }
+
+  .segment-button[aria-pressed="true"]:hover {
+    background: var(--color-background-selected-hovered);
+  }
+
+  /* Section-message roles: tinted surface + role border, prose stays in --color-text. */
   .error-banner {
-    @apply rounded-md border border-red-200 bg-red-50 px-2 py-2 text-sm text-red-800 dark:border-red-950 dark:bg-red-950/40 dark:text-red-200;
+    @apply rounded-large border border-border-danger bg-background-danger px-100 py-100 text-body text-text;
   }
 
   .success-banner {
-    @apply rounded-md border border-emerald-200 bg-emerald-50 px-2 py-2 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200;
+    @apply rounded-large border border-border-success bg-background-success px-100 py-100 text-body text-text;
   }
 
   .integration-panel {
-    @apply mt-7 grid max-w-[760px] gap-3.5 border-t border-slate-200 pt-2 dark:border-slate-800;
+    @apply mt-600 grid max-w-content gap-300 border-t border-border pt-100;
   }
 
   .integration-card {
-    @apply grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-950;
+    @apply grid gap-150 rounded-large border border-border bg-surface p-100;
   }
 
   .integration-card h2 {
-    @apply m-0 text-sm font-bold leading-tight;
+    @apply m-0 text-heading-xsmall font-bold;
   }
 
   .integration-card p {
-    @apply m-0 text-sm text-slate-500 dark:text-slate-400;
+    @apply m-0 text-body;
   }
 
   .sync-grid {
-    @apply grid grid-cols-2 gap-3;
+    @apply grid grid-cols-2 gap-150;
   }
 
   .integration-actions {
-    @apply flex flex-wrap gap-2.5;
+    @apply flex flex-wrap gap-100;
   }
 
   .checkbox-row {
-    @apply flex items-center gap-2;
+    @apply flex items-center gap-100;
   }
 
   .checkbox-row input {
-    @apply h-4 w-4;
+    @apply h-200 w-200 rounded-small;
   }
 
   .watchtower-grid {
-    @apply grid grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-300;
+    @apply grid grid-cols-2 gap-100 text-body text-text;
   }
 
   .archive-list {
-    @apply grid gap-1.5;
+    @apply grid gap-075;
   }
 
   .archive-row {
-    @apply grid min-h-8 rounded-md border border-slate-300 bg-white px-2 py-2 text-left text-inherit hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700;
+    @apply grid min-h-400 rounded-medium border border-border-input bg-background-input px-100 py-100 text-left text-inherit hover:bg-background-input-hovered;
   }
 
   .archive-row strong,
@@ -1181,13 +1382,13 @@
   }
 
   .archive-row small {
-    @apply mt-0.5 text-sm font-normal text-slate-500 dark:text-slate-400;
+    @apply mt-025 text-body-small font-regular text-text-subtle;
   }
 
   .import-preview {
     background: var(--passless-surface-raised);
     border-color: var(--passless-border);
-    @apply grid gap-1 rounded-md border px-2 py-2 text-sm;
+    @apply grid gap-050 rounded-large border px-100 py-100 text-body;
   }
 
   .import-preview strong,
@@ -1196,37 +1397,39 @@
   }
 
   .import-preview small {
-    @apply text-slate-500 dark:text-slate-400;
+    @apply text-body-small text-text-subtle;
   }
 
   .shortcut-list {
-    @apply grid gap-2;
+    @apply grid gap-100;
   }
 
   .shortcut-row {
-    @apply flex min-h-9 items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-2 py-2 dark:border-slate-800 dark:bg-slate-900;
+    @apply flex min-h-400 items-center justify-between gap-100 rounded-large border border-border bg-surface px-100 py-100;
   }
 
   .shortcut-row kbd {
-    @apply rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-sm font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200;
+    @apply rounded-xsmall border border-border bg-background-neutral-subtle-hovered px-050 py-025 text-body-small font-medium text-text;
   }
 
   code {
-    @apply rounded-md border border-slate-200 bg-white px-2 py-2 text-slate-950 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100;
+    color: var(--color-text);
+    background: var(--color-background-neutral-subtle-hovered);
+    @apply rounded-small border border-border px-050 py-025 text-code font-regular;
   }
 
   .settings-shell {
-    @apply grid min-h-screen grid-cols-[220px_minmax(0,1fr)] overflow-hidden bg-white text-slate-950 dark:bg-zinc-950 dark:text-slate-100;
+    @apply grid min-h-screen grid-cols-settings overflow-hidden bg-surface text-text;
   }
 
   .settings-sidebar {
     color: var(--passless-sidebar-text);
-    background: color-mix(in srgb, var(--passless-sidebar-bg) 34%, white);
-    @apply flex min-h-screen flex-col gap-5 border-r border-slate-200 p-2 dark:border-slate-800;
+    background: var(--color-surface-sunken);
+    @apply flex min-h-screen flex-col gap-250 border-r border-border p-100;
   }
 
   .settings-title {
-    @apply flex min-h-12 items-center gap-3;
+    @apply flex min-h-600 items-center gap-150;
   }
 
   .settings-title strong,
@@ -1235,17 +1438,17 @@
   }
 
   .settings-title span {
-    color: color-mix(in srgb, var(--passless-sidebar-text) 68%, transparent);
-    @apply mt-0.5 text-sm;
+    color: var(--color-text-subtle);
+    @apply mt-025 text-body;
   }
 
   .settings-tabs {
-    @apply grid gap-1;
+    @apply grid gap-050;
   }
 
   .settings-tabs button {
     color: var(--passless-sidebar-text);
-    @apply min-h-9 rounded-md px-2 text-left text-sm font-semibold transition-colors hover:bg-white/40;
+    @apply min-h-400 rounded-medium px-100 text-left text-body font-semibold transition-colors hover:bg-background-neutral-subtle-hovered;
   }
 
   .settings-tabs button.active {
@@ -1253,41 +1456,16 @@
     background: var(--passless-sidebar-active);
   }
 
-  .theme-color-grid {
-    @apply grid grid-cols-[repeat(auto-fill,minmax(72px,1fr))] gap-x-5 gap-y-4;
-  }
-
-  .theme-color-option {
-    @apply grid justify-items-center gap-2 rounded-lg border-0 bg-transparent p-1 text-slate-500;
-  }
-
-  .theme-color-option span {
-    @apply block h-10 w-10 rounded-lg;
-  }
-
-  .theme-color-option strong {
-    @apply text-sm font-semibold;
-  }
-
-  .theme-color-option.active span {
-    --tw-ring-color: var(--passless-sidebar-active);
-    @apply ring-4 ring-offset-4 ring-offset-white dark:ring-offset-zinc-950;
-  }
-
-  .theme-color-option.active strong {
-    @apply text-slate-950 dark:text-slate-100;
-  }
-
   .settings-content {
-    @apply grid max-h-screen grid-rows-[auto_auto_1fr] gap-3 overflow-auto p-2;
+    @apply grid max-h-screen grid-rows-[auto_auto_1fr] gap-150 overflow-auto p-100;
   }
 
   .settings-header {
-    @apply flex items-start justify-between gap-4 border-b border-slate-200 pb-2 dark:border-slate-800;
+    @apply flex items-start justify-between gap-200 border-b border-border pb-100;
   }
 
   .settings-header h1 {
-    @apply m-0 text-sm font-bold leading-tight;
+    @apply m-0 text-heading-xsmall;
   }
 
   .settings-header .icon-button {
@@ -1295,161 +1473,119 @@
   }
 
   .settings-section {
-    @apply grid max-w-[760px] gap-3.5;
+    @apply grid max-w-settings gap-150;
   }
 
   .security-group {
-    @apply grid gap-3 border-b border-slate-200 pb-2 dark:border-slate-800;
+    @apply grid gap-150 border-b border-border pb-100;
   }
 
   .security-group h2 {
-    @apply m-0 text-sm font-bold text-slate-950 dark:text-slate-100;
+    @apply m-0 text-body font-bold text-text;
   }
 
   .security-check-row {
-    @apply flex min-h-10 grid-cols-none items-center gap-4 text-sm font-normal text-slate-900 dark:text-slate-100;
+    @apply flex min-h-500 grid-cols-none items-center gap-200 text-body font-normal text-text;
   }
 
   .security-check-row input {
-    @apply h-6 w-6 rounded-md accent-blue-600;
+    accent-color: var(--color-background-brand-bold);
+    @apply h-300 w-300 rounded-medium;
   }
 
   .security-inline-row {
-    @apply flex min-h-10 grid-cols-none items-center gap-2 text-sm font-normal text-slate-900 dark:text-slate-100;
+    @apply flex min-h-500 grid-cols-none items-center gap-100 text-body font-normal text-text;
   }
 
   .security-inline-row select {
-    @apply h-10 w-auto min-w-[150px] rounded-xl border-slate-300 bg-slate-100/90 px-2 pr-2 text-sm font-semibold shadow-sm dark:border-slate-700 dark:bg-slate-800;
+    @apply h-500 w-auto min-w-item-list rounded-large border-border-input bg-surface px-100 pr-100 text-body font-semibold;
   }
 
   .security-help {
-    @apply m-0 max-w-[720px] text-sm leading-snug text-slate-500 dark:text-slate-400;
-  }
-}
-
-@layer base {
-  body {
-    color: color-mix(in srgb, var(--theme-text-70) 82%, black);
-    background: var(--theme-bg-2);
-    @apply bg-transparent text-sm;
-  }
-
-  input,
-  textarea,
-  select {
-    color: color-mix(in srgb, var(--theme-text-70) 84%, black);
-    background: var(--theme-panel);
-    border-color: var(--theme-border);
-    @apply rounded-md border text-sm shadow-none;
-  }
-
-  :root[data-theme="dark"] input,
-  :root[data-theme="dark"] textarea,
-  :root[data-theme="dark"] select {
-    color: #edf3ff;
-  }
-
-  input,
-  select {
-    @apply h-9 px-2;
-  }
-
-  label {
-    color: color-mix(in srgb, var(--theme-text-70) 72%, transparent);
-    @apply gap-1 text-xs font-medium;
-  }
-
-  p {
-    color: color-mix(in srgb, var(--theme-text-70) 62%, transparent);
-    @apply mt-1 text-xs;
+    @apply m-0 max-w-detail-header text-body text-text-subtle;
   }
 }
 
 @layer components {
   .lock-screen {
     background: var(--theme-bg-2);
-    @apply p-2;
+    @apply p-100;
   }
 
   .lock-panel {
     background: var(--theme-panel);
     border-color: var(--theme-border);
     box-shadow: var(--theme-shadow);
-    @apply max-w-[390px] rounded-lg border p-4 shadow-sm;
+    @apply max-w-lock-panel rounded-large border p-200 shadow-raised;
   }
 
   .lock-panel form {
-    @apply mt-4 gap-3;
+    @apply mt-200 gap-150;
   }
 
   .lock-panel h1,
   .settings-header h1,
-  .generator-pane h1,
+  .generator-pane h2,
   .integration-card h2,
   .security-group h2 {
-    color: color-mix(in srgb, var(--theme-text-70) 88%, black);
-    @apply text-lg font-semibold tracking-normal;
-  }
-
-  :root[data-theme="dark"] .lock-panel h1,
-  :root[data-theme="dark"] .settings-header h1,
-  :root[data-theme="dark"] .generator-pane h1,
-  :root[data-theme="dark"] .integration-card h2,
-  :root[data-theme="dark"] .security-group h2 {
-    color: #edf3ff;
+    color: var(--color-text);
+    @apply text-heading-small;
   }
 
   .app-shell {
+    /* The list column is drag-resized: App.tsx sets --item-list-width, the geometry stays here. */
+    grid-template-columns: var(--measure-sidebar) var(--item-list-width, var(--measure-item-list-default)) var(
+        --measure-resizer
+      ) minmax(0, 1fr);
     background: var(--theme-bg-2);
-    @apply grid h-screen min-h-0 min-w-[960px] grid-rows-[44px_minmax(0,1fr)] overflow-hidden;
+    @apply grid h-screen min-h-0 min-w-window grid-rows-titlebar overflow-hidden;
   }
 
   .sidebar {
     color: var(--theme-text-70);
-    background: color-mix(in srgb, var(--theme-bg-2) 84%, var(--theme-color));
+    background: var(--color-surface-sunken);
     border-color: var(--theme-border);
-    /* pt-11 clears the native overlay traffic lights (titleBarStyle: "Overlay") over the sidebar. */
-    @apply row-span-2 flex h-screen flex-col gap-4 overflow-x-hidden overflow-y-auto border-r px-2 pb-2 pt-11;
+    @apply row-span-2 flex h-screen flex-col gap-200 overflow-x-hidden overflow-y-auto border-r px-100 pb-100 pt-titlebar;
   }
 
   .brand,
   .settings-title {
-    @apply gap-2 px-1;
+    @apply gap-100 px-050;
   }
 
   .brand strong,
   .settings-title strong {
-    @apply truncate text-sm font-semibold leading-tight;
+    @apply truncate text-body font-semibold leading-tight;
   }
 
   .brand span,
   .settings-title span {
-    color: color-mix(in srgb, var(--theme-text-70) 62%, transparent);
-    @apply mt-0 truncate text-xs;
+    color: var(--color-text-subtlest);
+    @apply mt-0 truncate text-body-small;
   }
 
   .brand-mark {
     color: var(--theme-color);
-    background: color-mix(in srgb, var(--theme-color) 18%, transparent);
-    @apply h-8 w-8 rounded-md;
+    background: var(--color-background-selected);
+    @apply h-400 w-400 rounded-medium;
   }
 
   .brand.large .brand-mark {
-    @apply h-9 w-9;
+    @apply h-400 w-400;
   }
 
   .nav-list,
   .category-nav {
-    @apply gap-1;
+    @apply gap-050;
   }
 
   .nav-item {
-    color: color-mix(in srgb, var(--theme-text-70) 78%, transparent);
-    @apply min-h-8 gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors;
+    color: var(--color-text-subtle);
+    @apply min-h-400 gap-100 rounded-medium px-100 py-075 text-body font-medium transition-colors;
   }
 
   .nav-item svg {
-    @apply h-3.5 w-3.5 shrink-0;
+    @apply h-150 w-150 shrink-0;
   }
 
   .nav-item span {
@@ -1459,25 +1595,25 @@
   .nav-item:hover,
   .settings-tabs button:hover {
     color: var(--theme-text-70);
-    background: color-mix(in srgb, var(--theme-color) 12%, transparent);
+    background: var(--color-background-selected);
   }
 
   .nav-item.active,
   .settings-tabs button.active {
     color: var(--theme-text-70);
-    background: color-mix(in srgb, var(--theme-color) 18%, transparent);
+    background: var(--color-background-selected);
     box-shadow: none;
   }
 
   .sidebar-section-title {
-    color: color-mix(in srgb, var(--theme-text-70) 68%, transparent);
-    @apply mb-1 px-1 text-xs font-semibold uppercase tracking-wide;
+    color: var(--color-text-subtle);
+    @apply mb-050 px-050 text-body-small font-medium;
   }
 
   .sidebar-section-title button {
-    color: color-mix(in srgb, var(--theme-text-70) 58%, transparent);
+    color: var(--color-text-subtlest);
     background: transparent;
-    @apply h-6 w-6 rounded-md border-0;
+    @apply h-300 w-300 rounded-medium border-0;
   }
 
   .sidebar-section-title button:hover {
@@ -1488,9 +1624,9 @@
   .toolbar button,
   .password-control button,
   .icon-button {
-    color: color-mix(in srgb, var(--theme-text-70) 72%, transparent);
+    color: var(--color-text-subtle);
     background: transparent;
-    @apply min-h-8 rounded-md border border-transparent text-sm;
+    @apply min-h-400 rounded-medium border border-transparent text-body;
   }
 
   .theme-toggle:hover,
@@ -1502,22 +1638,22 @@
   }
 
   .sidebar-footer {
-    @apply gap-2;
+    @apply gap-100;
   }
 
   .sidebar-archive {
-    background: color-mix(in srgb, var(--theme-panel) 34%, transparent);
-    border-color: color-mix(in srgb, var(--theme-border) 76%, transparent);
-    @apply gap-1 rounded-lg border p-1.5 shadow-none;
+    background: var(--color-background-neutral-subtle);
+    border-color: var(--color-border);
+    @apply gap-050 rounded-large border p-075 shadow-none;
   }
 
   .sidebar-archive-list {
-    @apply max-h-[150px] gap-px;
+    @apply max-h-archive-list gap-px;
   }
 
   .sidebar-archive-list button {
-    color: color-mix(in srgb, var(--theme-text-70) 74%, transparent);
-    @apply min-h-8 gap-2 rounded-md px-1.5 py-1 text-sm;
+    color: var(--color-text-subtle);
+    @apply min-h-400 gap-100 rounded-medium px-075 py-050 text-body;
   }
 
   .sidebar-archive-list button:hover {
@@ -1527,18 +1663,18 @@
 
   .sidebar-archive-list button span {
     color: var(--theme-color);
-    background: color-mix(in srgb, var(--theme-color) 12%, transparent);
-    @apply h-5 w-5 rounded-md text-[10px] font-semibold;
+    background: var(--color-background-selected);
+    @apply h-250 w-250 rounded-medium text-body-small font-medium;
   }
 
   .sidebar-archive-list button strong {
-    @apply text-xs font-medium;
+    @apply text-body-small font-medium;
   }
 
   .top-search-bar {
     background: var(--theme-bg-2);
     border-color: var(--theme-border);
-    @apply col-span-3 col-start-2 grid min-h-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b px-2 py-1;
+    @apply col-span-3 col-start-2 grid min-h-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-100 border-b px-100 py-050;
   }
 
   .top-search-wrap {
@@ -1546,14 +1682,14 @@
   }
 
   .top-search-box {
-    color: color-mix(in srgb, var(--theme-text-70) 58%, transparent);
-    background: color-mix(in srgb, var(--theme-panel) 78%, transparent);
+    color: var(--color-text-subtlest);
+    background: var(--color-surface);
     border-color: var(--theme-border);
-    @apply h-8 rounded-md border px-2 text-xs shadow-none;
+    @apply h-400 rounded-medium border px-100 text-body-small shadow-none;
   }
 
   .top-search-box input {
-    @apply text-sm font-normal;
+    @apply text-body font-normal;
   }
 
   .top-search-results,
@@ -1563,11 +1699,11 @@
     background: var(--theme-panel);
     border-color: var(--theme-border);
     box-shadow: var(--theme-shadow);
-    @apply rounded-lg border py-1 shadow-lg;
+    @apply rounded-large border py-050 shadow-overlay;
   }
 
   .top-search-results button {
-    @apply mx-1 min-h-10 gap-2 rounded-md px-2 py-1.5 text-sm;
+    @apply mx-050 min-h-500 gap-100 rounded-medium px-100 py-075 text-body;
   }
 
   .top-search-results button small,
@@ -1577,49 +1713,37 @@
   .integration-card p,
   .import-preview small,
   .archive-row small {
-    color: color-mix(in srgb, var(--theme-text-70) 58%, transparent);
-    @apply text-xs;
-  }
-
-  .top-new-item-button,
-  .primary-button {
-    color: #fff;
-    background: var(--theme-color);
-    border-color: color-mix(in srgb, var(--theme-color) 82%, black);
-    @apply min-h-8 gap-1.5 rounded-md border px-2 text-sm font-medium shadow-none;
-  }
-
-  .top-new-item-button:hover,
-  .primary-button:hover {
-    background: color-mix(in srgb, var(--theme-color) 88%, black);
+    color: var(--color-text-subtlest);
+    @apply text-body-small;
   }
 
   .column-resize-handle {
+    /* A 1px hairline centred in the 6px resize column; the px stops are that geometry, not spacing. */
     background: linear-gradient(to right, transparent 0 2px, var(--theme-border) 2px 3px, transparent 3px);
   }
 
   .item-list {
     background: var(--theme-bg-2);
     border-color: var(--theme-border);
-    @apply border-r px-1 py-1;
+    @apply border-r px-050 py-050;
   }
 
   .sync-state {
-    color: color-mix(in srgb, var(--theme-text-70) 70%, transparent);
-    background: color-mix(in srgb, var(--theme-color) 8%, transparent);
-    @apply my-1 min-h-8 gap-1.5 rounded-md px-2 text-xs font-medium;
+    color: var(--color-text-subtle);
+    background: var(--color-background-brand-subtlest);
+    @apply my-050 min-h-400 gap-075 rounded-medium px-100 text-body-small font-medium;
   }
 
   .sidebar-tool-panel {
-    color: color-mix(in srgb, var(--theme-text-70) 66%, transparent);
-    background: color-mix(in srgb, var(--theme-panel) 72%, transparent);
+    color: var(--color-text-subtle);
+    background: var(--color-surface);
     border-color: var(--theme-border);
-    @apply mb-1 gap-1.5 rounded-lg border p-2 text-xs shadow-none;
+    @apply mb-050 gap-075 rounded-large border p-100 text-body-small shadow-none;
   }
 
   .sidebar-tool-panel strong {
     color: var(--theme-text-70);
-    @apply text-sm font-medium;
+    @apply text-body font-medium;
   }
 
   .rows {
@@ -1627,7 +1751,7 @@
   }
 
   .item-row {
-    @apply min-h-10 gap-2 rounded-md border-0 px-2 py-1.5 text-sm transition-colors;
+    @apply min-h-500 gap-100 rounded-medium border-0 px-100 py-075 text-body transition-colors;
   }
 
   .item-row:hover {
@@ -1644,64 +1768,60 @@
   .item-icon,
   .large-icon {
     color: var(--theme-color);
-    background: color-mix(in srgb, var(--theme-color) 16%, transparent);
+    background: var(--color-background-selected);
   }
 
   .item-icon {
-    @apply h-7 w-7 rounded-md text-xs font-semibold;
+    @apply h-300 w-300 rounded-medium text-body-small font-semibold;
   }
 
   .item-row strong {
-    color: color-mix(in srgb, var(--theme-text-70) 88%, black);
-    @apply truncate text-sm font-medium;
-  }
-
-  :root[data-theme="dark"] .item-row strong {
-    color: #edf3ff;
+    color: var(--color-text);
+    @apply truncate text-body font-medium;
   }
 
   .row-star {
-    @apply ml-auto shrink-0 text-orange-500;
+    @apply ml-auto shrink-0 text-text-warning;
   }
 
   .empty-state {
-    color: color-mix(in srgb, var(--theme-text-70) 56%, transparent);
-    @apply mx-0 my-3 rounded-md px-2 py-3 text-center text-sm;
+    color: var(--color-text-subtlest);
+    @apply mx-0 my-150 rounded-medium px-100 py-150 text-center text-body;
   }
 
   .detail-pane {
     background: var(--theme-bg-2);
     border-color: var(--theme-border);
-    @apply flex flex-col overflow-hidden border-l px-4 py-0;
+    @apply flex flex-col overflow-hidden border-l px-200 py-0;
   }
 
   .detail-topbar {
     border-color: var(--theme-border);
-    @apply mb-0 max-w-none flex-none border-b px-0 py-2;
+    @apply mb-0 max-w-none flex-none border-b px-0 py-100;
   }
 
   .vault-picker select,
   .type-picker,
   .type-display {
     color: var(--theme-text-70);
-    background: color-mix(in srgb, var(--theme-panel) 74%, transparent);
+    background: var(--color-surface);
     border-color: var(--theme-border);
-    @apply h-8 rounded-md border px-2 text-xs font-medium shadow-none;
+    @apply h-400 rounded-medium border px-100 text-body-small font-medium shadow-none;
   }
 
   .vault-add-button,
   .password-control button,
   .icon-button {
-    @apply h-8 w-8;
+    @apply h-400 w-400;
   }
 
   .top-edit-button,
   .secondary-button,
   .danger-button {
     color: var(--theme-text-70);
-    background: color-mix(in srgb, var(--theme-panel) 82%, transparent);
+    background: var(--color-surface);
     border-color: var(--theme-border);
-    @apply min-h-8 gap-1.5 rounded-md border px-2 text-sm font-medium shadow-none;
+    @apply min-h-400 gap-075 rounded-medium border px-100 text-body font-medium shadow-none;
   }
 
   .top-edit-button:hover,
@@ -1710,9 +1830,9 @@
   }
 
   .danger-button {
-    color: #dc2626;
-    background: color-mix(in srgb, #ef4444 7%, transparent);
-    border-color: color-mix(in srgb, #ef4444 22%, var(--theme-border));
+    color: var(--color-text-danger);
+    background: var(--color-background-danger);
+    border-color: var(--color-border-danger);
   }
 
   .detail-form,
@@ -1725,34 +1845,30 @@
   }
 
   .generator-pane {
-    @apply min-h-0 flex-1 overflow-auto py-3;
+    @apply min-h-0 flex-1 overflow-auto py-150;
   }
 
   .detail-fieldset {
-    @apply min-h-0 overflow-auto pb-4;
+    @apply min-h-0 overflow-auto pb-200;
   }
 
   .detail-header {
     border-color: var(--theme-border);
-    @apply gap-2 border-b px-0 py-3;
+    @apply gap-100 border-b px-0 py-150;
   }
 
   .large-icon {
-    @apply h-9 w-9 rounded-md text-sm font-semibold;
+    @apply h-400 w-400 rounded-medium text-body font-semibold;
   }
 
   .title-input {
-    color: color-mix(in srgb, var(--theme-text-70) 88%, black);
-    @apply text-lg font-semibold;
-  }
-
-  :root[data-theme="dark"] .title-input {
-    color: #edf3ff;
+    color: var(--color-text);
+    @apply text-body-large font-medium;
   }
 
   .form-grid,
   .onepassword-form {
-    @apply mt-4 max-w-none gap-4;
+    @apply mt-200 max-w-none gap-200;
   }
 
   .onepassword-group,
@@ -1766,14 +1882,14 @@
   .integration-card,
   .import-preview,
   .shortcut-row {
-    background: color-mix(in srgb, var(--theme-panel) 78%, transparent);
+    background: var(--color-surface);
     border-color: var(--theme-border);
-    @apply rounded-lg border shadow-none;
+    @apply rounded-large border shadow-none;
   }
 
   .onepassword-field {
-    color: color-mix(in srgb, var(--theme-text-70) 58%, transparent);
-    @apply gap-1 px-3 py-2 text-xs font-medium;
+    color: var(--color-text-subtlest);
+    @apply gap-050 px-150 py-100 text-body-small font-medium;
   }
 
   .onepassword-field input,
@@ -1783,173 +1899,152 @@
   .website-address-input,
   .custom-field-name-input,
   .custom-field-value-input {
-    color: color-mix(in srgb, var(--theme-text-70) 84%, black);
-    @apply text-sm font-normal;
-  }
-
-  :root[data-theme="dark"] .onepassword-field input,
-  :root[data-theme="dark"] .onepassword-field textarea,
-  :root[data-theme="dark"] .onepassword-field select,
-  :root[data-theme="dark"] .website-name-input,
-  :root[data-theme="dark"] .website-address-input,
-  :root[data-theme="dark"] .custom-field-name-input,
-  :root[data-theme="dark"] .custom-field-value-input {
-    color: #edf3ff;
+    color: var(--color-text);
+    @apply text-body font-normal;
   }
 
   .website-list,
   .custom-field-list {
-    @apply gap-2;
+    @apply gap-100;
   }
 
   .website-row {
-    @apply grid-cols-[1fr_34px];
+    @apply grid-cols-field;
   }
 
   .custom-field-row {
-    @apply grid-cols-[28px_1fr_34px];
+    @apply grid-cols-handle-field;
   }
 
   .website-stack,
   .custom-field-stack,
   .section-field-card {
-    @apply px-2 py-1.5;
+    @apply px-100 py-075;
   }
 
   .drag-handle {
-    color: color-mix(in srgb, var(--theme-text-70) 42%, transparent);
-    @apply text-xs;
+    color: var(--color-text-subtlest);
+    @apply text-body-small;
   }
 
   .inline-add-button,
   .add-more-button {
     color: var(--theme-color);
-    @apply min-h-8 gap-1.5 rounded-md px-2 text-sm font-medium;
+    @apply min-h-400 gap-075 rounded-medium px-100 text-body font-medium;
   }
 
   .add-more-button {
-    background: color-mix(in srgb, var(--theme-color) 6%, transparent);
+    background: var(--color-background-brand-subtlest);
     border-color: var(--theme-border);
-    @apply mt-2 border;
+    @apply mt-100 border;
   }
 
   .menu-option {
-    color: color-mix(in srgb, var(--theme-text-70) 84%, black);
-    @apply mx-1 min-h-9 rounded-md px-2 py-1.5 text-sm;
-  }
-
-  :root[data-theme="dark"] .menu-option {
-    color: #edf3ff;
+    color: var(--color-text);
+    @apply mx-050 min-h-400 rounded-medium px-100 py-075 text-body;
   }
 
   .detail-actions {
     background: var(--theme-bg-2);
     border-color: var(--theme-border);
-    @apply sticky bottom-0 mt-0 max-w-none justify-end border-t px-0 py-2;
+    @apply sticky bottom-0 mt-0 max-w-none justify-end border-t px-0 py-100;
   }
 
   .error-banner {
-    color: #e11d48;
-    background: #fff1f2;
-    border-color: #fecdd3;
-    @apply rounded-md border px-2 py-2 text-sm;
+    color: var(--color-text-danger);
+    background: var(--color-background-danger);
+    border-color: var(--color-border-danger);
+    @apply rounded-medium border px-100 py-100 text-body;
   }
 
   .success-banner {
     color: var(--theme-text-70);
-    background: color-mix(in srgb, var(--theme-color) 8%, white);
-    border-color: color-mix(in srgb, var(--theme-color) 20%, white);
-    @apply rounded-md border px-2 py-2 text-sm;
+    background: var(--color-background-brand-subtlest);
+    border-color: var(--color-background-selected);
+    @apply rounded-medium border px-100 py-100 text-body;
   }
 
   .settings-shell {
     color: var(--theme-text-70);
     background: var(--theme-bg-2);
-    @apply grid min-h-screen grid-cols-[220px_minmax(0,1fr)] overflow-hidden text-sm;
+    @apply grid min-h-screen grid-cols-settings overflow-hidden text-body;
   }
 
   .settings-sidebar {
     color: var(--theme-text-70);
-    background: color-mix(in srgb, var(--theme-bg-2) 84%, var(--theme-color));
+    background: var(--color-surface-sunken);
     border-color: var(--theme-border);
-    /* pt-11 clears the native overlay traffic lights (titleBarStyle: "Overlay") over the sidebar. */
-    @apply min-h-screen gap-4 border-r px-2 pb-2 pt-11;
+    @apply min-h-screen gap-200 border-r px-100 pb-100 pt-titlebar;
   }
 
   .settings-tabs {
-    @apply gap-1;
+    @apply gap-050;
   }
 
   .settings-tabs button {
-    color: color-mix(in srgb, var(--theme-text-70) 76%, transparent);
-    @apply min-h-8 rounded-md px-2 py-1.5 text-sm font-medium;
+    color: var(--color-text-subtle);
+    @apply min-h-400 rounded-medium px-100 py-075 text-body font-medium;
   }
 
   .settings-content {
     background: var(--theme-bg-2);
-    @apply max-h-screen grid-rows-[auto_auto_1fr] gap-2 overflow-auto p-3;
+    @apply max-h-screen grid-rows-[auto_auto_1fr] gap-100 overflow-auto p-150;
   }
 
   .settings-header {
     border-color: var(--theme-border);
-    @apply border-b pb-2;
+    @apply border-b pb-100;
   }
 
   .settings-section {
-    @apply max-w-[860px] gap-2;
+    @apply max-w-settings gap-100;
   }
 
   .integration-card {
-    @apply gap-2 p-3;
+    @apply gap-100 p-150;
   }
 
   .sync-grid {
-    @apply gap-2;
+    @apply gap-100;
   }
 
   .integration-actions {
-    @apply gap-1.5;
+    @apply gap-075;
   }
 
   .checkbox-row,
   .security-check-row,
   .security-inline-row {
-    color: color-mix(in srgb, var(--theme-text-70) 82%, black);
-    @apply min-h-8 gap-2 text-sm font-normal;
-  }
-
-  :root[data-theme="dark"] .checkbox-row,
-  :root[data-theme="dark"] .security-check-row,
-  :root[data-theme="dark"] .security-inline-row {
-    color: #edf3ff;
+    color: var(--color-text);
+    @apply min-h-400 gap-100 text-body font-normal;
   }
 
   .checkbox-row input,
   .security-check-row input {
     accent-color: var(--theme-color);
-    @apply h-4 w-4;
+    @apply h-200 w-200;
   }
 
   .watchtower-grid {
-    color: color-mix(in srgb, var(--theme-text-70) 72%, transparent);
-    @apply grid-cols-2 gap-1.5 text-xs;
+    color: var(--color-text-subtle);
+    @apply grid-cols-2 gap-075 text-body-small;
   }
 
   .watchtower-grid span,
   .watchtower-grid strong {
-    background: color-mix(in srgb, var(--theme-color) 7%, transparent);
-    @apply rounded-md px-2 py-1;
+    background: var(--color-background-brand-subtlest);
+    @apply rounded-medium px-100 py-050;
   }
 
   .archive-list,
   .shortcut-list {
-    @apply gap-1;
+    @apply gap-050;
   }
 
   .archive-row {
-    background: color-mix(in srgb, var(--theme-panel) 78%, transparent);
+    background: var(--color-surface);
     border-color: var(--theme-border);
-    @apply min-h-8 rounded-md border px-2 py-1.5 text-left text-sm;
+    @apply min-h-400 rounded-medium border px-100 py-075 text-left text-body;
   }
 
   .archive-row:hover {
@@ -1957,71 +2052,54 @@
   }
 
   .import-preview {
-    @apply gap-1 px-2 py-1.5 text-sm;
-  }
-
-  .theme-color-grid {
-    @apply grid-cols-[repeat(auto-fill,minmax(68px,1fr))] gap-2;
-  }
-
-  .theme-color-option {
-    color: color-mix(in srgb, var(--theme-text-70) 62%, transparent);
-    @apply gap-1 rounded-md p-1 text-xs;
-  }
-
-  .theme-color-option span {
-    @apply h-8 w-8 rounded-md;
-  }
-
-  .theme-color-option strong {
-    @apply text-xs font-medium;
+    @apply gap-050 px-100 py-075 text-body;
   }
 
   .security-group {
-    background: color-mix(in srgb, var(--theme-panel) 78%, transparent);
+    background: var(--color-surface);
     border-color: var(--theme-border);
-    @apply gap-2 rounded-lg border p-3;
+    @apply gap-100 rounded-large border p-150;
   }
 
   .security-inline-row select {
     background: var(--theme-panel);
     border-color: var(--theme-border);
-    @apply h-8 min-w-[140px] rounded-md border px-2 text-sm font-medium shadow-none;
+    @apply h-400 min-w-item-list rounded-medium border px-100 text-body font-medium shadow-none;
   }
 
   .security-help {
-    color: color-mix(in srgb, var(--theme-text-70) 58%, transparent);
-    @apply text-xs;
+    color: var(--color-text-subtlest);
+    @apply text-body-small;
   }
 
   code,
   .shortcut-row kbd {
     color: var(--theme-text-70);
-    background: color-mix(in srgb, var(--theme-color) 7%, transparent);
+    background: var(--color-background-brand-subtlest);
     border-color: var(--theme-border);
-    @apply rounded-md border px-2 py-1 text-xs font-medium;
+    @apply rounded-medium border px-100 py-050 text-body-small font-medium;
   }
 
   .quick-access-shell {
     background: var(--theme-panel);
     border-color: var(--theme-border);
     box-shadow: var(--theme-shadow);
-    @apply flex h-screen flex-col overflow-hidden rounded-xl border;
+    @apply flex h-screen flex-col overflow-hidden rounded-xlarge border;
   }
 
   .quick-access-header {
     border-color: var(--theme-border);
-    @apply flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2;
+    @apply flex shrink-0 items-center justify-between gap-100 border-b px-150 py-100;
   }
 
-  .quick-access-header strong {
-    color: color-mix(in srgb, var(--theme-text-70) 72%, transparent);
-    @apply text-[11px] font-semibold uppercase tracking-label-sm;
+  .quick-access-header h1 {
+    color: var(--color-text-subtle);
+    @apply text-body-small font-medium;
   }
 
   .quick-access-close {
-    color: color-mix(in srgb, var(--theme-text-70) 58%, transparent);
-    @apply flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-0 bg-transparent shadow-none;
+    color: var(--color-text-subtlest);
+    @apply flex h-300 w-300 shrink-0 items-center justify-center rounded-medium border-0 bg-transparent shadow-none;
   }
 
   .quick-access-close:hover {
@@ -2031,24 +2109,24 @@
 
   .quick-access-search {
     border-color: var(--theme-border);
-    @apply flex shrink-0 items-center gap-2 border-b px-3 py-2;
+    @apply flex shrink-0 items-center gap-100 border-b px-150 py-100;
   }
 
   .quick-access-search svg {
-    color: color-mix(in srgb, var(--theme-text-70) 45%, transparent);
+    color: var(--color-text-subtlest);
     @apply shrink-0;
   }
 
   .quick-access-search input {
-    @apply h-8 flex-1 rounded-none border-0 bg-transparent px-0 text-sm shadow-none;
+    @apply h-400 flex-1 rounded-none border-0 bg-transparent px-0 text-body shadow-none;
   }
 
   .quick-access-list {
-    @apply flex-1 overflow-y-auto p-1.5;
+    @apply flex-1 overflow-y-auto p-075;
   }
 
   .quick-access-row {
-    @apply flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left shadow-none;
+    @apply flex w-full items-center gap-100 rounded-medium border-0 bg-transparent px-100 py-075 text-left shadow-none;
   }
 
   .quick-access-row:hover,
@@ -2058,38 +2136,39 @@
 
   .quick-access-row strong {
     color: var(--theme-text-70);
-    @apply min-w-0 flex-1 truncate text-sm font-medium;
+    @apply min-w-0 flex-1 truncate text-body font-medium;
   }
 
   .quick-access-row small {
-    color: color-mix(in srgb, var(--theme-text-70) 55%, transparent);
-    @apply max-w-[45%] min-w-0 shrink-0 truncate text-right text-xs;
+    color: var(--color-text-subtlest);
+    /* The caption must never crowd out the title, so it is capped by row ratio rather than a width. */
+    @apply max-w-[45%] min-w-0 shrink-0 truncate text-right text-body-small;
   }
 
   .quick-access-badge {
     color: var(--theme-color);
-    @apply shrink-0 text-[11px] font-semibold;
+    @apply shrink-0 text-body-small font-medium;
   }
 
   .quick-access-footer {
-    color: color-mix(in srgb, var(--theme-text-70) 52%, transparent);
+    color: var(--color-text-subtlest);
     border-color: var(--theme-border);
-    @apply shrink-0 border-t px-3 py-1.5 text-[11px];
+    @apply shrink-0 border-t px-150 py-075 text-body-small;
   }
 
   .quick-access-message {
-    color: color-mix(in srgb, var(--theme-text-70) 62%, transparent);
-    @apply px-3 py-6 text-center text-xs;
+    color: var(--color-text-subtlest);
+    @apply px-150 py-300 text-center text-body-small;
   }
 
   /* The field menus lead each option with a type icon; the item picker stays one column.
      Kept last so the icon tints below outrank the pane's own `svg` rules. */
   .menu-option.with-icon {
-    @apply grid-cols-[20px_1fr] items-center gap-2;
+    @apply grid-cols-icon-option items-center gap-100;
   }
 
   .menu-option.with-icon svg {
-    color: color-mix(in srgb, var(--theme-text-70) 55%, transparent);
+    color: var(--color-text-subtlest);
     @apply justify-self-center;
   }
 

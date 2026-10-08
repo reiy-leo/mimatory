@@ -1,0 +1,35 @@
+{
+	"extensionDescription": {
+		"message": "ローカルの Passless デスクトップアプリでログインの自動入力と保存を行います。"
+	},
+	"extensionName": {
+		"message": "Passless 自動入力"
+	},
+	"fillPage": {
+		"message": "現在のページに入力"
+	},
+	"footerHint": {
+		"message": "自動入力と保存プロンプトを使うには、Passless デスクトップアプリのロックを解除したままにしてください。"
+	},
+	"pairingTokenLabel": {
+		"message": "ペアリングトークン"
+	},
+	"saveToken": {
+		"message": "トークンを保存"
+	},
+	"statusChecking": {
+		"message": "アプリを確認中…"
+	},
+	"statusConnected": {
+		"message": "デスクトップアプリに接続済み"
+	},
+	"statusUnavailable": {
+		"message": "デスクトップアプリを利用できません"
+	},
+	"tokenPlaceholder": {
+		"message": "アプリのペアリングトークンを貼り付け"
+	},
+	"tokenSaved": {
+		"message": "ペアリングトークンを保存しました"
+	}
+}
