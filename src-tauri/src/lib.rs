@@ -23,7 +23,7 @@ use tauri::State;
 use totp::TotpCode;
 use vault::{
     generate_password, CustomField, LoginItem, LoginItemInput, LoginItemUpdate, PasswordGeneratorOptions,
-    Session, VaultError, VaultService, VaultSummary, WatchtowerReport,
+    PasswordStrength, Session, VaultError, VaultService, VaultSummary, WatchtowerReport,
 };
 
 struct AppState {
@@ -307,6 +307,11 @@ fn set_login_favorite(id: String, favorite: bool, state: State<AppState>) -> Res
 #[tauri::command]
 fn generate_password_command(options: PasswordGeneratorOptions) -> Result<String, String> {
     generate_password(options).map_err(String::from)
+}
+
+#[tauri::command]
+fn password_strength(password: String) -> PasswordStrength {
+    vault::password_strength(&password)
 }
 
 #[tauri::command]
@@ -617,6 +622,7 @@ pub fn run() {
             list_archived_login_items,
             set_login_favorite,
             generate_password_command,
+            password_strength,
             generate_totp_code,
             pick_import_file,
             pick_export_file,

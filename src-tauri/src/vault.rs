@@ -126,6 +126,12 @@ pub struct PasswordGeneratorOptions {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct PasswordStrength {
+    pub bits: u32,
+    pub level: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct WatchtowerReport {
     pub total_items: usize,
     pub weak_passwords: Vec<String>,
@@ -1414,6 +1420,52 @@ fn is_weak_password(password: &str) -> bool {
         || !password.chars().any(|character| character.is_ascii_digit())
 }
 
+/// The meter and Watchtower read the same rule: a password the report would list as weak
+/// never shows as anything better than weak here, so the two can't contradict each other.
+pub fn password_strength(password: &str) -> PasswordStrength {
+    let length = password.chars().count();
+    if length == 0 {
+        return PasswordStrength {
+            bits: 0,
+            level: "weak".to_string(),
+        };
+    }
+
+    let mut pool = 0_u32;
+    if password.chars().any(|c| c.is_ascii_lowercase()) {
+        pool += 26;
+    }
+    if password.chars().any(|c| c.is_ascii_uppercase()) {
+        pool += 26;
+    }
+    if password.chars().any(|c| c.is_ascii_digit()) {
+        pool += 10;
+    }
+    if password.chars().any(|c| !c.is_alphanumeric()) {
+        pool += 33;
+    }
+    // Letters outside ASCII draw from a far larger set than the Latin alphabet does.
+    if pool == 0 {
+        pool = 100;
+    }
+
+    let bits = (length as f64 * (pool as f64).log2()).round() as u32;
+    let level = if is_weak_password(password) || bits < 65 {
+        "weak"
+    } else if bits < 85 {
+        "fair"
+    } else if bits < 120 {
+        "strong"
+    } else {
+        "excellent"
+    };
+
+    PasswordStrength {
+        bits,
+        level: level.to_string(),
+    }
+}
+
 fn has_totp(item: &LoginItem) -> bool {
     item.custom_fields.iter().any(|field| {
         let label = field.label.to_lowercase();
@@ -1906,6 +1958,30 @@ mod tests {
             .is_empty());
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn strength_meter_never_outrates_the_watchtower_weak_rule() {
+        let password = "Ab1defghij";
+        assert!(is_weak_password(password));
+        assert_eq!(password_strength(password).level, "weak");
+    }
+
+    #[test]
+    fn strength_rises_with_length_and_character_pool() {
+        assert_eq!(password_strength("Abcd1234efgh").level, "fair");
+        assert_eq!(password_strength("Tr0ub4dor&3xtr").level, "strong");
+        assert_eq!(
+            password_strength("rQ9!kW$9Z2#LpW7vB2&mXz4").level,
+            "excellent"
+        );
+    }
+
+    #[test]
+    fn strength_scores_an_empty_password_as_zero_bits() {
+        let empty = password_strength("");
+        assert_eq!(empty.bits, 0);
+        assert_eq!(empty.level, "weak");
     }
 
     #[test]

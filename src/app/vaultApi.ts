@@ -50,6 +50,11 @@ export type PasswordGeneratorOptions = {
   symbols: boolean
 }
 
+export type PasswordStrength = {
+  bits: number
+  level: 'excellent' | 'fair' | 'strong' | 'weak'
+}
+
 export type ImportPreviewResult = {
   total_items: number
   sample_titles: string[]
@@ -172,6 +177,7 @@ export const vaultApi = {
   loadGithubPat: () => invoke<string | null>('load_github_pat'),
   loadSyncSettings: () => invoke<GitHubSyncSettings | null>('load_sync_settings'),
   lock: () => invoke<void>('lock_vault'),
+  passwordStrength: (password: string) => invoke<PasswordStrength>('password_strength', { password }),
   pickAttachmentFile: () => invoke<string | null>('pick_attachment_file'),
   pickExportFile: () => invoke<string | null>('pick_export_file'),
   pickImportFile: () => invoke<string | null>('pick_import_file'),

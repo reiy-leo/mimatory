@@ -87,6 +87,7 @@ import {
   type LoginItem,
   type LoginItemInput,
   type PasswordGeneratorOptions,
+  type PasswordStrength,
   parseCustomFields,
   parseTags,
   type SnapshotSummary,
@@ -204,6 +205,9 @@ const sectionMenuHeight = Math.ceil(sectionChildOptions.length / 2) * menuRowHei
 // These belong with the credentials they protect, so they render in the username /
 // password group instead of the custom field list.
 const loginSectionFieldTypes = ['otp', 'sign_in_with', 'passkey']
+
+// Ordered weakest to strongest; the meter fills one segment per step.
+const strengthLevels = ['weak', 'fair', 'strong', 'excellent'] as const
 
 const categoryItems = [
   { colorClass: 'text-accent-icon-teal', icon: KeyRound, itemType: 'login' },
@@ -514,6 +518,7 @@ function VaultWindow() {
     uppercase: true,
   })
   const [generatedPassword, setGeneratedPassword] = useState('')
+  const [passwordStrength, setPasswordStrength] = useState<PasswordStrength | null>(null)
   const [showAddMore, setShowAddMore] = useState(false)
   const [sectionMenuIndex, setSectionMenuIndex] = useState<number | null>(null)
   const [addMoreMenuAnchor, setAddMoreMenuAnchor] = useState<MenuAnchor>()
@@ -751,6 +756,23 @@ function VaultWindow() {
     setShowPassword(false)
     setFieldTotpPreviews({})
   }, [draftKey])
+
+  useEffect(() => {
+    if (!form.password) {
+      setPasswordStrength(null)
+      return
+    }
+    let stale = false
+    vaultApi
+      .passwordStrength(form.password)
+      .then((next) => {
+        if (!stale) setPasswordStrength(next)
+      })
+      .catch(() => setPasswordStrength(null))
+    return () => {
+      stale = true
+    }
+  }, [form.password])
 
   useEffect(() => {
     if (!Object.keys(fieldTotpPreviews).length) return
@@ -1816,6 +1838,26 @@ function VaultWindow() {
                             <KeyRound size={16} />
                           </button>
                         </span>
+                        {passwordStrength ? (
+                          <div className={`password-strength is-${passwordStrength.level}`}>
+                            <span aria-hidden="true" className="password-strength-bar">
+                              {strengthLevels.map((level) => (
+                                <span
+                                  className={
+                                    strengthLevels.indexOf(level) <= strengthLevels.indexOf(passwordStrength.level)
+                                      ? 'password-strength-segment filled'
+                                      : 'password-strength-segment'
+                                  }
+                                  key={level}
+                                />
+                              ))}
+                            </span>
+                            <span className="password-strength-label">
+                              <span>{t(`vault.strength.${passwordStrength.level}`)}</span>
+                              <span>{t('vault.strengthBits', { bits: passwordStrength.bits })}</span>
+                            </span>
+                          </div>
+                        ) : null}
                       </label>
                       {loginSectionFields.map(({ field, index }) => (
                         <div
