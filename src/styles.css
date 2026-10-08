@@ -1950,6 +1950,10 @@
     @apply sticky bottom-0 mt-0 max-w-none justify-end border-t px-0 py-100;
   }
 
+  .unsaved-hint {
+    @apply mr-auto text-body-small text-text-subtle;
+  }
+
   .error-banner {
     color: var(--color-text-danger);
     background: var(--color-background-danger);

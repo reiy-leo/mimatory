@@ -57,6 +57,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n, { getInitialLanguage, languageOptions, type SupportedLanguage } from './app/i18n'
+import { isFormDirty } from './app/itemDrafts'
 import { getItemTemplate } from './app/itemTemplates'
 import { getLockScreenVariant, shouldShowTouchIdUnlock } from './app/lockScreen'
 import { getMenuAnchorStyle, type MenuAnchor } from './app/menuPlacement'
@@ -519,6 +520,13 @@ function VaultWindow() {
   const [sectionMenuAnchor, setSectionMenuAnchor] = useState<MenuAnchor>()
   const [fieldTotpPreviews, setFieldTotpPreviews] = useState<Record<number, FieldTotpPreview>>({})
   const [isEditing, setIsEditing] = useState(false)
+  // What the current form was loaded from. A ref, not state: the switch effect below runs only
+  // when the selected item changes, and it has to compare the outgoing form against the baseline
+  // that form came from.
+  const baselineRef = useRef(form)
+  const draftKeyRef = useRef('')
+  const draftsRef = useRef<Record<string, LoginFormState>>({})
+  const formRef = useRef(form)
   const [lastActivityAt, setLastActivityAt] = useState(() => Date.now())
   const topSearchInputRef = useRef<HTMLInputElement>(null)
   const [theme, setTheme] = useState<Theme>(() =>
@@ -707,6 +715,11 @@ function VaultWindow() {
     ? activeNavigation.slice('category:'.length)
     : 'login'
 
+  // A draft belongs to whatever the form is showing: a saved item, or the category a new
+  // item is being built under.
+  const draftKey = selectedItem?.id ?? `new:${newItemCategory}`
+  const hasUnsavedChanges = isFormDirty(baselineRef.current, form)
+
   const listTitle = useMemo(() => {
     if (activeNavigation === 'favorites') return t('listTitle.favorites')
     if (activeNavigation === 'tags') return t('listTitle.tags')
@@ -720,11 +733,24 @@ function VaultWindow() {
   }, [activeNavigation, t])
 
   useEffect(() => {
-    setForm(selectedItem ? toFormState(selectedItem) : buildDraftForm(newItemCategory))
+    formRef.current = form
+  }, [form])
+
+  useEffect(() => {
+    const previousKey = draftKeyRef.current
+    if (previousKey && previousKey !== draftKey) {
+      if (isFormDirty(baselineRef.current, formRef.current)) draftsRef.current[previousKey] = formRef.current
+      else delete draftsRef.current[previousKey]
+    }
+    const nextBaseline = selectedItem ? toFormState(selectedItem) : buildDraftForm(newItemCategory)
+    const restored = draftsRef.current[draftKey]
+    setForm(restored ?? nextBaseline)
+    baselineRef.current = nextBaseline
+    setIsEditing(Boolean(restored) || !selectedItem)
+    draftKeyRef.current = draftKey
     setShowPassword(false)
-    setIsEditing(!selectedItem)
     setFieldTotpPreviews({})
-  }, [selectedItem?.id, newItemCategory])
+  }, [draftKey])
 
   useEffect(() => {
     if (!Object.keys(fieldTotpPreviews).length) return
@@ -808,6 +834,8 @@ function VaultWindow() {
     setVaults([])
     setActiveVaultId('personal')
     setForm(toFormState(emptyLoginItem()))
+    draftsRef.current = {}
+    draftKeyRef.current = ''
     setIsEditing(false)
   }
 
@@ -822,6 +850,11 @@ function VaultWindow() {
       }
       const saved = selectedItem ? await vaultApi.update(selectedItem.id, input) : await vaultApi.create(input)
       const nextItems = await vaultApi.list()
+      // A save retires the draft and moves the form off its `new:` key, so the switch effect
+      // below does not file the just-saved values as unsaved edits on the old key.
+      delete draftsRef.current[draftKeyRef.current]
+      draftKeyRef.current = saved.id
+      baselineRef.current = toFormState(saved)
       setItems(nextItems)
       setSelectedId(saved.id)
       setIsEditing(false)
@@ -831,6 +864,15 @@ function VaultWindow() {
     } finally {
       setSaving(false)
     }
+  }
+
+  function handleCancelEdit() {
+    closeFieldMenus()
+    delete draftsRef.current[draftKeyRef.current]
+    setForm(baselineRef.current)
+    setShowPassword(false)
+    setFieldTotpPreviews({})
+    setIsEditing(!selectedItem)
   }
 
   // A template's fields are ordinary custom fields, so a seeded item can be edited,
@@ -1595,10 +1637,10 @@ function VaultWindow() {
             </button>
           </div>
           <div className="detail-topbar-actions">
-            {selectedItem ? (
-              <button className="top-edit-button" onClick={() => setIsEditing((value) => !value)} type="button">
+            {selectedItem && !isEditing ? (
+              <button className="top-edit-button" onClick={() => setIsEditing(true)} type="button">
                 <Edit3 size={15} />
-                {isEditing ? t('vault.doneEditing') : t('vault.edit')}
+                {t('vault.edit')}
               </button>
             ) : null}
             {isEditing ? (
@@ -2104,10 +2146,18 @@ function VaultWindow() {
                     {t('vault.archiveAction')}
                   </button>
                 ) : null}
+                {isEditing && hasUnsavedChanges ? (
+                  <span className="unsaved-hint">{t('vault.unsavedChanges')}</span>
+                ) : null}
                 {isEditing ? (
-                  <button className="primary-button" disabled={saving} type="submit">
-                    {saving ? t('vault.saving') : selectedItem ? t('vault.saveChanges') : t('vault.createLogin')}
-                  </button>
+                  <>
+                    <button className="secondary-button" onClick={handleCancelEdit} type="button">
+                      {t('vault.cancelEditing')}
+                    </button>
+                    <button className="primary-button" disabled={saving} type="submit">
+                      {saving ? t('vault.saving') : selectedItem ? t('vault.saveChanges') : t('vault.createLogin')}
+                    </button>
+                  </>
                 ) : null}
               </div>
             </form>
