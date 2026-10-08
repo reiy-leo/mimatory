@@ -14,6 +14,7 @@ use sha1::Sha1;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
+use std::sync::OnceLock;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -21,6 +22,33 @@ const DEFAULT_VAULT_ID: &str = "personal";
 const MASTER_VERIFIER_TEXT: &str = "passless-master-verifier";
 const MATCH_TYPE_EXACT: &str = "exact";
 const MATCH_TYPE_DOMAIN: &str = "domain";
+
+const GENERATOR_MODE_PASSPHRASE: &str = "passphrase";
+const GENERATOR_MODE_PIN: &str = "pin";
+const UPPERCASE_UNAMBIGUOUS: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ";
+const UPPERCASE_ALL: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const LOWERCASE_UNAMBIGUOUS: &[u8] = b"abcdefghijkmnopqrstuvwxyz";
+const LOWERCASE_ALL: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
+const DIGITS_UNAMBIGUOUS: &[u8] = b"23456789";
+const DIGITS_ALL: &[u8] = b"0123456789";
+
+/// 4096 words, so each one is exactly 12 bits of choice. The list is the 4–8 character prefix of
+/// google-10000-english-no-swears (github.com/first20hours/google-10000-english, MIT), vendored so
+/// a generated passphrase never depends on a file the host happens to have.
+const PASSPHRASE_WORDS: &str = include_str!("../wordlists/passphrase-words.txt");
+
+fn default_generator_mode() -> String {
+    "random".to_string()
+}
+
+fn default_word_count() -> usize {
+    4
+}
+
+/// The character sets this app shipped with already left I, l, O, 0 and 1 out.
+fn ambiguous_characters_avoided() -> bool {
+    true
+}
 
 #[derive(Clone)]
 pub struct Session {
@@ -129,6 +157,12 @@ pub struct PasswordGeneratorOptions {
     pub lowercase: bool,
     pub numbers: bool,
     pub symbols: bool,
+    #[serde(default = "default_generator_mode")]
+    pub mode: String,
+    #[serde(default = "default_word_count")]
+    pub words: usize,
+    #[serde(default = "ambiguous_characters_avoided")]
+    pub exclude_ambiguous: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -1232,16 +1266,36 @@ impl Session {
 }
 
 pub fn generate_password(options: PasswordGeneratorOptions) -> Result<String, VaultError> {
+    match options.mode.as_str() {
+        GENERATOR_MODE_PASSPHRASE => Ok(generate_passphrase(options.words.clamp(3, 10))),
+        GENERATOR_MODE_PIN => Ok(generate_pin(options.length.clamp(4, 12))),
+        _ => generate_random_password(&options),
+    }
+}
+
+fn generate_random_password(options: &PasswordGeneratorOptions) -> Result<String, VaultError> {
     let length = options.length.clamp(8, 128);
     let mut character_sets: Vec<&[u8]> = Vec::new();
     if options.uppercase {
-        character_sets.push(b"ABCDEFGHJKLMNPQRSTUVWXYZ");
+        character_sets.push(if options.exclude_ambiguous {
+            UPPERCASE_UNAMBIGUOUS
+        } else {
+            UPPERCASE_ALL
+        });
     }
     if options.lowercase {
-        character_sets.push(b"abcdefghijkmnopqrstuvwxyz");
+        character_sets.push(if options.exclude_ambiguous {
+            LOWERCASE_UNAMBIGUOUS
+        } else {
+            LOWERCASE_ALL
+        });
     }
     if options.numbers {
-        character_sets.push(b"23456789");
+        character_sets.push(if options.exclude_ambiguous {
+            DIGITS_UNAMBIGUOUS
+        } else {
+            DIGITS_ALL
+        });
     }
     if options.symbols {
         character_sets.push(b"!@#$%^&*-_=+?");
@@ -1263,6 +1317,80 @@ pub fn generate_password(options: PasswordGeneratorOptions) -> Result<String, Va
     password.shuffle(&mut rng);
 
     Ok(String::from_utf8(password).expect("generator only uses ASCII"))
+}
+
+fn generate_pin(length: usize) -> String {
+    let mut rng = rand::thread_rng();
+    (0..length)
+        .map(|_| rng.gen_range('0'..='9'))
+        .collect::<String>()
+}
+
+fn generate_passphrase(word_count: usize) -> String {
+    let wordlist = passphrase_wordlist();
+    let mut rng = rand::thread_rng();
+    let mut words = (0..word_count)
+        .map(|_| wordlist.words[rng.gen_range(0..wordlist.words.len())].to_string())
+        .collect::<Vec<_>>();
+    // One capitalised word and a two-digit suffix are not decoration: a passphrase that is all
+    // lower case and has no digit is the exact shape Watchtower calls weak, so the generator
+    // would otherwise produce passwords its own audit then flags.
+    let capitalised = rng.gen_range(0..words.len());
+    if let Some(first) = words[capitalised].get_mut(0..1) {
+        first.make_ascii_uppercase();
+    }
+    format!("{}-{:02}", words.join("-"), rng.gen_range(0..100))
+}
+
+struct PassphraseWordlist {
+    words: Vec<&'static str>,
+    known: HashSet<&'static str>,
+}
+
+fn passphrase_wordlist() -> &'static PassphraseWordlist {
+    static WORDLIST: OnceLock<PassphraseWordlist> = OnceLock::new();
+    WORDLIST.get_or_init(|| {
+        let words = PASSPHRASE_WORDS
+            .lines()
+            .map(str::trim)
+            .filter(|word| !word.is_empty())
+            .collect::<Vec<_>>();
+        let known = words.iter().copied().collect::<HashSet<_>>();
+        PassphraseWordlist { words, known }
+    })
+}
+
+/// A passphrase is one word choice per segment, not one character out of the 95-character
+/// charset, so scoring it by length would rate a 60-bit passphrase excellent. When a password has
+/// the shape this generator emits, the meter counts the choices that were actually made instead.
+fn passphrase_bits(password: &str) -> Option<u32> {
+    let wordlist = passphrase_wordlist();
+    let segments = password.split('-').collect::<Vec<_>>();
+    if segments.len() < 2 {
+        return None;
+    }
+
+    let mut words = 0_usize;
+    let mut suffix_bits = 0_f64;
+    for (index, segment) in segments.iter().enumerate() {
+        let is_last = index + 1 == segments.len();
+        if is_last && segment.len() == 2 && segment.chars().all(|character| character.is_ascii_digit())
+        {
+            suffix_bits = (100_f64).log2();
+            continue;
+        }
+        let lowered = segment.to_lowercase();
+        if !wordlist.known.contains(lowered.as_str()) {
+            return None;
+        }
+        words += 1;
+    }
+    if words < 2 {
+        return None;
+    }
+
+    let bits = words as f64 * (wordlist.words.len() as f64).log2() + suffix_bits;
+    Some(bits.round() as u32)
 }
 
 fn bool_to_i64(value: bool) -> i64 {
@@ -1539,7 +1667,8 @@ pub fn password_strength(password: &str) -> PasswordStrength {
         pool = 100;
     }
 
-    let bits = (length as f64 * (pool as f64).log2()).round() as u32;
+    let bits = passphrase_bits(password)
+        .unwrap_or_else(|| (length as f64 * (pool as f64).log2()).round() as u32);
     let level = if is_weak_password(password) || bits < 65 {
         "weak"
     } else if bits < 85 {
@@ -2086,6 +2215,7 @@ mod tests {
             lowercase: true,
             numbers: true,
             symbols: false,
+            ..generator_options()
         })
         .expect("password should generate");
 
@@ -2100,6 +2230,146 @@ mod tests {
         assert!(!password
             .chars()
             .any(|character| !character.is_ascii_alphanumeric()));
+    }
+
+    #[test]
+    fn ambiguous_characters_are_left_out_only_when_the_option_says_so() {
+        let ambiguous = ['I', 'O', 'l', '0', '1'];
+        for _ in 0..20 {
+            let password = generate_password(PasswordGeneratorOptions {
+                exclude_ambiguous: true,
+                length: 128,
+                symbols: false,
+                ..generator_options()
+            })
+            .expect("password should generate");
+            assert!(password.chars().all(|character| !ambiguous.contains(&character)));
+        }
+
+        let uses_them = (0..20)
+            .map(|_| {
+                generate_password(PasswordGeneratorOptions {
+                    exclude_ambiguous: false,
+                    length: 128,
+                    symbols: false,
+                    ..generator_options()
+                })
+                .expect("password should generate")
+            })
+            .any(|password| password.chars().any(|character| ambiguous.contains(&character)));
+        assert!(
+            uses_them,
+            "the unfiltered sets are the whole alphabet and all ten digits"
+        );
+    }
+
+    #[test]
+    fn generated_pin_is_digits_at_the_requested_length() {
+        let pin = generate_password(PasswordGeneratorOptions {
+            mode: "pin".to_string(),
+            length: 6,
+            ..generator_options()
+        })
+        .expect("pin should generate");
+        assert_eq!(pin.len(), 6);
+        assert!(pin.chars().all(|character| character.is_ascii_digit()));
+
+        let shortest = generate_password(PasswordGeneratorOptions {
+            mode: "pin".to_string(),
+            length: 1,
+            ..generator_options()
+        })
+        .expect("pin should generate");
+        assert_eq!(shortest.len(), 4, "a one-digit pin is not a pin");
+    }
+
+    #[test]
+    fn generated_passphrase_is_wordlist_words_with_one_capital_and_a_suffix() {
+        let phrase = generate_password(PasswordGeneratorOptions {
+            mode: "passphrase".to_string(),
+            words: 5,
+            ..generator_options()
+        })
+        .expect("passphrase should generate");
+        let segments = phrase.split('-').collect::<Vec<_>>();
+        assert_eq!(segments.len(), 6);
+        assert!(segments[5].bytes().all(|byte| byte.is_ascii_digit()));
+        assert_eq!(
+            segments[..5]
+                .iter()
+                .filter(|segment| segment.starts_with(char::is_uppercase))
+                .count(),
+            1
+        );
+        let wordlist = passphrase_wordlist();
+        for segment in &segments[..5] {
+            let lowered = segment.to_lowercase();
+            assert!(
+                wordlist.known.contains(lowered.as_str()),
+                "{segment} should be a wordlist word"
+            );
+        }
+
+        let fewest = generate_password(PasswordGeneratorOptions {
+            mode: "passphrase".to_string(),
+            words: 1,
+            ..generator_options()
+        })
+        .expect("passphrase should generate");
+        assert_eq!(fewest.split('-').count(), 4, "three words is the floor");
+    }
+
+    #[test]
+    fn the_passphrase_wordlist_is_an_even_power_of_two() {
+        let wordlist = passphrase_wordlist();
+        assert_eq!(wordlist.words.len(), 4096);
+        assert_eq!(
+            wordlist.words.len(),
+            wordlist.known.len(),
+            "a repeated word would make the list smaller than it looks"
+        );
+        assert!(wordlist
+            .words
+            .iter()
+            .all(|word| (4..=8).contains(&word.len()) && word.bytes().all(|byte| byte.is_ascii_lowercase())));
+    }
+
+    #[test]
+    fn a_passphrase_scores_the_words_it_chose_not_the_characters_it_typed() {
+        let wordlist = passphrase_wordlist();
+        let picked = [
+            wordlist.words[12],
+            wordlist.words[640],
+            wordlist.words[1800],
+            wordlist.words[3900],
+        ];
+        let mut phrase = picked.join("-");
+        if let Some(head) = phrase.get_mut(0..1) {
+            head.make_ascii_uppercase();
+        }
+        let phrase = format!("{phrase}-07");
+
+        assert_eq!(passphrase_bits(&phrase), Some(55));
+        let strength = password_strength(&phrase);
+        assert_eq!(strength.bits, 55);
+        // Read as characters, these would be roughly 260 bits of charset and rate excellent.
+        assert_eq!(strength.level, "weak");
+
+        assert!(passphrase_bits(&format!("{}-{}-zqxjvw", picked[0], picked[1])).is_none());
+        assert!(passphrase_bits("revolvers").is_none());
+    }
+
+    fn generator_options() -> PasswordGeneratorOptions {
+        PasswordGeneratorOptions {
+            exclude_ambiguous: true,
+            length: 24,
+            lowercase: true,
+            mode: "random".to_string(),
+            numbers: true,
+            symbols: false,
+            uppercase: true,
+            words: 4,
+        }
     }
 
     #[test]

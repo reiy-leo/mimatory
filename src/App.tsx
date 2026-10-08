@@ -85,10 +85,12 @@ import {
   type ItemUrl,
   type LoginItem,
   type LoginItemInput,
+  type PasswordGeneratorMode,
   type PasswordGeneratorOptions,
   type PasswordStrength,
   parseCustomFields,
   parseTags,
+  randomGeneratorOptions,
   tagsToInput,
   type UrlMatchType,
   type VaultSummary,
@@ -121,11 +123,22 @@ type FieldTotpPreview = {
 
 const defaultWebsiteLabel = 'website'
 const defaultUrlMatchType: UrlMatchType = 'domain'
+const generatorModes: PasswordGeneratorMode[] = ['random', 'passphrase', 'pin']
+const randomGeneratorChecks = ['exclude_ambiguous', 'lowercase', 'numbers', 'symbols', 'uppercase'] as const
+// A range input with no step divides its span into 100 equal shares, so a 16-word or 12-character
+// slider landed on .16 of a word. Every step here divides its span evenly.
+const passphraseWordLimits = { max: 9, min: 3, step: 1 }
+const pinLengthLimits = { max: 12, min: 4, step: 1 }
+const randomLengthLimits = { max: 128, min: 8, step: 4 }
 const quickAccessMaxResults = 8
 const quickAccessCloseDelayMs = 400
 
 function createFormId() {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
+}
+
+function clampNumber(value: number, limits: { max: number; min: number }) {
+  return Math.min(Math.max(value, limits.min), limits.max)
 }
 
 function toUrlFormState(url: ItemUrl): UrlFormState {
@@ -504,13 +517,14 @@ function VaultWindow() {
   const [biometricsAvailable, setBiometricsAvailable] = useState(false)
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
   const [form, setForm] = useState<LoginFormState>(() => toFormState(emptyLoginItem()))
-  const [generatorOptions, setGeneratorOptions] = useState<PasswordGeneratorOptions>({
-    length: 24,
-    lowercase: true,
-    numbers: true,
-    symbols: true,
-    uppercase: true,
-  })
+  const [generatorOptions, setGeneratorOptions] = useState<PasswordGeneratorOptions>(() => ({
+    ...randomGeneratorOptions,
+  }))
+  const generatorLengthLimits = generatorOptions.mode === 'pin' ? pinLengthLimits : randomLengthLimits
+  // The backend answers "needs at least one character set" when all four are off, which the panel
+  // would otherwise show as a spinner that never stops.
+  const allCharacterSetsOff =
+    !generatorOptions.uppercase && !generatorOptions.lowercase && !generatorOptions.numbers && !generatorOptions.symbols
   const [generatedPassword, setGeneratedPassword] = useState('')
   const [passwordStrength, setPasswordStrength] = useState<PasswordStrength | null>(null)
   const [showAddMore, setShowAddMore] = useState(false)
@@ -1222,15 +1236,17 @@ function VaultWindow() {
   }
 
   async function handleGeneratePassword() {
-    const password = await vaultApi.generatePassword({
-      length: 24,
-      lowercase: true,
-      numbers: true,
-      symbols: true,
-      uppercase: true,
-    })
+    const password = await vaultApi.generatePassword(randomGeneratorOptions)
     setForm((current) => ({ ...current, password }))
     setShowPassword(true)
+  }
+
+  function handleGeneratorModeChange(mode: PasswordGeneratorMode) {
+    setGeneratorOptions((current) => {
+      if (mode === 'passphrase') return { ...current, mode }
+      const limits = mode === 'pin' ? pinLengthLimits : randomLengthLimits
+      return { ...current, length: clampNumber(current.length, limits), mode }
+    })
   }
 
   async function handleStandaloneGeneratePassword() {
@@ -1680,39 +1696,82 @@ function VaultWindow() {
             </div>
 
             <div className="generator-controls">
-              <label className="generator-length-control">
-                <span>{t('vault.passwordLength', { defaultValue: 'Length' })}</span>
-                <input
-                  max={128}
-                  min={8}
-                  onChange={(event) =>
-                    setGeneratorOptions((current) => ({ ...current, length: Number(event.target.value) }))
-                  }
-                  type="range"
-                  value={generatorOptions.length}
-                />
-                <input
-                  max={128}
-                  min={8}
-                  onChange={(event) =>
-                    setGeneratorOptions((current) => ({ ...current, length: Number(event.target.value) }))
-                  }
-                  type="number"
-                  value={generatorOptions.length}
-                />
-              </label>
-              {(['uppercase', 'lowercase', 'numbers', 'symbols'] as const).map((option) => (
-                <label className="generator-check-row" key={option}>
+              <div className="generator-mode-tabs">
+                {generatorModes.map((mode) => (
+                  <button
+                    aria-pressed={generatorOptions.mode === mode}
+                    className="generator-mode-tab"
+                    key={mode}
+                    onClick={() => handleGeneratorModeChange(mode)}
+                    type="button"
+                  >
+                    {t(`vault.generatorModes.${mode}`)}
+                  </button>
+                ))}
+              </div>
+              {generatorOptions.mode === 'passphrase' ? (
+                <label className="generator-length-control">
+                  <span>{t('vault.generatorWords')}</span>
                   <input
-                    checked={generatorOptions[option]}
+                    max={passphraseWordLimits.max}
+                    min={passphraseWordLimits.min}
                     onChange={(event) =>
-                      setGeneratorOptions((current) => ({ ...current, [option]: event.target.checked }))
+                      setGeneratorOptions((current) => ({ ...current, words: Number(event.target.value) }))
                     }
-                    type="checkbox"
+                    step={passphraseWordLimits.step}
+                    type="range"
+                    value={generatorOptions.words}
                   />
-                  {t(`vault.generatorOptions.${option}`, { defaultValue: option })}
+                  <input readOnly step={passphraseWordLimits.step} type="number" value={generatorOptions.words} />
                 </label>
-              ))}
+              ) : (
+                <label className="generator-length-control">
+                  <span>{t('vault.passwordLength')}</span>
+                  <input
+                    max={generatorLengthLimits.max}
+                    min={generatorLengthLimits.min}
+                    onChange={(event) =>
+                      setGeneratorOptions((current) => ({ ...current, length: Number(event.target.value) }))
+                    }
+                    readOnly={generatorOptions.mode === 'pin'}
+                    step={generatorLengthLimits.step}
+                    type="range"
+                    value={generatorOptions.length}
+                  />
+                  <input
+                    max={generatorLengthLimits.max}
+                    min={generatorLengthLimits.min}
+                    onChange={(event) =>
+                      setGeneratorOptions((current) => ({ ...current, length: Number(event.target.value) }))
+                    }
+                    readOnly={generatorOptions.mode === 'pin'}
+                    step={generatorLengthLimits.step}
+                    type="number"
+                    value={generatorOptions.length}
+                  />
+                </label>
+              )}
+              {generatorOptions.mode === 'random' ? (
+                <>
+                  {randomGeneratorChecks.map((option) => (
+                    <label className="generator-check-row" key={option}>
+                      <input
+                        checked={generatorOptions[option]}
+                        onChange={(event) =>
+                          setGeneratorOptions((current) => ({ ...current, [option]: event.target.checked }))
+                        }
+                        type="checkbox"
+                      />
+                      {t(`vault.generatorOptions.${option}`)}
+                    </label>
+                  ))}
+                  {!allCharacterSetsOff ? (
+                    <p className="generator-preview">
+                      {t('vault.generatorPreview', { length: generatorOptions.length })}
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
             </div>
 
             <div className="detail-actions generator-actions">
@@ -1724,7 +1783,12 @@ function VaultWindow() {
               >
                 {t('vault.useGeneratedPassword', { defaultValue: 'Use in current item' })}
               </button>
-              <button className="primary-button" onClick={handleStandaloneGeneratePassword} type="button">
+              <button
+                className="primary-button"
+                disabled={allCharacterSetsOff}
+                onClick={handleStandaloneGeneratePassword}
+                type="button"
+              >
                 <KeyRound size={16} />
                 {t('vault.generatePassword')}
               </button>

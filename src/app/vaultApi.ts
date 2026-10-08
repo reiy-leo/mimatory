@@ -45,12 +45,30 @@ export type CustomField = {
 
 export type LoginItemInput = Omit<LoginItem, 'id' | 'updated_at'>
 
+export type PasswordGeneratorMode = 'passphrase' | 'pin' | 'random'
+
 export type PasswordGeneratorOptions = {
   length: number
   uppercase: boolean
   lowercase: boolean
   numbers: boolean
   symbols: boolean
+  exclude_ambiguous: boolean
+  mode: PasswordGeneratorMode
+  words: number
+}
+
+// The password field's own key button always makes a strong random one; the generator panel is
+// where the modes live, and a PIN is not what that button should ever insert.
+export const randomGeneratorOptions: PasswordGeneratorOptions = {
+  exclude_ambiguous: true,
+  length: 24,
+  lowercase: true,
+  mode: 'random',
+  numbers: true,
+  symbols: true,
+  uppercase: true,
+  words: 4,
 }
 
 export type PasswordStrength = {

@@ -1858,6 +1858,31 @@
     @apply gap-050 px-150 py-100 text-body-small font-medium;
   }
 
+  .generator-mode-tabs {
+    @apply flex gap-050 rounded-medium bg-background-neutral-subtle p-050;
+  }
+
+  .generator-mode-tab {
+    color: var(--color-text-subtle);
+    background: transparent;
+    @apply min-h-400 flex-1 rounded-medium border-0 px-100 text-body font-medium transition-colors;
+  }
+
+  .generator-mode-tab:hover {
+    color: var(--color-text);
+  }
+
+  .generator-mode-tab[aria-pressed="true"] {
+    color: var(--color-text);
+    background: var(--color-background-selected);
+    @apply font-semibold;
+  }
+
+  .generator-preview {
+    color: var(--color-text-subtle);
+    @apply m-0 text-body-small;
+  }
+
   .onepassword-field input,
   .onepassword-field textarea,
   .onepassword-field select,
