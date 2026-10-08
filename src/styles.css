@@ -426,6 +426,11 @@
     @apply grid w-full max-w-lock-panel gap-100;
   }
 
+  .compact-lock-brand {
+    color: var(--color-text);
+    @apply m-0 flex items-center justify-center gap-100 text-heading-xsmall;
+  }
+
   .compact-password-control {
     background: var(--color-background-input);
     border-color: var(--color-border-input);

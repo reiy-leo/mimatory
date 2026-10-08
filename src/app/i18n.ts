@@ -149,6 +149,7 @@ const resources = {
         watchtower: 'Watchtower',
       },
       lock: {
+        appName: 'mimatory',
         createDescription: 'This password encrypts your local SQLite vault. It is not stored.',
         createTitle: 'Create your master password',
         createVault: 'Create vault',
@@ -513,6 +514,7 @@ const resources = {
         watchtower: 'ウォッチタワー',
       },
       lock: {
+        appName: 'mimatory',
         createDescription: 'このパスワードはローカル SQLite 保管庫を暗号化します。保存されません。',
         createTitle: 'マスターパスワードを作成',
         createVault: '保管庫を作成',
@@ -866,6 +868,7 @@ const resources = {
         watchtower: '瞭望塔',
       },
       lock: {
+        appName: '密码通',
         createDescription: '此密码会加密你的本地 SQLite 保险库。它不会被存储。',
         createTitle: '创建主密码',
         createVault: '创建保险库',

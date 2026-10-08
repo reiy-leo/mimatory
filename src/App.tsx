@@ -1378,6 +1378,12 @@ function VaultWindow() {
       return (
         <main className="lock-screen compact-lock-screen" data-tauri-drag-region>
           <form className="compact-unlock-form" onSubmit={handleUnlock}>
+            <h1 className="compact-lock-brand">
+              <span aria-hidden="true" className="brand-mark">
+                <Lock size={16} />
+              </span>
+              <span>{t('lock.appName')}</span>
+            </h1>
             <div className="compact-password-control">
               <input
                 aria-label={t('lock.masterPassword')}
@@ -1423,7 +1429,7 @@ function VaultWindow() {
               <Lock size={16} />
             </div>
             <div>
-              <strong>Passless</strong>
+              <strong>{t('lock.appName')}</strong>
               <span>{t('lock.tagline')}</span>
             </div>
           </div>
