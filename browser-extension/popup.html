@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Passless</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body class="m-0 w-[280px] bg-slate-50 font-sans text-[13px] text-slate-950">
+    <main class="grid gap-3 p-3.5">
+      <header class="grid gap-0.5">
+        <strong class="text-sm font-bold">Passless</strong>
+        <span class="text-slate-500" id="status">Checking app...</span>
+      </header>
+      <label class="grid gap-1.5 font-semibold text-slate-500">
+        Pairing token
+        <input
+          class="h-[30px] rounded-md border border-slate-300 bg-white px-2 font-sans text-slate-950 outline-none"
+          id="token"
+          placeholder="Paste token from app"
+        />
+      </label>
+      <button
+        class="min-h-[34px] rounded-md border border-blue-600 bg-blue-600 px-3 font-bold text-white"
+        id="save-token"
+        type="button"
+      >
+        Save token
+      </button>
+      <button class="min-h-[34px] rounded-md border border-blue-600 bg-blue-600 px-3 font-bold text-white" id="fill" type="button">
+        Fill current page
+      </button>
+      <p class="m-0 text-slate-500">Keep the Passless desktop app unlocked for autofill and save prompts.</p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

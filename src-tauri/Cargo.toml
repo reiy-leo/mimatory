@@ -1,0 +1,43 @@
+[package]
+name = "passless"
+version = "0.1.0"
+description = "A personal password manager"
+authors = ["Passless"]
+edition = "2021"
+
+[lib]
+name = "passless_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+aes-gcm = "0.10"
+argon2 = "0.5"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+data-encoding = "2"
+dirs = "6"
+hmac = "0.12"
+keyring = { version = "3", features = ["apple-native"] }
+block2 = "0.6"
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-local-authentication = "0.3"
+rand = "0.8"
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+rfd = "0.15"
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1 = "0.10"
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-autostart = "2.7.0"
+tauri-plugin-global-shortcut = "2.4.0"
+tauri-plugin-positioner = { version = "2.4.0", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2.5.2"
+thiserror = "2"
+tiny_http = "0.12"
+uuid = { version = "1", features = ["v4"] }
+zip = "2"

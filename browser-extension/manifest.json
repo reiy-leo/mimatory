@@ -1,0 +1,19 @@
+{
+	"action": {
+		"default_popup": "popup.html",
+		"default_title": "Passless"
+	},
+	"content_scripts": [
+		{
+			"js": ["content.js"],
+			"matches": ["<all_urls>"],
+			"run_at": "document_idle"
+		}
+	],
+	"description": "Autofill and save logins through the local Passless desktop app.",
+	"host_permissions": ["http://127.0.0.1:17891/*", "<all_urls>"],
+	"manifest_version": 3,
+	"name": "Passless Autofill",
+	"permissions": ["activeTab", "scripting", "storage"],
+	"version": "0.1.0"
+}

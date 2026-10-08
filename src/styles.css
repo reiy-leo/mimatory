@@ -1,0 +1,2103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* No-ligatures variant: `!=`, `->`, `//` must never fuse inside a secret. */
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url("/fonts/JetBrainsMonoNL-SemiBold.ttf") format("truetype");
+}
+
+@layer base {
+  :root {
+    /* Cupertino Vault design tokens — light appearance. */
+    --color-surface: #faf9fe;
+    --color-surface-dim: #dad9df;
+    --color-surface-bright: #faf9fe;
+    --color-surface-container-lowest: #ffffff;
+    --color-surface-container-low: #f4f3f8;
+    --color-surface-container: #eeedf3;
+    --color-surface-container-high: #e9e7ed;
+    --color-surface-container-highest: #e3e2e7;
+    --color-surface-variant: #e3e2e7;
+    --color-surface-tint: #005bc0;
+    --color-on-surface: #1a1b1f;
+    --color-on-surface-variant: #414754;
+    --color-inverse-surface: #2f3034;
+    --color-inverse-on-surface: #f1f0f5;
+    --color-outline: #727785;
+    --color-outline-variant: #c1c6d6;
+    --color-background: #faf9fe;
+    --color-on-background: #1a1b1f;
+    --color-primary: #005abe;
+    --color-on-primary: #ffffff;
+    --color-primary-container: #0572ec;
+    --color-on-primary-container: #ffffff;
+    --color-inverse-primary: #adc7ff;
+    --color-primary-fixed: #d8e2ff;
+    --color-primary-fixed-dim: #adc7ff;
+    --color-on-primary-fixed: #001a41;
+    --color-on-primary-fixed-variant: #004493;
+    --color-secondary: #006e26;
+    --color-on-secondary: #ffffff;
+    --color-secondary-container: #64fd7d;
+    --color-on-secondary-container: #007328;
+    --color-secondary-fixed: #6cff82;
+    --color-secondary-fixed-dim: #47e266;
+    --color-on-secondary-fixed: #002106;
+    --color-on-secondary-fixed-variant: #00531a;
+    --color-tertiary: #875100;
+    --color-on-tertiary: #ffffff;
+    --color-tertiary-container: #a96700;
+    --color-on-tertiary-container: #ffffff;
+    --color-tertiary-fixed: #ffddbb;
+    --color-tertiary-fixed-dim: #ffb868;
+    --color-on-tertiary-fixed: #2b1700;
+    --color-on-tertiary-fixed-variant: #673d00;
+    --color-error: #ba1a1a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+    --color-system-blue: #0071e3;
+    --color-vault-vibrant-blue: #0572ec;
+    --color-security-green: #34c759;
+    --color-warning-amber: #ff9500;
+    --color-critical-red: #ff3b30;
+    --color-secure-mask-dot: #48484a;
+    --color-sidebar-light-tint: rgb(246 246 246 / 75%);
+    --color-sidebar-dark-tint: rgb(30 30 30 / 75%);
+    --color-divider-light: #e5e5ea;
+    --color-divider-dark: #2c2c2e;
+    --color-card-bg-light: #ffffff;
+    --color-card-bg-dark: #1c1c1e;
+
+    /* Semantic aliases: the component layer reads these, so a theme change re-points
+       this group instead of restyling the ~340 selectors that consume it. */
+    --theme-color: var(--color-vault-vibrant-blue);
+    --theme-bg-2: var(--color-background);
+    --theme-text-70: var(--color-on-surface);
+    --theme-panel: var(--color-card-bg-light);
+    --theme-border: var(--color-divider-light);
+    --theme-hover: color-mix(in srgb, var(--color-vault-vibrant-blue) 10%, transparent);
+    --theme-selected: color-mix(in srgb, var(--color-vault-vibrant-blue) 14%, transparent);
+    --theme-shadow: 0 10px 26px rgb(28 43 70 / 10%);
+    --passless-sidebar-bg: var(--color-surface-container-low);
+    --passless-sidebar-text: var(--color-on-surface);
+    --passless-sidebar-active: var(--color-primary-container);
+    --passless-sidebar-active-text: var(--color-on-primary-container);
+    --passless-surface: var(--color-surface-container-lowest);
+    --passless-surface-muted: var(--color-surface);
+    --passless-surface-raised: var(--color-surface-container-low);
+    --passless-text: var(--color-on-surface);
+    --passless-border: var(--color-divider-light);
+    --passless-border-soft: color-mix(in srgb, var(--color-divider-light) 64%, transparent);
+    --passless-control-hover: var(--theme-hover);
+    --passless-control-active: var(--theme-selected);
+    --passless-accent: var(--color-vault-vibrant-blue);
+    --passless-accent-soft: color-mix(in srgb, var(--color-vault-vibrant-blue) 9%, transparent);
+    --passless-shadow-soft: var(--theme-shadow);
+    font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    font-synthesis: none;
+    color-scheme: light;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* The design package ships no dark token table, so these reuse the app's existing
+     dark values re-pointed onto the token names. Decision 7 still owes a real dark palette. */
+  :root[data-theme="dark"] {
+    --color-surface: #111317;
+    --color-surface-container-lowest: #1c1c1e;
+    --color-surface-container-low: #1b1f26;
+    --color-surface-container: #171a20;
+    --color-surface-container-high: #242a33;
+    --color-surface-container-highest: #2f353f;
+    --color-surface-variant: #2f353f;
+    --color-on-surface: #e4e7ec;
+    --color-on-surface-variant: #c9ced8;
+    --color-inverse-surface: #f1f0f5;
+    --color-inverse-on-surface: #2f3034;
+    --color-outline: #8e8e93;
+    --color-outline-variant: #39465a;
+    --color-background: #000000;
+    --color-on-background: #f1f0f5;
+    --color-primary: #adc7ff;
+    --color-on-primary: #001a41;
+    --color-primary-container: #4b8cff;
+    --color-on-primary-container: #ffffff;
+    --color-inverse-primary: #005abe;
+    --color-primary-fixed: #004493;
+    --color-primary-fixed-dim: #4f79d3;
+    --color-vault-vibrant-blue: #86adff;
+    --color-card-bg-light: #1c1c1e;
+    --color-divider-light: #2c2c2e;
+    --color-secure-mask-dot: #aeaeb2;
+    --theme-shadow: 0 14px 32px rgb(0 0 0 / 34%);
+    --passless-sidebar-bg: #171d26;
+    color-scheme: dark;
+  }
+
+  * {
+    @apply box-border;
+  }
+
+  body {
+    @apply m-0 h-screen min-w-[760px] overflow-hidden bg-slate-100 text-sm text-slate-950 dark:bg-zinc-950 dark:text-slate-100;
+  }
+
+  #root {
+    @apply h-screen overflow-hidden;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button {
+    @apply cursor-pointer;
+  }
+
+  input,
+  textarea,
+  select {
+    background: var(--passless-surface);
+    border-color: var(--passless-border);
+    @apply w-full rounded-md text-slate-950 outline-none transition-[border-color,box-shadow,background-color] dark:text-slate-100;
+  }
+
+  input,
+  select {
+    @apply h-10 px-2;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    border-color: var(--passless-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--passless-accent) 18%, transparent);
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--passless-accent) 18%, transparent);
+    @apply outline-none;
+  }
+
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 10L12 14L16 10' stroke='%2364758B' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.85rem center;
+    background-size: 18px 18px;
+    @apply appearance-none pr-2 font-semibold shadow-sm;
+  }
+
+  select:hover {
+    background-color: var(--passless-control-hover);
+  }
+
+  :root[data-theme="dark"] select {
+    background-image: url("data:image/svg+xml,%3Csvg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 10L12 14L16 10' stroke='%23CBD5E1' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+
+  textarea {
+    @apply resize-y p-2;
+  }
+
+  label {
+    @apply grid gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300;
+  }
+
+  p {
+    @apply mt-1.5 mb-0 text-slate-500 dark:text-slate-400;
+  }
+}
+
+@layer components {
+  .lock-screen {
+    @apply grid h-screen overflow-auto place-items-center bg-slate-100 p-2 dark:bg-zinc-950;
+  }
+
+  .lock-panel {
+    @apply w-full max-w-[440px] rounded-lg border border-slate-200 bg-white p-2 shadow-2xl shadow-slate-900/10 dark:border-slate-800 dark:bg-zinc-900;
+  }
+
+  .lock-panel form {
+    @apply mt-7 grid gap-4;
+  }
+
+  .lock-panel h1 {
+    @apply m-0 text-sm font-bold leading-tight text-slate-950 dark:text-slate-50;
+  }
+
+  .compact-lock-screen {
+    @apply flex h-screen items-center justify-center overflow-hidden bg-slate-50 p-7 dark:bg-zinc-950;
+  }
+
+  .compact-unlock-form {
+    @apply grid w-full max-w-[340px] gap-2;
+  }
+
+  .compact-password-control {
+    background: var(--passless-surface);
+    border-color: var(--passless-border);
+    @apply flex h-10 items-center rounded-[10px] border px-1 shadow-sm;
+  }
+
+  .compact-password-control:focus-within {
+    border-color: var(--passless-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--passless-accent) 18%, transparent);
+  }
+
+  .compact-password-control input {
+    color: var(--passless-text);
+    @apply min-w-0 flex-1 border-0 bg-transparent px-2 text-sm leading-none shadow-none outline-none;
+  }
+
+  .compact-password-control input::placeholder {
+    color: var(--color-outline);
+    opacity: 1;
+  }
+
+  .compact-unlock-icon-button {
+    color: var(--passless-accent);
+    @apply grid h-8 w-8 shrink-0 place-items-center rounded-md border-0 bg-transparent p-0;
+  }
+
+  .compact-unlock-icon-button:hover {
+    background: var(--passless-control-hover);
+  }
+
+  .compact-lock-error {
+    @apply rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-200;
+  }
+
+  .app-shell {
+    background: var(--passless-surface-muted);
+    @apply grid h-screen min-h-0 min-w-[960px] grid-rows-[58px_minmax(0,1fr)] overflow-hidden;
+  }
+
+  .sidebar,
+  .item-list,
+  .detail-pane {
+    @apply min-h-0 overflow-y-auto;
+  }
+
+  .sidebar {
+    @apply row-span-2 h-screen;
+  }
+
+  .item-list,
+  .detail-pane {
+    @apply h-full;
+  }
+
+  .item-list {
+    @apply col-start-2 row-start-2;
+  }
+
+  .detail-pane {
+    @apply col-start-4 row-start-2;
+  }
+
+  .sidebar {
+    color: var(--passless-sidebar-text);
+    background: var(--passless-sidebar-bg);
+    border-color: var(--passless-border);
+    @apply flex flex-col gap-6 border-r px-2 py-2;
+  }
+
+  .top-search-bar {
+    background: color-mix(in srgb, var(--passless-surface) 92%, var(--passless-surface-muted));
+    border-color: var(--passless-border);
+    @apply col-start-2 col-span-3 grid min-h-0 grid-cols-[1fr_auto] items-center gap-4 border-b px-3;
+  }
+
+  .column-resize-handle {
+    background: linear-gradient(to right, transparent 0 2px, var(--passless-border-soft) 2px 3px, transparent 3px);
+    @apply col-start-3 row-start-2 h-full w-full cursor-col-resize border-0;
+  }
+
+  .column-resize-handle:hover,
+  .column-resize-handle:focus-visible {
+    background: linear-gradient(to right, transparent 0 1px, var(--passless-accent) 1px 4px, transparent 4px);
+  }
+
+  .top-search-wrap {
+    @apply relative max-w-[760px];
+  }
+
+  .top-search-box {
+    background: var(--passless-surface-raised);
+    border-color: var(--passless-border);
+    @apply flex h-10 grid-cols-none items-center gap-2 rounded-lg border px-3 text-slate-500 shadow-sm dark:text-slate-400;
+  }
+
+  .top-search-box input {
+    @apply h-auto border-0 bg-transparent p-0 text-sm font-medium text-slate-900 shadow-none outline-none dark:text-slate-100;
+  }
+
+  .top-search-box input:focus {
+    @apply border-0 shadow-none;
+  }
+
+  .top-search-results {
+    background: var(--passless-surface);
+    border-color: var(--passless-border);
+    box-shadow: var(--passless-shadow-soft);
+    @apply absolute left-0 right-0 top-[calc(100%+8px)] z-30 grid overflow-hidden rounded-lg border py-1.5;
+  }
+
+  .top-search-results button {
+    @apply mx-1 flex min-h-[58px] items-center gap-3 rounded-md border-0 bg-transparent px-2 py-2 text-left text-slate-900 dark:text-slate-100;
+  }
+
+  .top-search-results button:hover {
+    background: var(--passless-control-hover);
+  }
+
+  .top-search-results button strong,
+  .top-search-results button small {
+    @apply block;
+  }
+
+  .top-search-results button small {
+    @apply mt-0.5 text-sm text-slate-500 dark:text-slate-400;
+  }
+
+  .top-search-results p {
+    @apply m-0 px-2 py-2 text-sm text-slate-500;
+  }
+
+  .top-new-item-button {
+    color: white;
+    background: var(--passless-accent);
+    border-color: color-mix(in srgb, var(--passless-accent) 78%, black);
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-semibold;
+  }
+
+  .top-new-item-button:hover {
+    background: color-mix(in srgb, var(--passless-accent) 88%, black);
+  }
+
+  .brand {
+    @apply flex items-center gap-3 px-1.5;
+  }
+
+  .brand strong,
+  .brand span {
+    @apply block;
+  }
+
+  .brand span {
+    color: color-mix(in srgb, var(--passless-sidebar-text) 68%, transparent);
+    @apply mt-0.5 text-sm;
+  }
+
+  .brand-mark,
+  .item-icon,
+  .large-icon {
+    background: linear-gradient(
+      135deg,
+      var(--passless-accent),
+      color-mix(in srgb, var(--passless-accent) 62%, #23b38a)
+    );
+    @apply grid place-items-center text-white;
+  }
+
+  .brand-mark {
+    @apply h-[34px] w-[34px] rounded-md;
+  }
+
+  .brand.large .brand-mark {
+    @apply h-[42px] w-[42px];
+  }
+
+  .nav-list {
+    @apply grid gap-1;
+  }
+
+  .nav-item {
+    @apply flex min-h-9 items-center gap-2.5 rounded-md border-0 bg-transparent px-2 text-left text-inherit no-underline transition-[background-color,color,box-shadow];
+  }
+
+  .nav-item:hover {
+    background: color-mix(in srgb, white 52%, transparent);
+  }
+
+  .nav-item.active {
+    color: var(--passless-sidebar-active-text);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--passless-sidebar-active) 92%, white),
+      var(--passless-sidebar-active)
+    );
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, white 22%, transparent),
+      0 5px 14px color-mix(in srgb, var(--passless-sidebar-active) 18%, transparent);
+  }
+
+  :root[data-theme="dark"] .nav-item:hover {
+    background: color-mix(in srgb, white 8%, transparent);
+  }
+
+  .category-nav {
+    @apply grid gap-2;
+  }
+
+  .category-item {
+    @apply min-h-10;
+  }
+
+  .category-item.active svg {
+    @apply text-inherit;
+  }
+
+  .sidebar-footer {
+    @apply mt-auto grid gap-2;
+  }
+
+  .theme-toggle,
+  .toolbar button,
+  .password-control button,
+  .icon-button {
+    background: var(--passless-surface);
+    border-color: var(--passless-border);
+    @apply min-h-[34px] rounded-md border text-slate-950 transition-colors dark:text-slate-100;
+  }
+
+  .theme-toggle:hover,
+  .toolbar button:hover,
+  .password-control button:hover,
+  .icon-button:hover {
+    background: var(--passless-control-hover);
+  }
+
+  .theme-toggle {
+    @apply inline-flex items-center justify-center gap-2 px-2 font-semibold;
+  }
+
+  .sidebar-section-title {
+    @apply flex items-center justify-between text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400;
+  }
+
+  .sidebar-section-title button {
+    background: color-mix(in srgb, var(--passless-surface) 72%, transparent);
+    border-color: color-mix(in srgb, var(--passless-border) 78%, transparent);
+    @apply grid h-7 w-7 place-items-center rounded-md border text-slate-600 dark:text-slate-300;
+  }
+
+  .sidebar-section-title button:hover {
+    background: var(--passless-surface);
+  }
+
+  .sidebar-archive {
+    background: color-mix(in srgb, var(--passless-surface) 58%, transparent);
+    border-color: color-mix(in srgb, var(--passless-border) 76%, transparent);
+    @apply grid gap-2 rounded-lg border p-2;
+  }
+
+  .sidebar-archive-list {
+    @apply grid max-h-[160px] gap-1 overflow-auto;
+  }
+
+  .sidebar-archive-list button {
+    @apply flex min-h-9 items-center gap-2 rounded-md border border-transparent bg-transparent px-2 text-left text-slate-700 dark:text-slate-200;
+  }
+
+  .sidebar-archive-list button:hover {
+    background: var(--passless-surface);
+    border-color: var(--passless-border);
+  }
+
+  .sidebar-archive-list button span {
+    @apply grid h-6 w-6 flex-none place-items-center rounded-md bg-slate-200 text-sm font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300;
+  }
+
+  .sidebar-archive-list button strong {
+    @apply truncate text-sm font-semibold;
+  }
+
+  .sidebar-archive-list p {
+    @apply m-0 px-1 text-sm text-slate-500;
+  }
+
+  .item-list {
+    background: var(--passless-surface-muted);
+    border-color: var(--passless-border);
+    @apply border-r px-2 py-2;
+  }
+
+  .toolbar {
+    @apply flex gap-2.5;
+  }
+
+  .toolbar button {
+    @apply inline-grid min-w-[38px] place-items-center px-2;
+  }
+
+  .search-box {
+    @apply flex h-[34px] flex-1 items-center gap-2 rounded-md border border-slate-300 bg-white px-2 dark:border-slate-700 dark:bg-slate-800;
+  }
+
+  .search-box input {
+    @apply h-auto w-full border-0 bg-transparent p-0 text-inherit outline-none;
+  }
+
+  .sync-state {
+    background: color-mix(in srgb, var(--passless-surface) 64%, transparent);
+    @apply my-3 flex min-h-8 items-center gap-2 rounded-md px-2 text-sm font-medium text-slate-600 dark:text-slate-300;
+  }
+
+  .sidebar-tool-panel {
+    background: var(--passless-surface);
+    border-color: var(--passless-border);
+    @apply mb-3 grid gap-2 rounded-lg border p-2 text-sm text-slate-600 dark:text-slate-300;
+  }
+
+  .sidebar-tool-panel strong {
+    @apply text-sm text-slate-950 dark:text-slate-100;
+  }
+
+  .sidebar-tool-panel p {
+    @apply m-0 text-sm;
+  }
+
+  .rows {
+    @apply grid gap-1;
+  }
+
+  .item-row {
+    @apply flex min-h-[58px] w-full items-center gap-3 rounded-md border border-transparent bg-transparent px-2 py-2 text-left text-inherit transition-[background-color,border-color,box-shadow,transform];
+  }
+
+  .item-row:hover {
+    background: color-mix(in srgb, var(--passless-surface) 82%, transparent);
+    border-color: var(--passless-border-soft);
+  }
+
+  .item-row.active {
+    background: var(--passless-control-active);
+    border-color: color-mix(in srgb, var(--passless-accent) 28%, var(--passless-border));
+    box-shadow: inset 3px 0 0 var(--passless-accent);
+  }
+
+  .item-icon {
+    @apply h-[34px] w-[34px] flex-none rounded-lg;
+  }
+
+  .item-row strong,
+  .item-row small {
+    @apply block;
+  }
+
+  .item-row small {
+    @apply mt-1 text-sm text-slate-500 dark:text-slate-400;
+  }
+
+  .row-star {
+    @apply ml-auto text-amber-500;
+  }
+
+  .empty-state {
+    @apply mx-2.5 my-5 text-sm text-slate-500;
+  }
+
+  .detail-pane {
+    background: var(--passless-surface);
+    @apply px-4 py-3;
+  }
+
+  .detail-topbar {
+    border-color: var(--passless-border-soft);
+    @apply mb-3 flex max-w-[760px] items-center justify-between gap-2 border-b pb-3;
+  }
+
+  .vault-picker {
+    @apply block min-w-[160px];
+  }
+
+  .vault-picker-row {
+    @apply flex items-center gap-1.5;
+  }
+
+  .vault-add-button {
+    @apply h-9 w-9;
+  }
+
+  .vault-picker select,
+  .type-picker {
+    background-color: var(--passless-surface-muted);
+    border-color: var(--passless-border);
+    @apply h-9 rounded-md px-2 pr-2 text-sm font-semibold shadow-none;
+  }
+
+  .detail-topbar-actions {
+    @apply flex items-center gap-2;
+  }
+
+  .top-edit-button {
+    background: var(--passless-surface);
+    border-color: var(--passless-border);
+    @apply inline-flex min-h-9 items-center justify-center gap-2 rounded-md border px-2 text-sm font-semibold text-slate-700 transition-colors dark:text-slate-200;
+  }
+
+  .top-edit-button:hover {
+    background: var(--passless-control-hover);
+  }
+
+  .type-display {
+    background: var(--passless-surface-muted);
+    border-color: var(--passless-border);
+    @apply inline-flex min-h-9 items-center rounded-md border px-2 text-sm font-semibold text-slate-500 dark:text-slate-300;
+  }
+
+  .detail-form {
+    @apply max-w-[760px];
+  }
+
+  .generator-pane {
+    @apply grid max-w-[760px] gap-5;
+  }
+
+  .generator-pane h1 {
+    @apply m-0 text-sm font-bold leading-tight text-slate-950 dark:text-slate-100;
+  }
+
+  .generator-output {
+    background: var(--passless-surface-raised);
+    border-color: var(--passless-border);
+    @apply grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-lg border p-2;
+  }
+
+  .generator-output input {
+    @apply h-10 border-0 bg-transparent font-mono text-sm font-semibold shadow-none;
+  }
+
+  .generator-output input:focus {
+    @apply border-0 shadow-none;
+  }
+
+  .generator-controls {
+    background: var(--passless-surface-raised);
+    border-color: var(--passless-border);
+    @apply grid gap-2 rounded-lg border p-2;
+  }
+
+  .generator-length-control {
+    @apply grid grid-cols-[auto_minmax(160px,1fr)_72px] grid-rows-none items-center gap-3 text-sm font-semibold text-slate-700 dark:text-slate-200;
+  }
+
+  .generator-length-control input[type="range"] {
+    accent-color: var(--passless-accent);
+    @apply h-8 cursor-pointer border-0 bg-transparent p-0 shadow-none;
+  }
+
+  .generator-length-control input[type="number"] {
+    @apply h-9 text-center;
+  }
+
+  .generator-check-row {
+    @apply flex min-h-9 grid-cols-none items-center gap-2 rounded-md px-2 text-sm font-medium text-slate-700 dark:text-slate-200;
+  }
+
+  .generator-check-row:hover {
+    background: var(--passless-control-hover);
+  }
+
+  .generator-check-row input {
+    accent-color: var(--passless-accent);
+    @apply h-4 w-4;
+  }
+
+  .generator-actions {
+    @apply mt-0;
+  }
+
+  .detail-fieldset {
+    @apply m-0 border-0 p-0;
+  }
+
+  .detail-fieldset:disabled {
+    @apply opacity-95;
+  }
+
+  .detail-header {
+    border-color: var(--passless-border-soft);
+    @apply flex items-center gap-3 border-b pb-3;
+  }
+
+  .large-icon {
+    @apply h-16 w-16 rounded-[14px] text-sm font-extrabold;
+  }
+
+  .title-input {
+    @apply h-auto w-full max-w-[520px] border-0 bg-transparent p-0 text-sm font-bold leading-tight text-inherit outline-none;
+  }
+
+  .form-grid {
+    @apply mt-7 grid max-w-[760px] grid-cols-2 gap-3.5;
+  }
+
+  .onepassword-form {
+    @apply max-w-[760px] grid-cols-1 gap-4;
+  }
+
+  .wide {
+    @apply col-span-full;
+  }
+
+  .password-control {
+    @apply grid grid-cols-[1fr_34px_34px_34px] gap-1.5;
+  }
+
+  .password-control button,
+  .icon-button {
+    @apply grid h-10 w-[34px] place-items-center;
+  }
+
+  .onepassword-group,
+  .onepassword-block {
+    background: var(--passless-surface-raised);
+    border-color: var(--passless-border);
+    @apply overflow-hidden rounded-lg border;
+  }
+
+  .onepassword-group .onepassword-field + .onepassword-field {
+    border-color: var(--passless-border-soft);
+    @apply border-t;
+  }
+
+  .onepassword-field {
+    color: color-mix(in srgb, var(--passless-accent) 76%, #59606b);
+    @apply gap-1.5 p-3 text-sm font-semibold;
+  }
+
+  .onepassword-field.standalone {
+    background: var(--passless-surface-raised);
+    border-color: var(--passless-border);
+    @apply rounded-lg border;
+  }
+
+  .onepassword-field input,
+  .onepassword-field textarea,
+  .onepassword-field select {
+    @apply h-auto min-h-7 border-0 bg-transparent p-0 text-sm font-medium text-slate-900 shadow-none dark:text-slate-100;
+  }
+
+  .onepassword-field textarea {
+    @apply min-h-[72px] resize-none;
+  }
+
+  .onepassword-field input:focus,
+  .onepassword-field textarea:focus,
+  .onepassword-field select:focus {
+    @apply border-0 shadow-none;
+  }
+
+  .onepassword-field input::placeholder,
+  .onepassword-field textarea::placeholder {
+    @apply text-slate-500;
+  }
+
+  .website-section,
+  .custom-fields-section {
+    @apply grid gap-0 rounded-none border-0 bg-transparent p-0;
+  }
+
+  .website-list,
+  .custom-field-list {
+    @apply grid gap-3;
+  }
+
+  .website-row {
+    background: var(--passless-surface-raised);
+    border-color: var(--passless-border);
+    @apply grid grid-cols-[1fr_44px] items-stretch overflow-hidden rounded-lg border;
+  }
+
+  .website-stack,
+  .custom-field-stack {
+    @apply grid gap-0.5 px-2 py-2;
+  }
+
+  .website-name-input,
+  .website-address-input,
+  .custom-field-name-input,
+  .custom-field-value-input {
+    @apply h-auto min-h-0 border-0 bg-transparent p-0 shadow-none outline-none;
+  }
+
+  .website-name-input,
+  .custom-field-name-input {
+    @apply text-sm font-medium leading-tight text-slate-600 dark:text-slate-400;
+  }
+
+  .website-address-input,
+  .custom-field-value-input {
+    @apply text-sm font-medium leading-snug text-slate-950 dark:text-slate-100;
+  }
+
+  .website-name-input:focus,
+  .website-address-input:focus,
+  .custom-field-name-input:focus,
+  .custom-field-value-input:focus {
+    @apply border-0 shadow-none;
+  }
+
+  .website-name-input::placeholder,
+  .website-address-input::placeholder,
+  .custom-field-name-input::placeholder,
+  .custom-field-value-input::placeholder {
+    @apply text-slate-500;
+  }
+
+  .website-row button,
+  .custom-field-row button {
+    @apply grid place-items-center border-0 bg-transparent text-red-500 transition-colors;
+  }
+
+  .website-row button:hover,
+  .custom-field-row button:hover {
+    background: color-mix(in srgb, #ef4444 10%, transparent);
+  }
+
+  .website-row button:disabled {
+    @apply cursor-not-allowed text-slate-300 hover:bg-transparent dark:text-slate-700;
+  }
+
+  .round-remove-button svg {
+    @apply fill-white stroke-[2.4px] dark:fill-slate-900;
+  }
+
+  .inline-add-button,
+  .add-more-button {
+    color: var(--passless-accent);
+    @apply inline-flex min-h-9 items-center gap-2 rounded-md border border-transparent bg-transparent px-2 text-sm font-semibold transition-colors;
+  }
+
+  .inline-add-button:hover,
+  .add-more-button:hover {
+    background: var(--passless-accent-soft);
+  }
+
+  .inline-add-button {
+    @apply mt-1 justify-start;
+  }
+
+  .custom-field-row {
+    background: var(--passless-surface-raised);
+    border-color: var(--passless-border);
+    @apply grid grid-cols-[34px_1fr_44px] items-stretch overflow-hidden rounded-lg border;
+  }
+
+  .field-inline-actions {
+    @apply mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400;
+  }
+
+  .field-inline-actions .secondary-button {
+    @apply min-h-8 px-2 text-sm;
+  }
+
+  .field-inline-actions code {
+    @apply min-h-8 border-blue-100 bg-blue-50 px-2 py-1 text-sm font-bold tracking-wide text-blue-700 dark:border-blue-950 dark:bg-blue-950/50 dark:text-blue-200;
+  }
+
+  .otp-display-button {
+    --otp-progress: 1;
+    color: var(--passless-text);
+    @apply flex min-h-8 items-center gap-2 rounded-full border-0 bg-transparent px-0 py-0 text-left;
+  }
+
+  .otp-display-button:hover .otp-code {
+    color: var(--passless-accent);
+  }
+
+  .otp-code {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    @apply text-2xl font-semibold leading-none tracking-normal;
+  }
+
+  .password-control input {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 600;
+  }
+
+  .otp-countdown {
+    color: color-mix(in srgb, var(--passless-text) 58%, transparent);
+    background: color-mix(in srgb, var(--passless-border) 46%, transparent);
+    @apply flex h-7 items-center gap-1 rounded-full px-2 text-sm font-semibold;
+  }
+
+  .otp-countdown-ring {
+    position: relative;
+    background: conic-gradient(#f35c46 calc(var(--otp-progress) * 1turn), #d9d9df 0);
+    @apply h-4 w-4 rounded-full;
+  }
+
+  .otp-countdown-ring::after {
+    position: absolute;
+    inset: 5px;
+    content: "";
+    background: var(--passless-surface-raised);
+    border-radius: 999px;
+  }
+
+  .field-inline-actions small {
+    @apply max-w-[420px] truncate text-sm;
+  }
+
+  .related-item-preview {
+    @apply text-blue-600 dark:text-blue-300;
+  }
+
+  .section-field-card {
+    @apply grid gap-2 px-2 py-2;
+  }
+
+  .section-name-input {
+    @apply text-sm font-bold text-slate-800 dark:text-slate-100;
+  }
+
+  .section-child-list {
+    @apply grid gap-2;
+  }
+
+  .section-child-row {
+    background: var(--passless-surface);
+    border-color: var(--passless-border-soft);
+    @apply grid grid-cols-[1fr_34px] overflow-hidden rounded-md border;
+  }
+
+  .section-child-row .custom-field-stack {
+    @apply px-2 py-2;
+  }
+
+  .section-child-row .round-remove-button {
+    @apply w-[34px];
+  }
+
+  .section-add-button {
+    @apply mt-0 min-h-8 justify-start px-0 text-sm;
+  }
+
+  .section-add-menu {
+    @apply z-20 grid max-h-[calc(100vh-24px)] grid-cols-2 gap-x-1 overflow-auto;
+  }
+
+  .item-search-wrap {
+    @apply grid gap-1;
+  }
+
+  .item-search-list {
+    @apply grid max-h-[220px] overflow-auto;
+  }
+
+  .item-search-empty {
+    @apply mx-1 px-2 py-1;
+  }
+
+  .login-custom-field {
+    @apply grid gap-1;
+  }
+
+  .login-custom-field-value {
+    @apply grid grid-cols-[1fr_34px] items-start gap-1;
+  }
+
+  .login-custom-field-control {
+    @apply grid gap-1;
+  }
+
+  .login-custom-field .round-remove-button {
+    @apply grid h-7 w-[34px] place-items-center border-0 bg-transparent text-red-500 transition-colors;
+  }
+
+  .login-custom-field .round-remove-button:hover {
+    background: color-mix(in srgb, #ef4444 10%, transparent);
+  }
+
+  .drag-handle {
+    @apply grid place-items-center text-sm leading-none text-slate-400;
+  }
+
+  .add-more-wrap {
+    @apply relative;
+  }
+
+  .add-more-button {
+    background: var(--passless-surface-muted);
+    border-color: var(--passless-border-soft);
+    @apply mt-3 w-full justify-start rounded-md border px-2 text-left;
+  }
+
+  .add-more-button svg:last-child {
+    @apply ml-auto text-slate-600 dark:text-slate-300;
+  }
+
+  .add-more-button svg:first-child {
+    @apply text-blue-600 dark:text-blue-300;
+  }
+
+  .add-more-menu {
+    background: var(--passless-surface);
+    border-color: var(--passless-border);
+    box-shadow: var(--passless-shadow-soft);
+    /* Anchored to the viewport in JS, so the panel never inherits the row's clip. */
+    @apply z-20 grid max-h-[calc(100vh-24px)] overflow-auto rounded-lg border py-2;
+  }
+
+  .menu-option {
+    @apply mx-1 grid min-h-11 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-slate-900 dark:text-slate-100;
+  }
+
+  .menu-option:hover {
+    background: var(--passless-control-hover);
+  }
+
+  .menu-option span {
+    @apply text-sm font-normal leading-snug;
+  }
+
+  .menu-option small {
+    @apply mt-0.5 text-sm text-slate-500 dark:text-slate-400;
+  }
+
+  .menu-option.separated {
+    @apply mt-2 border-t border-slate-200 pt-2 dark:border-slate-800;
+  }
+
+  .detail-header .icon-button {
+    @apply ml-auto;
+  }
+
+  .icon-button.active {
+    @apply text-amber-500;
+  }
+
+  .detail-actions {
+    @apply mt-5 flex max-w-[760px] items-center justify-end gap-2.5;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .danger-button {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3 font-semibold transition-[background-color,border-color,box-shadow,color];
+  }
+
+  .primary-button {
+    background: var(--passless-accent);
+    border-color: color-mix(in srgb, var(--passless-accent) 82%, black);
+    box-shadow: 0 1px 1px rgb(0 0 0 / 10%);
+    @apply border text-white disabled:cursor-not-allowed disabled:opacity-55;
+  }
+
+  .primary-button:hover {
+    background: color-mix(in srgb, var(--passless-accent) 88%, black);
+  }
+
+  .secondary-button {
+    background: var(--passless-surface);
+    border-color: var(--passless-border);
+    @apply border text-slate-950 disabled:cursor-not-allowed disabled:opacity-55 dark:text-slate-100;
+  }
+
+  .secondary-button:hover {
+    background: var(--passless-control-hover);
+  }
+
+  .danger-button {
+    background: color-mix(in srgb, #ef4444 8%, var(--passless-surface));
+    border-color: color-mix(in srgb, #ef4444 22%, var(--passless-border));
+    @apply border text-red-700 dark:text-red-200;
+  }
+
+  .danger-button:hover {
+    background: color-mix(in srgb, #ef4444 14%, var(--passless-surface));
+  }
+
+  .error-banner {
+    @apply rounded-md border border-red-200 bg-red-50 px-2 py-2 text-sm text-red-800 dark:border-red-950 dark:bg-red-950/40 dark:text-red-200;
+  }
+
+  .success-banner {
+    @apply rounded-md border border-emerald-200 bg-emerald-50 px-2 py-2 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200;
+  }
+
+  .integration-panel {
+    @apply mt-7 grid max-w-[760px] gap-3.5 border-t border-slate-200 pt-2 dark:border-slate-800;
+  }
+
+  .integration-card {
+    @apply grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-950;
+  }
+
+  .integration-card h2 {
+    @apply m-0 text-sm font-bold leading-tight;
+  }
+
+  .integration-card p {
+    @apply m-0 text-sm text-slate-500 dark:text-slate-400;
+  }
+
+  .sync-grid {
+    @apply grid grid-cols-2 gap-3;
+  }
+
+  .integration-actions {
+    @apply flex flex-wrap gap-2.5;
+  }
+
+  .checkbox-row {
+    @apply flex items-center gap-2;
+  }
+
+  .checkbox-row input {
+    @apply h-4 w-4;
+  }
+
+  .watchtower-grid {
+    @apply grid grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-300;
+  }
+
+  .archive-list {
+    @apply grid gap-1.5;
+  }
+
+  .archive-row {
+    @apply grid min-h-8 rounded-md border border-slate-300 bg-white px-2 py-2 text-left text-inherit hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700;
+  }
+
+  .archive-row strong,
+  .archive-row small {
+    @apply block;
+  }
+
+  .archive-row small {
+    @apply mt-0.5 text-sm font-normal text-slate-500 dark:text-slate-400;
+  }
+
+  .import-preview {
+    background: var(--passless-surface-raised);
+    border-color: var(--passless-border);
+    @apply grid gap-1 rounded-md border px-2 py-2 text-sm;
+  }
+
+  .import-preview strong,
+  .import-preview small {
+    @apply block;
+  }
+
+  .import-preview small {
+    @apply text-slate-500 dark:text-slate-400;
+  }
+
+  .shortcut-list {
+    @apply grid gap-2;
+  }
+
+  .shortcut-row {
+    @apply flex min-h-9 items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-2 py-2 dark:border-slate-800 dark:bg-slate-900;
+  }
+
+  .shortcut-row kbd {
+    @apply rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-sm font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200;
+  }
+
+  code {
+    @apply rounded-md border border-slate-200 bg-white px-2 py-2 text-slate-950 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100;
+  }
+
+  .settings-shell {
+    @apply grid min-h-screen grid-cols-[220px_minmax(0,1fr)] overflow-hidden bg-white text-slate-950 dark:bg-zinc-950 dark:text-slate-100;
+  }
+
+  .settings-sidebar {
+    color: var(--passless-sidebar-text);
+    background: color-mix(in srgb, var(--passless-sidebar-bg) 34%, white);
+    @apply flex min-h-screen flex-col gap-5 border-r border-slate-200 p-2 dark:border-slate-800;
+  }
+
+  .settings-title {
+    @apply flex min-h-12 items-center gap-3;
+  }
+
+  .settings-title strong,
+  .settings-title span {
+    @apply block;
+  }
+
+  .settings-title span {
+    color: color-mix(in srgb, var(--passless-sidebar-text) 68%, transparent);
+    @apply mt-0.5 text-sm;
+  }
+
+  .settings-tabs {
+    @apply grid gap-1;
+  }
+
+  .settings-tabs button {
+    color: var(--passless-sidebar-text);
+    @apply min-h-9 rounded-md px-2 text-left text-sm font-semibold transition-colors hover:bg-white/40;
+  }
+
+  .settings-tabs button.active {
+    color: var(--passless-sidebar-active-text);
+    background: var(--passless-sidebar-active);
+  }
+
+  .theme-color-grid {
+    @apply grid grid-cols-[repeat(auto-fill,minmax(72px,1fr))] gap-x-5 gap-y-4;
+  }
+
+  .theme-color-option {
+    @apply grid justify-items-center gap-2 rounded-lg border-0 bg-transparent p-1 text-slate-500;
+  }
+
+  .theme-color-option span {
+    @apply block h-10 w-10 rounded-lg;
+  }
+
+  .theme-color-option strong {
+    @apply text-sm font-semibold;
+  }
+
+  .theme-color-option.active span {
+    --tw-ring-color: var(--passless-sidebar-active);
+    @apply ring-4 ring-offset-4 ring-offset-white dark:ring-offset-zinc-950;
+  }
+
+  .theme-color-option.active strong {
+    @apply text-slate-950 dark:text-slate-100;
+  }
+
+  .settings-content {
+    @apply grid max-h-screen grid-rows-[auto_auto_1fr] gap-3 overflow-auto p-2;
+  }
+
+  .settings-header {
+    @apply flex items-start justify-between gap-4 border-b border-slate-200 pb-2 dark:border-slate-800;
+  }
+
+  .settings-header h1 {
+    @apply m-0 text-sm font-bold leading-tight;
+  }
+
+  .settings-header .icon-button {
+    @apply flex-none;
+  }
+
+  .settings-section {
+    @apply grid max-w-[760px] gap-3.5;
+  }
+
+  .security-group {
+    @apply grid gap-3 border-b border-slate-200 pb-2 dark:border-slate-800;
+  }
+
+  .security-group h2 {
+    @apply m-0 text-sm font-bold text-slate-950 dark:text-slate-100;
+  }
+
+  .security-check-row {
+    @apply flex min-h-10 grid-cols-none items-center gap-4 text-sm font-normal text-slate-900 dark:text-slate-100;
+  }
+
+  .security-check-row input {
+    @apply h-6 w-6 rounded-md accent-blue-600;
+  }
+
+  .security-inline-row {
+    @apply flex min-h-10 grid-cols-none items-center gap-2 text-sm font-normal text-slate-900 dark:text-slate-100;
+  }
+
+  .security-inline-row select {
+    @apply h-10 w-auto min-w-[150px] rounded-xl border-slate-300 bg-slate-100/90 px-2 pr-2 text-sm font-semibold shadow-sm dark:border-slate-700 dark:bg-slate-800;
+  }
+
+  .security-help {
+    @apply m-0 max-w-[720px] text-sm leading-snug text-slate-500 dark:text-slate-400;
+  }
+}
+
+@layer base {
+  body {
+    color: color-mix(in srgb, var(--theme-text-70) 82%, black);
+    background: var(--theme-bg-2);
+    @apply bg-transparent text-sm;
+  }
+
+  input,
+  textarea,
+  select {
+    color: color-mix(in srgb, var(--theme-text-70) 84%, black);
+    background: var(--theme-panel);
+    border-color: var(--theme-border);
+    @apply rounded-md border text-sm shadow-none;
+  }
+
+  :root[data-theme="dark"] input,
+  :root[data-theme="dark"] textarea,
+  :root[data-theme="dark"] select {
+    color: #edf3ff;
+  }
+
+  input,
+  select {
+    @apply h-9 px-2;
+  }
+
+  label {
+    color: color-mix(in srgb, var(--theme-text-70) 72%, transparent);
+    @apply gap-1 text-xs font-medium;
+  }
+
+  p {
+    color: color-mix(in srgb, var(--theme-text-70) 62%, transparent);
+    @apply mt-1 text-xs;
+  }
+}
+
+@layer components {
+  .lock-screen {
+    background: var(--theme-bg-2);
+    @apply p-2;
+  }
+
+  .lock-panel {
+    background: var(--theme-panel);
+    border-color: var(--theme-border);
+    box-shadow: var(--theme-shadow);
+    @apply max-w-[390px] rounded-lg border p-4 shadow-sm;
+  }
+
+  .lock-panel form {
+    @apply mt-4 gap-3;
+  }
+
+  .lock-panel h1,
+  .settings-header h1,
+  .generator-pane h1,
+  .integration-card h2,
+  .security-group h2 {
+    color: color-mix(in srgb, var(--theme-text-70) 88%, black);
+    @apply text-lg font-semibold tracking-normal;
+  }
+
+  :root[data-theme="dark"] .lock-panel h1,
+  :root[data-theme="dark"] .settings-header h1,
+  :root[data-theme="dark"] .generator-pane h1,
+  :root[data-theme="dark"] .integration-card h2,
+  :root[data-theme="dark"] .security-group h2 {
+    color: #edf3ff;
+  }
+
+  .app-shell {
+    background: var(--theme-bg-2);
+    @apply grid h-screen min-h-0 min-w-[960px] grid-rows-[44px_minmax(0,1fr)] overflow-hidden;
+  }
+
+  .sidebar {
+    color: var(--theme-text-70);
+    background: color-mix(in srgb, var(--theme-bg-2) 84%, var(--theme-color));
+    border-color: var(--theme-border);
+    /* pt-11 clears the native overlay traffic lights (titleBarStyle: "Overlay") over the sidebar. */
+    @apply row-span-2 flex h-screen flex-col gap-4 overflow-x-hidden overflow-y-auto border-r px-2 pb-2 pt-11;
+  }
+
+  .brand,
+  .settings-title {
+    @apply gap-2 px-1;
+  }
+
+  .brand strong,
+  .settings-title strong {
+    @apply truncate text-sm font-semibold leading-tight;
+  }
+
+  .brand span,
+  .settings-title span {
+    color: color-mix(in srgb, var(--theme-text-70) 62%, transparent);
+    @apply mt-0 truncate text-xs;
+  }
+
+  .brand-mark {
+    color: var(--theme-color);
+    background: color-mix(in srgb, var(--theme-color) 18%, transparent);
+    @apply h-8 w-8 rounded-md;
+  }
+
+  .brand.large .brand-mark {
+    @apply h-9 w-9;
+  }
+
+  .nav-list,
+  .category-nav {
+    @apply gap-1;
+  }
+
+  .nav-item {
+    color: color-mix(in srgb, var(--theme-text-70) 78%, transparent);
+    @apply min-h-8 gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors;
+  }
+
+  .nav-item svg {
+    @apply h-3.5 w-3.5 shrink-0;
+  }
+
+  .nav-item span {
+    @apply min-w-0 flex-1 truncate;
+  }
+
+  .nav-item:hover,
+  .settings-tabs button:hover {
+    color: var(--theme-text-70);
+    background: color-mix(in srgb, var(--theme-color) 12%, transparent);
+  }
+
+  .nav-item.active,
+  .settings-tabs button.active {
+    color: var(--theme-text-70);
+    background: color-mix(in srgb, var(--theme-color) 18%, transparent);
+    box-shadow: none;
+  }
+
+  .sidebar-section-title {
+    color: color-mix(in srgb, var(--theme-text-70) 68%, transparent);
+    @apply mb-1 px-1 text-xs font-semibold uppercase tracking-wide;
+  }
+
+  .sidebar-section-title button {
+    color: color-mix(in srgb, var(--theme-text-70) 58%, transparent);
+    background: transparent;
+    @apply h-6 w-6 rounded-md border-0;
+  }
+
+  .sidebar-section-title button:hover {
+    background: var(--theme-hover);
+  }
+
+  .theme-toggle,
+  .toolbar button,
+  .password-control button,
+  .icon-button {
+    color: color-mix(in srgb, var(--theme-text-70) 72%, transparent);
+    background: transparent;
+    @apply min-h-8 rounded-md border border-transparent text-sm;
+  }
+
+  .theme-toggle:hover,
+  .toolbar button:hover,
+  .password-control button:hover,
+  .icon-button:hover {
+    color: var(--theme-text-70);
+    background: var(--theme-hover);
+  }
+
+  .sidebar-footer {
+    @apply gap-2;
+  }
+
+  .sidebar-archive {
+    background: color-mix(in srgb, var(--theme-panel) 34%, transparent);
+    border-color: color-mix(in srgb, var(--theme-border) 76%, transparent);
+    @apply gap-1 rounded-lg border p-1.5 shadow-none;
+  }
+
+  .sidebar-archive-list {
+    @apply max-h-[150px] gap-px;
+  }
+
+  .sidebar-archive-list button {
+    color: color-mix(in srgb, var(--theme-text-70) 74%, transparent);
+    @apply min-h-8 gap-2 rounded-md px-1.5 py-1 text-sm;
+  }
+
+  .sidebar-archive-list button:hover {
+    background: var(--theme-hover);
+    border-color: transparent;
+  }
+
+  .sidebar-archive-list button span {
+    color: var(--theme-color);
+    background: color-mix(in srgb, var(--theme-color) 12%, transparent);
+    @apply h-5 w-5 rounded-md text-[10px] font-semibold;
+  }
+
+  .sidebar-archive-list button strong {
+    @apply text-xs font-medium;
+  }
+
+  .top-search-bar {
+    background: var(--theme-bg-2);
+    border-color: var(--theme-border);
+    @apply col-span-3 col-start-2 grid min-h-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b px-2 py-1;
+  }
+
+  .top-search-wrap {
+    @apply max-w-none;
+  }
+
+  .top-search-box {
+    color: color-mix(in srgb, var(--theme-text-70) 58%, transparent);
+    background: color-mix(in srgb, var(--theme-panel) 78%, transparent);
+    border-color: var(--theme-border);
+    @apply h-8 rounded-md border px-2 text-xs shadow-none;
+  }
+
+  .top-search-box input {
+    @apply text-sm font-normal;
+  }
+
+  .top-search-results,
+  .add-more-menu,
+  .section-add-menu,
+  .item-search-list {
+    background: var(--theme-panel);
+    border-color: var(--theme-border);
+    box-shadow: var(--theme-shadow);
+    @apply rounded-lg border py-1 shadow-lg;
+  }
+
+  .top-search-results button {
+    @apply mx-1 min-h-10 gap-2 rounded-md px-2 py-1.5 text-sm;
+  }
+
+  .top-search-results button small,
+  .item-row small,
+  .menu-option small,
+  .item-search-empty,
+  .integration-card p,
+  .import-preview small,
+  .archive-row small {
+    color: color-mix(in srgb, var(--theme-text-70) 58%, transparent);
+    @apply text-xs;
+  }
+
+  .top-new-item-button,
+  .primary-button {
+    color: #fff;
+    background: var(--theme-color);
+    border-color: color-mix(in srgb, var(--theme-color) 82%, black);
+    @apply min-h-8 gap-1.5 rounded-md border px-2 text-sm font-medium shadow-none;
+  }
+
+  .top-new-item-button:hover,
+  .primary-button:hover {
+    background: color-mix(in srgb, var(--theme-color) 88%, black);
+  }
+
+  .column-resize-handle {
+    background: linear-gradient(to right, transparent 0 2px, var(--theme-border) 2px 3px, transparent 3px);
+  }
+
+  .item-list {
+    background: var(--theme-bg-2);
+    border-color: var(--theme-border);
+    @apply border-r px-1 py-1;
+  }
+
+  .sync-state {
+    color: color-mix(in srgb, var(--theme-text-70) 70%, transparent);
+    background: color-mix(in srgb, var(--theme-color) 8%, transparent);
+    @apply my-1 min-h-8 gap-1.5 rounded-md px-2 text-xs font-medium;
+  }
+
+  .sidebar-tool-panel {
+    color: color-mix(in srgb, var(--theme-text-70) 66%, transparent);
+    background: color-mix(in srgb, var(--theme-panel) 72%, transparent);
+    border-color: var(--theme-border);
+    @apply mb-1 gap-1.5 rounded-lg border p-2 text-xs shadow-none;
+  }
+
+  .sidebar-tool-panel strong {
+    color: var(--theme-text-70);
+    @apply text-sm font-medium;
+  }
+
+  .rows {
+    @apply gap-px;
+  }
+
+  .item-row {
+    @apply min-h-10 gap-2 rounded-md border-0 px-2 py-1.5 text-sm transition-colors;
+  }
+
+  .item-row:hover {
+    background: var(--theme-hover);
+    border-color: transparent;
+  }
+
+  .item-row.active {
+    background: var(--theme-selected);
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  .item-icon,
+  .large-icon {
+    color: var(--theme-color);
+    background: color-mix(in srgb, var(--theme-color) 16%, transparent);
+  }
+
+  .item-icon {
+    @apply h-7 w-7 rounded-md text-xs font-semibold;
+  }
+
+  .item-row strong {
+    color: color-mix(in srgb, var(--theme-text-70) 88%, black);
+    @apply truncate text-sm font-medium;
+  }
+
+  :root[data-theme="dark"] .item-row strong {
+    color: #edf3ff;
+  }
+
+  .row-star {
+    @apply ml-auto shrink-0 text-orange-500;
+  }
+
+  .empty-state {
+    color: color-mix(in srgb, var(--theme-text-70) 56%, transparent);
+    @apply mx-0 my-3 rounded-md px-2 py-3 text-center text-sm;
+  }
+
+  .detail-pane {
+    background: var(--theme-bg-2);
+    border-color: var(--theme-border);
+    @apply flex flex-col overflow-hidden border-l px-4 py-0;
+  }
+
+  .detail-topbar {
+    border-color: var(--theme-border);
+    @apply mb-0 max-w-none flex-none border-b px-0 py-2;
+  }
+
+  .vault-picker select,
+  .type-picker,
+  .type-display {
+    color: var(--theme-text-70);
+    background: color-mix(in srgb, var(--theme-panel) 74%, transparent);
+    border-color: var(--theme-border);
+    @apply h-8 rounded-md border px-2 text-xs font-medium shadow-none;
+  }
+
+  .vault-add-button,
+  .password-control button,
+  .icon-button {
+    @apply h-8 w-8;
+  }
+
+  .top-edit-button,
+  .secondary-button,
+  .danger-button {
+    color: var(--theme-text-70);
+    background: color-mix(in srgb, var(--theme-panel) 82%, transparent);
+    border-color: var(--theme-border);
+    @apply min-h-8 gap-1.5 rounded-md border px-2 text-sm font-medium shadow-none;
+  }
+
+  .top-edit-button:hover,
+  .secondary-button:hover {
+    background: var(--theme-hover);
+  }
+
+  .danger-button {
+    color: #dc2626;
+    background: color-mix(in srgb, #ef4444 7%, transparent);
+    border-color: color-mix(in srgb, #ef4444 22%, var(--theme-border));
+  }
+
+  .detail-form,
+  .generator-pane {
+    @apply max-w-none;
+  }
+
+  .detail-form {
+    @apply grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto];
+  }
+
+  .generator-pane {
+    @apply min-h-0 flex-1 overflow-auto py-3;
+  }
+
+  .detail-fieldset {
+    @apply min-h-0 overflow-auto pb-4;
+  }
+
+  .detail-header {
+    border-color: var(--theme-border);
+    @apply gap-2 border-b px-0 py-3;
+  }
+
+  .large-icon {
+    @apply h-9 w-9 rounded-md text-sm font-semibold;
+  }
+
+  .title-input {
+    color: color-mix(in srgb, var(--theme-text-70) 88%, black);
+    @apply text-lg font-semibold;
+  }
+
+  :root[data-theme="dark"] .title-input {
+    color: #edf3ff;
+  }
+
+  .form-grid,
+  .onepassword-form {
+    @apply mt-4 max-w-none gap-4;
+  }
+
+  .onepassword-group,
+  .onepassword-block,
+  .onepassword-field.standalone,
+  .website-row,
+  .custom-field-row,
+  .section-child-row,
+  .generator-output,
+  .generator-controls,
+  .integration-card,
+  .import-preview,
+  .shortcut-row {
+    background: color-mix(in srgb, var(--theme-panel) 78%, transparent);
+    border-color: var(--theme-border);
+    @apply rounded-lg border shadow-none;
+  }
+
+  .onepassword-field {
+    color: color-mix(in srgb, var(--theme-text-70) 58%, transparent);
+    @apply gap-1 px-3 py-2 text-xs font-medium;
+  }
+
+  .onepassword-field input,
+  .onepassword-field textarea,
+  .onepassword-field select,
+  .website-name-input,
+  .website-address-input,
+  .custom-field-name-input,
+  .custom-field-value-input {
+    color: color-mix(in srgb, var(--theme-text-70) 84%, black);
+    @apply text-sm font-normal;
+  }
+
+  :root[data-theme="dark"] .onepassword-field input,
+  :root[data-theme="dark"] .onepassword-field textarea,
+  :root[data-theme="dark"] .onepassword-field select,
+  :root[data-theme="dark"] .website-name-input,
+  :root[data-theme="dark"] .website-address-input,
+  :root[data-theme="dark"] .custom-field-name-input,
+  :root[data-theme="dark"] .custom-field-value-input {
+    color: #edf3ff;
+  }
+
+  .website-list,
+  .custom-field-list {
+    @apply gap-2;
+  }
+
+  .website-row {
+    @apply grid-cols-[1fr_34px];
+  }
+
+  .custom-field-row {
+    @apply grid-cols-[28px_1fr_34px];
+  }
+
+  .website-stack,
+  .custom-field-stack,
+  .section-field-card {
+    @apply px-2 py-1.5;
+  }
+
+  .drag-handle {
+    color: color-mix(in srgb, var(--theme-text-70) 42%, transparent);
+    @apply text-xs;
+  }
+
+  .inline-add-button,
+  .add-more-button {
+    color: var(--theme-color);
+    @apply min-h-8 gap-1.5 rounded-md px-2 text-sm font-medium;
+  }
+
+  .add-more-button {
+    background: color-mix(in srgb, var(--theme-color) 6%, transparent);
+    border-color: var(--theme-border);
+    @apply mt-2 border;
+  }
+
+  .menu-option {
+    color: color-mix(in srgb, var(--theme-text-70) 84%, black);
+    @apply mx-1 min-h-9 rounded-md px-2 py-1.5 text-sm;
+  }
+
+  :root[data-theme="dark"] .menu-option {
+    color: #edf3ff;
+  }
+
+  .detail-actions {
+    background: var(--theme-bg-2);
+    border-color: var(--theme-border);
+    @apply sticky bottom-0 mt-0 max-w-none justify-end border-t px-0 py-2;
+  }
+
+  .error-banner {
+    color: #e11d48;
+    background: #fff1f2;
+    border-color: #fecdd3;
+    @apply rounded-md border px-2 py-2 text-sm;
+  }
+
+  .success-banner {
+    color: var(--theme-text-70);
+    background: color-mix(in srgb, var(--theme-color) 8%, white);
+    border-color: color-mix(in srgb, var(--theme-color) 20%, white);
+    @apply rounded-md border px-2 py-2 text-sm;
+  }
+
+  .settings-shell {
+    color: var(--theme-text-70);
+    background: var(--theme-bg-2);
+    @apply grid min-h-screen grid-cols-[220px_minmax(0,1fr)] overflow-hidden text-sm;
+  }
+
+  .settings-sidebar {
+    color: var(--theme-text-70);
+    background: color-mix(in srgb, var(--theme-bg-2) 84%, var(--theme-color));
+    border-color: var(--theme-border);
+    /* pt-11 clears the native overlay traffic lights (titleBarStyle: "Overlay") over the sidebar. */
+    @apply min-h-screen gap-4 border-r px-2 pb-2 pt-11;
+  }
+
+  .settings-tabs {
+    @apply gap-1;
+  }
+
+  .settings-tabs button {
+    color: color-mix(in srgb, var(--theme-text-70) 76%, transparent);
+    @apply min-h-8 rounded-md px-2 py-1.5 text-sm font-medium;
+  }
+
+  .settings-content {
+    background: var(--theme-bg-2);
+    @apply max-h-screen grid-rows-[auto_auto_1fr] gap-2 overflow-auto p-3;
+  }
+
+  .settings-header {
+    border-color: var(--theme-border);
+    @apply border-b pb-2;
+  }
+
+  .settings-section {
+    @apply max-w-[860px] gap-2;
+  }
+
+  .integration-card {
+    @apply gap-2 p-3;
+  }
+
+  .sync-grid {
+    @apply gap-2;
+  }
+
+  .integration-actions {
+    @apply gap-1.5;
+  }
+
+  .checkbox-row,
+  .security-check-row,
+  .security-inline-row {
+    color: color-mix(in srgb, var(--theme-text-70) 82%, black);
+    @apply min-h-8 gap-2 text-sm font-normal;
+  }
+
+  :root[data-theme="dark"] .checkbox-row,
+  :root[data-theme="dark"] .security-check-row,
+  :root[data-theme="dark"] .security-inline-row {
+    color: #edf3ff;
+  }
+
+  .checkbox-row input,
+  .security-check-row input {
+    accent-color: var(--theme-color);
+    @apply h-4 w-4;
+  }
+
+  .watchtower-grid {
+    color: color-mix(in srgb, var(--theme-text-70) 72%, transparent);
+    @apply grid-cols-2 gap-1.5 text-xs;
+  }
+
+  .watchtower-grid span,
+  .watchtower-grid strong {
+    background: color-mix(in srgb, var(--theme-color) 7%, transparent);
+    @apply rounded-md px-2 py-1;
+  }
+
+  .archive-list,
+  .shortcut-list {
+    @apply gap-1;
+  }
+
+  .archive-row {
+    background: color-mix(in srgb, var(--theme-panel) 78%, transparent);
+    border-color: var(--theme-border);
+    @apply min-h-8 rounded-md border px-2 py-1.5 text-left text-sm;
+  }
+
+  .archive-row:hover {
+    background: var(--theme-hover);
+  }
+
+  .import-preview {
+    @apply gap-1 px-2 py-1.5 text-sm;
+  }
+
+  .theme-color-grid {
+    @apply grid-cols-[repeat(auto-fill,minmax(68px,1fr))] gap-2;
+  }
+
+  .theme-color-option {
+    color: color-mix(in srgb, var(--theme-text-70) 62%, transparent);
+    @apply gap-1 rounded-md p-1 text-xs;
+  }
+
+  .theme-color-option span {
+    @apply h-8 w-8 rounded-md;
+  }
+
+  .theme-color-option strong {
+    @apply text-xs font-medium;
+  }
+
+  .security-group {
+    background: color-mix(in srgb, var(--theme-panel) 78%, transparent);
+    border-color: var(--theme-border);
+    @apply gap-2 rounded-lg border p-3;
+  }
+
+  .security-inline-row select {
+    background: var(--theme-panel);
+    border-color: var(--theme-border);
+    @apply h-8 min-w-[140px] rounded-md border px-2 text-sm font-medium shadow-none;
+  }
+
+  .security-help {
+    color: color-mix(in srgb, var(--theme-text-70) 58%, transparent);
+    @apply text-xs;
+  }
+
+  code,
+  .shortcut-row kbd {
+    color: var(--theme-text-70);
+    background: color-mix(in srgb, var(--theme-color) 7%, transparent);
+    border-color: var(--theme-border);
+    @apply rounded-md border px-2 py-1 text-xs font-medium;
+  }
+
+  .quick-access-shell {
+    background: var(--theme-panel);
+    border-color: var(--theme-border);
+    box-shadow: var(--theme-shadow);
+    @apply flex h-screen flex-col overflow-hidden rounded-xl border;
+  }
+
+  .quick-access-header {
+    border-color: var(--theme-border);
+    @apply flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2;
+  }
+
+  .quick-access-header strong {
+    color: color-mix(in srgb, var(--theme-text-70) 72%, transparent);
+    @apply text-[11px] font-semibold uppercase tracking-label-sm;
+  }
+
+  .quick-access-close {
+    color: color-mix(in srgb, var(--theme-text-70) 58%, transparent);
+    @apply flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-0 bg-transparent shadow-none;
+  }
+
+  .quick-access-close:hover {
+    color: var(--theme-text-70);
+    background: var(--theme-hover);
+  }
+
+  .quick-access-search {
+    border-color: var(--theme-border);
+    @apply flex shrink-0 items-center gap-2 border-b px-3 py-2;
+  }
+
+  .quick-access-search svg {
+    color: color-mix(in srgb, var(--theme-text-70) 45%, transparent);
+    @apply shrink-0;
+  }
+
+  .quick-access-search input {
+    @apply h-8 flex-1 rounded-none border-0 bg-transparent px-0 text-sm shadow-none;
+  }
+
+  .quick-access-list {
+    @apply flex-1 overflow-y-auto p-1.5;
+  }
+
+  .quick-access-row {
+    @apply flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left shadow-none;
+  }
+
+  .quick-access-row:hover,
+  .quick-access-row[data-selected="true"] {
+    background: var(--theme-selected);
+  }
+
+  .quick-access-row strong {
+    color: var(--theme-text-70);
+    @apply min-w-0 flex-1 truncate text-sm font-medium;
+  }
+
+  .quick-access-row small {
+    color: color-mix(in srgb, var(--theme-text-70) 55%, transparent);
+    @apply max-w-[45%] min-w-0 shrink-0 truncate text-right text-xs;
+  }
+
+  .quick-access-badge {
+    color: var(--theme-color);
+    @apply shrink-0 text-[11px] font-semibold;
+  }
+
+  .quick-access-footer {
+    color: color-mix(in srgb, var(--theme-text-70) 52%, transparent);
+    border-color: var(--theme-border);
+    @apply shrink-0 border-t px-3 py-1.5 text-[11px];
+  }
+
+  .quick-access-message {
+    color: color-mix(in srgb, var(--theme-text-70) 62%, transparent);
+    @apply px-3 py-6 text-center text-xs;
+  }
+
+  /* The field menus lead each option with a type icon; the item picker stays one column.
+     Kept last so the icon tints below outrank the pane's own `svg` rules. */
+  .menu-option.with-icon {
+    @apply grid-cols-[20px_1fr] items-center gap-2;
+  }
+
+  .menu-option.with-icon svg {
+    color: color-mix(in srgb, var(--theme-text-70) 55%, transparent);
+    @apply justify-self-center;
+  }
+
+  .menu-option-label {
+    @apply grid;
+  }
+
+  .add-more-button.placement-top svg:last-child {
+    transform: rotate(180deg);
+  }
+}
