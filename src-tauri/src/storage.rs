@@ -157,6 +157,7 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
             item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
             label_ciphertext BLOB,
             url_ciphertext BLOB NOT NULL,
+            match_type TEXT NOT NULL DEFAULT 'domain',
             position INTEGER NOT NULL DEFAULT 0
         );
 
@@ -185,6 +186,13 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
 
     if !has_column(connection, "item_urls", "label_ciphertext")? {
         connection.execute("ALTER TABLE item_urls ADD COLUMN label_ciphertext BLOB", [])?;
+    }
+
+    if !has_column(connection, "item_urls", "match_type")? {
+        connection.execute(
+            "ALTER TABLE item_urls ADD COLUMN match_type TEXT NOT NULL DEFAULT 'domain'",
+            [],
+        )?;
     }
 
     if !has_column(connection, "items", "trashed")? {

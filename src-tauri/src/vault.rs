@@ -19,6 +19,8 @@ use uuid::Uuid;
 
 const DEFAULT_VAULT_ID: &str = "personal";
 const MASTER_VERIFIER_TEXT: &str = "passless-master-verifier";
+const MATCH_TYPE_EXACT: &str = "exact";
+const MATCH_TYPE_DOMAIN: &str = "domain";
 
 #[derive(Clone)]
 pub struct Session {
@@ -37,6 +39,10 @@ pub struct CustomField {
 pub struct ItemUrl {
     pub label: String,
     pub url: String,
+    /// `exact` autofills only on the host the address names, `domain` also on its subdomains.
+    /// Backups and sync files written before this existed carry neither and mean `domain`.
+    #[serde(default = "default_match_type")]
+    pub match_type: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -549,6 +555,29 @@ impl VaultService {
         self.list_login_items_by_archive_state(session, true)
     }
 
+    /// What the browser bridge asks for: items whose saved addresses cover this host, each
+    /// honoured by its own match type. Deliberately not the search path — a search matches
+    /// any field as a substring, which is far too loose a rule to hand a password over to.
+    pub fn list_login_items_for_origin(
+        &self,
+        session: &Session,
+        origin: &str,
+    ) -> Result<Vec<LoginItem>, VaultError> {
+        let Some(request_host) = host_of(origin) else {
+            return Ok(Vec::new());
+        };
+        let mut matches = Vec::new();
+        for item in self.list_login_items(session, None)? {
+            if normalized_urls(&item.website, &item.urls)
+                .iter()
+                .any(|url| url_matches_host(&url.url, &request_host, &url.match_type))
+            {
+                matches.push(item);
+            }
+        }
+        Ok(matches)
+    }
+
     pub fn watchtower_report(&self, session: &Session) -> Result<WatchtowerReport, VaultError> {
         let items = self.list_login_items(session, None)?;
         let mut weak_passwords = Vec::new();
@@ -758,6 +787,7 @@ impl VaultService {
                 urls: vec![ItemUrl {
                     label: "website".to_string(),
                     url: origin.to_string(),
+                    match_type: default_match_type(),
                 }],
                 notes: PASSKEY_NOTE.to_string(),
                 tags: vec!["passkey".to_string()],
@@ -942,23 +972,32 @@ impl VaultService {
 
     fn login_urls(&self, session: &Session, item_id: &str) -> Result<Vec<ItemUrl>, VaultError> {
         let mut statement = self.connection.prepare(
-            "SELECT label_ciphertext, url_ciphertext FROM item_urls WHERE item_id = ?1 ORDER BY position",
+            "SELECT label_ciphertext, url_ciphertext, match_type FROM item_urls
+             WHERE item_id = ?1 ORDER BY position",
         )?;
         let rows = statement
             .query_map([item_id], |row| {
-                Ok((row.get::<_, Option<Vec<u8>>>(0)?, row.get::<_, Vec<u8>>(1)?))
+                Ok((
+                    row.get::<_, Option<Vec<u8>>>(0)?,
+                    row.get::<_, Vec<u8>>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
         let mut urls = Vec::new();
-        for (label_blob, url_blob) in rows {
+        for (label_blob, url_blob, match_type) in rows {
             let label = label_blob
                 .map(|blob| decrypt_string_from_blob(&session.key, &blob))
                 .transpose()?
                 .filter(|value| !value.trim().is_empty())
                 .unwrap_or_else(|| "website".to_string());
             let url = decrypt_string_from_blob(&session.key, &url_blob)?;
-            urls.push(ItemUrl { label, url });
+            urls.push(ItemUrl {
+                label,
+                url,
+                match_type,
+            });
         }
         Ok(urls)
     }
@@ -1029,13 +1068,14 @@ impl VaultService {
             .execute("DELETE FROM item_urls WHERE item_id = ?1", [item_id])?;
         for (position, item_url) in urls.iter().enumerate() {
             self.connection.execute(
-                "INSERT INTO item_urls (id, item_id, label_ciphertext, url_ciphertext, position)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                "INSERT INTO item_urls (id, item_id, label_ciphertext, url_ciphertext, match_type, position)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 params![
                     Uuid::new_v4().to_string(),
                     item_id,
                     encrypt_string_to_blob(&session.key, &item_url.label)?,
                     encrypt_string_to_blob(&session.key, &item_url.url)?,
+                    item_url.match_type.clone(),
                     position as i64,
                 ],
             )?;
@@ -1366,6 +1406,10 @@ fn default_item_type() -> String {
     "login".to_string()
 }
 
+pub(crate) fn default_match_type() -> String {
+    MATCH_TYPE_DOMAIN.to_string()
+}
+
 fn normalized_urls(website: &str, urls: &[ItemUrl]) -> Vec<ItemUrl> {
     let mut normalized = urls
         .iter()
@@ -1376,6 +1420,11 @@ fn normalized_urls(website: &str, urls: &[ItemUrl]) -> Vec<ItemUrl> {
                 item_url.label.trim().to_string()
             },
             url: item_url.url.trim().to_string(),
+            match_type: if item_url.match_type == MATCH_TYPE_EXACT {
+                MATCH_TYPE_EXACT.to_string()
+            } else {
+                MATCH_TYPE_DOMAIN.to_string()
+            },
         })
         .filter(|item_url| !item_url.url.is_empty())
         .collect::<Vec<_>>();
@@ -1386,11 +1435,52 @@ fn normalized_urls(website: &str, urls: &[ItemUrl]) -> Vec<ItemUrl> {
             normalized.push(ItemUrl {
                 label: "website".to_string(),
                 url: website.to_string(),
+                match_type: default_match_type(),
             });
         }
     }
 
     normalized
+}
+
+/// Everything before the path: no scheme, no port, no userinfo, lowercased. A bare
+/// `github.com` and a full `https://github.com/login` reduce to the same host.
+fn host_of(value: &str) -> Option<String> {
+    let value = value.trim().to_lowercase();
+    if value.is_empty() {
+        return None;
+    }
+    let authority = match value.split_once("://") {
+        Some((_, rest)) => rest,
+        None => &value,
+    };
+    let authority = authority
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or_default()
+        .rsplit('@')
+        .next()
+        .unwrap_or_default()
+        .split(':')
+        .next()
+        .unwrap_or_default();
+    if authority.is_empty() {
+        None
+    } else {
+        Some(authority.to_string())
+    }
+}
+
+/// Hosts only, never a substring: an item saved for `notgithub.com` must not answer a
+/// page on `github.com`, and `exact` must not answer one on `login.github.com`.
+fn url_matches_host(stored: &str, request_host: &str, match_type: &str) -> bool {
+    let Some(stored_host) = host_of(stored) else {
+        return false;
+    };
+    if match_type == MATCH_TYPE_EXACT {
+        return stored_host == request_host;
+    }
+    stored_host == request_host || request_host.ends_with(&format!(".{stored_host}"))
 }
 
 fn primary_website(website: &str, urls: &[ItemUrl]) -> String {
@@ -1519,10 +1609,12 @@ mod tests {
                         ItemUrl {
                             label: "signin".into(),
                             url: "https://github.com/login".into(),
+                            match_type: "exact".into(),
                         },
                         ItemUrl {
                             label: "docs".into(),
                             url: "https://docs.github.com".into(),
+                            match_type: "domain".into(),
                         },
                     ],
                     notes: "primary account".into(),
@@ -1568,6 +1660,7 @@ mod tests {
                     urls: vec![ItemUrl {
                         label: "main".into(),
                         url: "https://github.com".into(),
+                        match_type: "domain".into(),
                     }],
                     notes: "updated".into(),
                     tags: vec!["code".into()],
@@ -1634,6 +1727,115 @@ mod tests {
             .is_empty());
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn host_of_reduces_an_address_to_its_authority() {
+        assert_eq!(
+            host_of("https://GitHub.com/login?x=1#frag").as_deref(),
+            Some("github.com")
+        );
+        assert_eq!(host_of("github.com:8443/session").as_deref(), Some("github.com"));
+        assert_eq!(
+            host_of("user:pw@vault.corp.example/path").as_deref(),
+            Some("vault.corp.example")
+        );
+        assert_eq!(host_of("   ").as_deref(), None);
+        assert_eq!(host_of("https://").as_deref(), None);
+    }
+
+    #[test]
+    fn exact_matches_one_host_and_domain_also_matches_subdomains() {
+        assert!(url_matches_host("https://github.com/login", "github.com", MATCH_TYPE_EXACT));
+        assert!(!url_matches_host(
+            "https://github.com/login",
+            "login.github.com",
+            MATCH_TYPE_EXACT
+        ));
+        assert!(url_matches_host("github.com", "login.github.com", MATCH_TYPE_DOMAIN));
+        assert!(url_matches_host("https://github.com:8443/x", "github.com", MATCH_TYPE_DOMAIN));
+        // A registered domain is not a suffix of an unrelated one: this is the whole reason the
+        // bridge no longer shares the search path's substring rule.
+        assert!(!url_matches_host("github.com", "notgithub.com", MATCH_TYPE_DOMAIN));
+        assert!(!url_matches_host("http://", "github.com", MATCH_TYPE_DOMAIN));
+    }
+
+    #[test]
+    fn origin_lookup_honours_each_urls_match_type() {
+        let path = test_database_path("origin-match");
+        initialize_database(&path).expect("database should initialize");
+        let connection = open_database(&path).expect("database should open");
+        let mut service = VaultService::new(connection);
+        let session = service
+            .setup_master_password("master-password")
+            .expect("master password should setup");
+
+        let exact = service
+            .create_login_item(
+                &session,
+                LoginItemInput {
+                    urls: vec![ItemUrl {
+                        label: String::new(),
+                        url: "https://github.com/login".into(),
+                        match_type: MATCH_TYPE_EXACT.into(),
+                    }],
+                    ..login_input("GitHub sign-in", vec![])
+                },
+            )
+            .expect("login should save");
+        let domain = service
+            .create_login_item(
+                &session,
+                LoginItemInput {
+                    urls: vec![ItemUrl {
+                        label: String::new(),
+                        url: "github.com".into(),
+                        match_type: MATCH_TYPE_DOMAIN.into(),
+                    }],
+                    ..login_input("GitHub API", vec![])
+                },
+            )
+            .expect("login should save");
+        let lookalike = service
+            .create_login_item(
+                &session,
+                LoginItemInput {
+                    urls: vec![ItemUrl {
+                        label: String::new(),
+                        url: "https://notgithub.com".into(),
+                        match_type: MATCH_TYPE_DOMAIN.into(),
+                    }],
+                    ..login_input("Look-alike", vec![])
+                },
+            )
+            .expect("login should save");
+
+        assert_eq!(
+            titles_for(&service, &session, "https://github.com/dashboard"),
+            vec![domain.title.clone(), exact.title.clone()]
+        );
+        assert_eq!(
+            titles_for(&service, &session, "https://api.github.com/session"),
+            vec![domain.title.clone()]
+        );
+        assert_eq!(
+            titles_for(&service, &session, "https://notgithub.com/"),
+            vec![lookalike.title.clone()]
+        );
+        assert!(titles_for(&service, &session, "").is_empty());
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    fn titles_for(service: &VaultService, session: &Session, origin: &str) -> Vec<String> {
+        let mut titles = service
+            .list_login_items_for_origin(session, origin)
+            .expect("origin should list")
+            .iter()
+            .map(|item| item.title.clone())
+            .collect::<Vec<_>>();
+        titles.sort();
+        titles
     }
 
     #[test]
@@ -2288,6 +2490,7 @@ mod tests {
                     urls: vec![ItemUrl {
                         label: "website".into(),
                         url: "https://example.com".into(),
+                        match_type: "domain".into(),
                     }],
                     notes: "".into(),
                     tags: vec!["passkey".into(), "browser".into()],

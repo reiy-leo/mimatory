@@ -10,7 +10,7 @@ function draft(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
     password: 'rQ9!kW$9Z2#LpW7',
     tagsInput: 'work, critical',
     title: 'GitHub',
-    urlsInput: [{ label: 'website', url: 'https://github.com' }],
+    urlsInput: [{ label: 'website', match_type: 'domain', url: 'https://github.com' }],
     username: 'alex@example.com',
     ...overrides,
   }
@@ -40,11 +40,30 @@ describe('item draft dirty checking', () => {
   })
 
   it('ignores an empty website row', () => {
-    expect(isFormDirty(draft(), draft({ urlsInput: [...draft().urlsInput, { label: '', url: '  ' }] }))).toBe(false)
     expect(
       isFormDirty(
         draft(),
-        draft({ urlsInput: [...draft().urlsInput, { label: 'status', url: 'https://www.githubstatus.com' }] }),
+        draft({ urlsInput: [...draft().urlsInput, { label: '', match_type: 'domain', url: '  ' }] }),
+      ),
+    ).toBe(false)
+    expect(
+      isFormDirty(
+        draft(),
+        draft({
+          urlsInput: [
+            ...draft().urlsInput,
+            { label: 'status', match_type: 'domain', url: 'https://www.githubstatus.com' },
+          ],
+        }),
+      ),
+    ).toBe(true)
+  })
+
+  it('reports an autofill match change as unsaved', () => {
+    expect(
+      isFormDirty(
+        draft(),
+        draft({ urlsInput: [{ label: 'website', match_type: 'exact', url: 'https://github.com' }] }),
       ),
     ).toBe(true)
   })

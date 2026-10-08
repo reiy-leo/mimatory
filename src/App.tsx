@@ -92,6 +92,7 @@ import {
   parseTags,
   type SnapshotSummary,
   tagsToInput,
+  type UrlMatchType,
   type VaultSummary,
   vaultApi,
   type WatchtowerReport,
@@ -121,6 +122,7 @@ type FieldTotpPreview = {
 }
 
 const defaultWebsiteLabel = 'website'
+const defaultUrlMatchType: UrlMatchType = 'domain'
 const quickAccessMaxResults = 8
 const quickAccessCloseDelayMs = 400
 
@@ -132,6 +134,7 @@ function toUrlFormState(url: ItemUrl): UrlFormState {
   return {
     id: createFormId(),
     label: url.label || defaultWebsiteLabel,
+    match_type: url.match_type,
     url: url.url,
   }
 }
@@ -140,22 +143,22 @@ function urlsForForm(item: LoginItem | LoginItemInput): UrlFormState[] {
   const urls = item.urls?.length
     ? item.urls
     : item.website
-      ? [{ label: defaultWebsiteLabel, url: item.website }]
-      : [{ label: defaultWebsiteLabel, url: '' }]
+      ? [{ label: defaultWebsiteLabel, match_type: defaultUrlMatchType, url: item.website }]
+      : [{ label: defaultWebsiteLabel, match_type: defaultUrlMatchType, url: '' }]
   return urls.map(toUrlFormState)
 }
 
 function normalizeFormUrls(urls: UrlFormState[], fallbackWebsite: string): ItemUrl[] {
-  const normalized = urls
-    .map((itemUrl) => ({
-      label: itemUrl.label.trim() || defaultWebsiteLabel,
-      url: itemUrl.url.trim(),
-    }))
-    .filter((itemUrl) => itemUrl.url)
-  if (normalized.length === 0 && fallbackWebsite.trim()) {
-    return [{ label: defaultWebsiteLabel, url: fallbackWebsite.trim() }]
+  const normalized = urls.map((itemUrl) => ({
+    label: itemUrl.label.trim() || defaultWebsiteLabel,
+    match_type: itemUrl.match_type,
+    url: itemUrl.url.trim(),
+  }))
+  const filled = normalized.filter((itemUrl) => itemUrl.url)
+  if (filled.length === 0 && fallbackWebsite.trim()) {
+    return [{ label: defaultWebsiteLabel, match_type: defaultUrlMatchType, url: fallbackWebsite.trim() }]
   }
-  return normalized
+  return filled
 }
 
 const addMoreOptions = [
@@ -1006,7 +1009,10 @@ function VaultWindow() {
   function addWebsite() {
     setForm((current) => ({
       ...current,
-      urlsInput: [...current.urlsInput, toUrlFormState({ label: defaultWebsiteLabel, url: '' })],
+      urlsInput: [
+        ...current.urlsInput,
+        toUrlFormState({ label: defaultWebsiteLabel, match_type: defaultUrlMatchType, url: '' }),
+      ],
     }))
   }
 
@@ -1944,6 +1950,18 @@ function VaultWindow() {
                                 placeholder="https://example.com"
                                 value={itemUrl.url}
                               />
+                              <select
+                                aria-label={t('vault.urlMatchType')}
+                                className="website-match-select"
+                                onChange={(event) =>
+                                  updateUrl(index, { match_type: event.target.value as UrlMatchType })
+                                }
+                                title={t('vault.urlMatchTypeHelp')}
+                                value={itemUrl.match_type}
+                              >
+                                <option value="domain">{t('vault.matchTypes.domain')}</option>
+                                <option value="exact">{t('vault.matchTypes.exact')}</option>
+                              </select>
                             </div>
                             <button
                               aria-label={t('vault.removeWebsite')}

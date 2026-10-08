@@ -1,5 +1,7 @@
 use crate::storage;
-use crate::vault::{ItemUrl, LoginItem, LoginItemInput, LoginItemUpdate, Session, VaultService};
+use crate::vault::{
+    default_match_type, ItemUrl, LoginItem, LoginItemInput, LoginItemUpdate, Session, VaultService,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -153,7 +155,7 @@ fn list_matches(session: &SharedSession, origin: &str) -> Result<Vec<LoginItem>,
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let service = VaultService::new(connection);
     service
-        .list_login_items(&session, Some(origin))
+        .list_login_items_for_origin(&session, origin)
         .map_err(|error| error.to_string())
 }
 
@@ -162,7 +164,7 @@ fn save_login(session: &SharedSession, input: SaveRequest) -> Result<LoginItem, 
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let mut service = VaultService::new(connection);
     let existing = service
-        .list_login_items(&session, Some(&input.website))
+        .list_login_items_for_origin(&session, &input.website)
         .map_err(|error| error.to_string())?
         .into_iter()
         .find(|item| item.username == input.username);
@@ -184,6 +186,7 @@ fn save_login(session: &SharedSession, input: SaveRequest) -> Result<LoginItem, 
                     urls: vec![ItemUrl {
                         label: "website".to_string(),
                         url: input.website,
+                        match_type: default_match_type(),
                     }],
                     notes: existing.notes,
                     tags: existing.tags,
@@ -210,6 +213,7 @@ fn save_login(session: &SharedSession, input: SaveRequest) -> Result<LoginItem, 
                 urls: vec![ItemUrl {
                     label: "website".to_string(),
                     url: input.website,
+                    match_type: default_match_type(),
                 }],
                 notes: "Saved from browser extension".to_string(),
                 tags: vec!["browser".to_string()],

@@ -29,9 +29,12 @@ export type VaultSummary = {
   updated_at: string
 }
 
+export type UrlMatchType = 'domain' | 'exact'
+
 export type ItemUrl = {
   label: string
   url: string
+  match_type: UrlMatchType
 }
 
 export type CustomField = {

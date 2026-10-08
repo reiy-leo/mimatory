@@ -1927,6 +1927,10 @@
     @apply px-100 py-075;
   }
 
+  .website-match-select {
+    @apply h-300 w-auto self-start rounded-medium px-075 pr-300 text-body-small font-normal text-text-subtle shadow-none;
+  }
+
   .drag-handle {
     color: var(--color-text-subtlest);
     @apply text-body-small;

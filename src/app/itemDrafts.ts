@@ -1,7 +1,7 @@
-import { parseTags } from './vaultApi'
+import { parseTags, type UrlMatchType } from './vaultApi'
 
 type DraftField = { field_type: string; label: string; value: string }
-type DraftUrl = { label: string; url: string }
+type DraftUrl = { label: string; match_type: UrlMatchType; url: string }
 
 // The subset `toInput` actually writes, in the shape it writes it. Comparing this instead of
 // the raw form means a keystroke that saves nothing different — a trailing space in the title,
@@ -27,7 +27,7 @@ export function formFingerprint(form: DraftSnapshot): string {
     password: form.password,
     tags: parseTags(form.tagsInput),
     title: form.title.trim(),
-    urls: form.urlsInput.map((url) => [url.label.trim(), url.url.trim()]).filter(([, url]) => url),
+    urls: form.urlsInput.map((url) => [url.label.trim(), url.url.trim(), url.match_type]).filter(([, url]) => url),
     username: form.username.trim(),
   })
 }
