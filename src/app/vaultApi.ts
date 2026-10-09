@@ -90,6 +90,11 @@ export type BreachCheckResult = {
   breached_passwords: string[]
 }
 
+export type Tag = {
+  icon: string
+  name: string
+}
+
 export type TotpCode = {
   code: string
   seconds_remaining: number
@@ -149,6 +154,7 @@ export const vaultApi = {
   checkBreaches: () => invoke<BreachCheckResult>('check_breached_passwords'),
   create: (input: LoginItemInput) => invoke<LoginItem>('create_login_item', { input }),
   createVault: (name: string) => invoke<VaultSummary>('create_vault', { name }),
+  deleteTag: (name: string) => invoke<void>('delete_tag', { name }),
   exportAttachmentToTemp: (id: string) => invoke<string>('export_attachment_to_temp', { id }),
   favorite: (id: string, favorite: boolean) => invoke<void>('set_login_favorite', { favorite, id }),
   generateBrowserPairingToken: () => invoke<string>('generate_browser_pairing_token'),
@@ -168,10 +174,12 @@ export const vaultApi = {
   setAutostart: (enabled: boolean) => invoke<void>('set_autostart', { enabled }),
   setup: (password: string) => invoke<LoginItem[]>('setup_master_password', { password }),
   switchVault: (id: string) => invoke<LoginItem[]>('switch_vault', { id }),
+  tags: () => invoke<Tag[]>('list_tags'),
   trash: (id: string) => invoke<void>('trash_login_item', { id }),
   trashed: () => invoke<LoginItem[]>('list_trashed_login_items'),
   unlock: (password: string) => invoke<LoginItem[]>('unlock_vault', { password }),
   unlockWithBiometrics: () => invoke<LoginItem[]>('unlock_with_biometrics'),
   update: (id: string, input: LoginItemInput) => invoke<LoginItem>('update_login_item', { input: { id, ...input } }),
+  updateTag: (from: string, name: string, icon: string) => invoke<void>('update_tag', { from, icon, name }),
   watchtower: () => invoke<WatchtowerReport>('watchtower_report'),
 }

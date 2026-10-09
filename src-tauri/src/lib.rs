@@ -16,7 +16,7 @@ use tauri::State;
 use totp::TotpCode;
 use vault::{
     generate_password, CustomField, LoginItem, LoginItemInput, LoginItemUpdate, PasswordGeneratorOptions,
-    PasswordStrength, Session, VaultError, VaultService, VaultSummary, WatchtowerReport,
+    PasswordStrength, Session, Tag, VaultError, VaultService, VaultSummary, WatchtowerReport,
 };
 
 struct AppState {
@@ -277,6 +277,35 @@ fn generate_password_command(options: PasswordGeneratorOptions) -> Result<String
     generate_password(options).map_err(String::from)
 }
 
+// A tag row lives only while some item names it, and it is addressed by name because a name is the
+// only handle an item carries. How many items use it is counted from the live item list in the
+// frontend, so the number beside a tag cannot disagree with what clicking that tag reveals.
+#[tauri::command]
+fn list_tags(state: State<AppState>) -> Result<Vec<Tag>, String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service.list_tags(&session).map_err(String::from)
+}
+
+#[tauri::command]
+fn update_tag(from: String, icon: String, name: String, state: State<AppState>) -> Result<(), String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service
+        .update_tag(&session, &from, &name, &icon)
+        .map_err(String::from)
+}
+
+#[tauri::command]
+fn delete_tag(name: String, state: State<AppState>) -> Result<(), String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service.delete_tag(&session, &name).map_err(String::from)
+}
+
 #[tauri::command]
 fn password_strength(password: String) -> PasswordStrength {
     vault::password_strength(&password)
@@ -449,6 +478,9 @@ pub fn run() {
             restore_login_item,
             list_archived_login_items,
             set_login_favorite,
+            list_tags,
+            update_tag,
+            delete_tag,
             generate_password_command,
             password_strength,
             generate_totp_code,

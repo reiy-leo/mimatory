@@ -97,6 +97,16 @@ pub struct VaultSummary {
     pub updated_at: String,
 }
 
+/// One row of the `tags` table, as the sidebar needs it. A tag is addressed by its name because that
+/// is the only thing an item carries, matched case-insensitively through the hash the table has a
+/// unique index on. How many items use a tag is not here — the frontend already holds the live item
+/// list and counts from it, so a number beside a name cannot disagree with what clicking it reveals.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct Tag {
+    pub name: String,
+    pub icon: String,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct AttachmentExport {
     pub file_name: String,
@@ -194,6 +204,10 @@ pub enum VaultError {
     Locked,
     #[error("vault not found")]
     VaultNotFound,
+    #[error("tag name cannot be empty")]
+    TagNameEmpty,
+    #[error("tag not found")]
+    TagNotFound,
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
     #[error("crypto error: {0}")]
@@ -536,6 +550,104 @@ impl VaultService {
         )?;
         Ok(())
     }
+
+    pub fn list_tags(&self, session: &Session) -> Result<Vec<Tag>, VaultError> {
+        let mut statement = self.connection.prepare(
+            "SELECT name_ciphertext, icon FROM tags WHERE vault_id = ?1 ORDER BY created_at ASC",
+        )?;
+        let rows = statement
+            .query_map([&session.vault_id], |row| {
+                Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, String>(1)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        drop(statement);
+
+        rows.into_iter()
+            .map(|(name_ciphertext, icon)| {
+                Ok(Tag {
+                    name: decrypt_string_from_blob(&session.key, &name_ciphertext)?,
+                    icon,
+                })
+            })
+            .collect()
+    }
+
+    /// Renames a tag, restyles it, or both, addressed by the name the sidebar is showing — a name is
+    /// the only handle an item carries. Renaming onto a name the vault already has merges rather than
+    /// failing: `UNIQUE (vault_id, name_hash)` means two spellings of one tag cannot coexist, and the
+    /// links have to end up on one row either way.
+    pub fn update_tag(
+        &mut self,
+        session: &Session,
+        name: &str,
+        new_name: &str,
+        icon: &str,
+    ) -> Result<(), VaultError> {
+        let id = self.tag_id(session, name)?.ok_or(VaultError::TagNotFound)?;
+        let new_name = new_name.trim();
+        if new_name.is_empty() {
+            return Err(VaultError::TagNameEmpty);
+        }
+
+        let name_hash = tag_name_hash(&session.key, new_name);
+        let now = Utc::now().to_rfc3339();
+        let target = self
+            .connection
+            .query_row(
+                "SELECT id FROM tags WHERE vault_id = ?1 AND name_hash = ?2 AND id != ?3",
+                params![&session.vault_id, name_hash, id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+
+        if let Some(target_id) = target {
+            self.connection.execute(
+                "INSERT OR IGNORE INTO item_tags (item_id, tag_id, position)
+                 SELECT item_id, ?1, position FROM item_tags WHERE tag_id = ?2",
+                params![&target_id, &id],
+            )?;
+            self.connection
+                .execute("DELETE FROM item_tags WHERE tag_id = ?1", [&id])?;
+            self.connection.execute("DELETE FROM tags WHERE id = ?1", [&id])?;
+            self.connection.execute(
+                "UPDATE tags SET icon = ?1, updated_at = ?2 WHERE id = ?3",
+                params![icon, now, &target_id],
+            )?;
+            self.record_event("merge_tag", &format!("Merged tag {name} into {new_name}"))?;
+            return Ok(());
+        }
+
+        self.connection.execute(
+            "UPDATE tags SET name_ciphertext = ?1, name_hash = ?2, icon = ?3, updated_at = ?4
+             WHERE id = ?5 AND vault_id = ?6",
+            params![
+                encrypt_string_to_blob(&session.key, new_name)?,
+                name_hash,
+                icon,
+                now,
+                id,
+                &session.vault_id
+            ],
+        )?;
+        self.record_event("update_tag", &format!("Updated tag {name}"))?;
+        Ok(())
+    }
+
+    /// Takes the label off every item that carries it and forgets the row. The items stay.
+    /// `item_tags` would cascade on its own; the links go by hand so the result does not depend on the
+    /// connection having `PRAGMA foreign_keys` on.
+    pub fn delete_tag(&mut self, session: &Session, name: &str) -> Result<(), VaultError> {
+        let id = self.tag_id(session, name)?.ok_or(VaultError::TagNotFound)?;
+        self.connection
+            .execute("DELETE FROM item_tags WHERE tag_id = ?1", [&id])?;
+        self.connection.execute(
+            "DELETE FROM tags WHERE id = ?1 AND vault_id = ?2",
+            params![id, &session.vault_id],
+        )?;
+        self.record_event("delete_tag", &format!("Deleted tag {name}"))?;
+        Ok(())
+    }
+
 
     pub fn list_login_items(
         &self,
@@ -1091,6 +1203,17 @@ impl VaultService {
             [&session.vault_id],
         )?;
         Ok(())
+    }
+
+    fn tag_id(&self, session: &Session, name: &str) -> Result<Option<String>, VaultError> {
+        Ok(self
+            .connection
+            .query_row(
+                "SELECT id FROM tags WHERE vault_id = ?1 AND name_hash = ?2",
+                params![&session.vault_id, tag_name_hash(&session.key, name)],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?)
     }
 
     fn resolve_tag_id(&self, session: &Session, name: &str) -> Result<String, VaultError> {
@@ -1947,6 +2070,127 @@ mod tests {
             .purge_item(&session, &gitlab.id)
             .expect("item should purge");
         assert_eq!(tag_row_count(&service), 2);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn a_tag_can_be_renamed_restyled_and_deleted_without_touching_the_items() {
+        let path = test_database_path("tag-crud");
+        initialize_database(&path).expect("database should initialize");
+        let connection = open_database(&path).expect("database should open");
+        let mut service = VaultService::new(connection);
+        let session = service
+            .setup_master_password("master-password")
+            .expect("master password should setup");
+
+        service
+            .create_login_item(&session, login_input("GitHub", vec!["Work".into(), "code".into()]))
+            .expect("login should save");
+        service
+            .create_login_item(&session, login_input("GitLab", vec!["work".into()]))
+            .expect("login should save");
+
+        let tags = service.list_tags(&session).expect("tags should list");
+        assert_eq!(tags.len(), 2);
+        // One row covers both spellings, so the vault has two tags, not three.
+        assert!(tags.iter().all(|tag| tag.icon == "tag"));
+        assert!(tags.iter().any(|tag| tag.name == "Work"));
+
+        service
+            .update_tag(&session, "work", "Job", "briefcase")
+            .expect("a tag is addressed by any spelling of its name");
+
+        let tags = service.list_tags(&session).expect("tags should list after the rename");
+        assert_eq!(tags.len(), 2);
+        assert!(tags.iter().any(|tag| tag.name == "Job"));
+        let job = tags.iter().find(|tag| tag.name == "Job").expect("Job");
+        assert_eq!(job.icon, "briefcase");
+
+        // Both items read the new spelling without either one being opened, because an item's tags are
+        // the rows it links to rather than a copy of the text that was typed.
+        let items = service.list_login_items(&session, None).expect("items should list");
+        assert_eq!(items.len(), 2);
+        assert!(items
+            .iter()
+            .all(|item| item.tags.iter().any(|tag| tag == "Job")));
+
+        // A name the vault already has merges rather than failing on the unique name hash.
+        service
+            .update_tag(&session, "code", "job", "star")
+            .expect("renaming onto an existing tag should merge");
+
+        let tags = service.list_tags(&session).expect("tags should list after the merge");
+        assert_eq!(tags.len(), 1);
+        // The row that was already there keeps its own spelling; only the icon follows this edit.
+        assert_eq!(tags[0].name, "Job");
+        assert_eq!(tags[0].icon, "star");
+
+        let items = service.list_login_items(&session, None).expect("items should list");
+        let github = items
+            .iter()
+            .find(|item| item.title == "GitHub")
+            .expect("github");
+        assert_eq!(github.tags, vec!["Job"]);
+
+        assert!(matches!(
+            service.update_tag(&session, "Job", "   ", "star"),
+            Err(VaultError::TagNameEmpty)
+        ));
+        assert!(matches!(
+            service.update_tag(&session, "missing-tag", "New", "star"),
+            Err(VaultError::TagNotFound)
+        ));
+
+        service
+            .delete_tag(&session, "JOB")
+            .expect("tag should delete");
+        assert!(service.list_tags(&session).expect("tags should list").is_empty());
+        assert_eq!(tag_row_count(&service), 0);
+
+        // Deleting the label is not deleting the item.
+        let items = service.list_login_items(&session, None).expect("items should list");
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().all(|item| item.tags.is_empty()));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn a_tag_row_survives_as_long_as_an_item_still_names_it() {
+        let path = test_database_path("tag-rows");
+        initialize_database(&path).expect("database should initialize");
+        let connection = open_database(&path).expect("database should open");
+        let mut service = VaultService::new(connection);
+        let session = service
+            .setup_master_password("master-password")
+            .expect("master password should setup");
+
+        let github = service
+            .create_login_item(&session, login_input("GitHub", vec!["work".into()]))
+            .expect("login should save");
+        service
+            .create_login_item(&session, login_input("GitLab", vec!["work".into()]))
+            .expect("login should save");
+
+        service
+            .archive_item(&session, &github.id)
+            .expect("item should archive");
+
+        // Archiving and trashing leave the links alone, so the row — and the icon on it — is still
+        // there when the item comes back. Counting which of those items is live is the sidebar's job,
+        // because it is the live item list that decides what a click on a tag reveals.
+        assert_eq!(service.list_tags(&session).expect("tags should list").len(), 1);
+
+        service
+            .trash_item(&session, &github.id)
+            .expect("item should move to trash");
+        assert_eq!(service.list_tags(&session).expect("tags should list").len(), 1);
+
+        service
+            .purge_item(&session, &github.id)
+            .expect("item should purge");
+        assert_eq!(service.list_tags(&session).expect("tags should list").len(), 1);
 
         let _ = std::fs::remove_file(path);
     }

@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest'
 import {
   addTag,
   countItemTags,
+  defaultTagIcon,
   filterItemsByTag,
   removeTag,
   tagKeyFromNavigation,
   tagList,
   tagNavigationId,
+  tagRows,
 } from './itemTags'
+import type { Tag } from './vaultApi'
 
 function item(id: string, tags: string[]) {
   return { id, tags }
@@ -53,5 +56,38 @@ describe('tag filtering', () => {
     expect(tagNavigationId('work')).toBe('tag:work')
     expect(tagKeyFromNavigation('tag:work')).toBe('work')
     expect(tagKeyFromNavigation('favorites')).toBeNull()
+  })
+})
+
+describe('tag row styling', () => {
+  const counts = countItemTags([item('a', ['Work']), item('b', ['home'])], 'en')
+
+  it('puts the stored icon on the row that names it, whatever spelling either side used', () => {
+    // In the vault an item's tags are decrypted from the row it links to, so the two spellings can only
+    // differ here — the join is on the key, not on the text.
+    const tags: Tag[] = [
+      { icon: 'briefcase', name: 'work' },
+      { icon: 'home', name: 'Home' },
+    ]
+    expect(tagRows(counts, tags)).toEqual([
+      { count: 1, icon: 'home', key: 'home', name: 'home' },
+      { count: 1, icon: 'briefcase', key: 'work', name: 'Work' },
+    ])
+  })
+
+  it('falls back to the default icon rather than dropping the row', () => {
+    // A tag a save path created has a row, and a row the picker never styled reads as the default.
+    expect(tagRows(counts, [{ icon: defaultTagIcon, name: 'Work' }])[1]).toEqual({
+      count: 1,
+      icon: 'tag',
+      key: 'work',
+      name: 'Work',
+    })
+    expect(tagRows(counts, [])[1]?.icon).toBe(defaultTagIcon)
+  })
+
+  it('shows only the tags a live item still names', () => {
+    // The row outlives the last live item that used it, so the count list decides what the sidebar offers.
+    expect(tagRows(counts, []).map((row) => row.key)).toEqual(['home', 'work'])
   })
 })

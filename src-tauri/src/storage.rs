@@ -133,6 +133,8 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
             name_hash BLOB NOT NULL,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
+            /* Last, because ALTER TABLE on an existing vault appends it here. */
+            icon TEXT NOT NULL DEFAULT 'tag',
             UNIQUE (vault_id, name_hash)
         );
 
@@ -204,6 +206,13 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
 
     if !has_column(connection, "items", "deleted_at")? {
         connection.execute("ALTER TABLE items ADD COLUMN deleted_at TEXT", [])?;
+    }
+
+    if !has_column(connection, "tags", "icon")? {
+        connection.execute(
+            "ALTER TABLE tags ADD COLUMN icon TEXT NOT NULL DEFAULT 'tag'",
+            [],
+        )?;
     }
 
     connection.execute(
@@ -361,6 +370,59 @@ mod tests {
 
         assert_eq!(trashed, 0);
         assert_eq!(deleted_at, None);
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn initialize_database_adds_an_icon_to_tags_that_already_exist() {
+        let (temp_dir, database_path) = temp_database("tag-icon");
+        fs::create_dir_all(&temp_dir).expect("temp dir should exist");
+
+        {
+            let connection = Connection::open(&database_path).expect("database should open");
+            connection.execute_batch("
+                CREATE TABLE meta (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+                CREATE TABLE vaults (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name_ciphertext BLOB NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE tags (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    vault_id TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+                    name_ciphertext BLOB NOT NULL,
+                    name_hash BLOB NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE (vault_id, name_hash)
+                );
+                INSERT INTO vaults (id, name_ciphertext, created_at, updated_at)
+                VALUES ('personal', x'00', '2026-01-01', '2026-01-01');
+                INSERT INTO tags (
+                    id, vault_id, name_ciphertext, name_hash, created_at, updated_at
+                ) VALUES ('work', 'personal', x'01', x'02', '2026-01-01', '2026-01-02');
+                INSERT INTO meta (key, value) VALUES ('schema_version', '2');
+            ").expect("icon-less tags table should build");
+        }
+
+        initialize_database(&database_path).expect("database should upgrade");
+        initialize_database(&database_path).expect("upgrading twice should be harmless");
+
+        let connection = Connection::open(&database_path).expect("database should reopen");
+        assert!(has_column(&connection, "tags", "icon").expect("column check should run"));
+
+        let (icon, name_ciphertext): (String, Vec<u8>) = connection
+            .query_row(
+                "SELECT icon, name_ciphertext FROM tags WHERE id = 'work'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("the existing tag should survive the upgrade");
+
+        assert_eq!(icon, "tag");
+        assert_eq!(name_ciphertext, vec![1]);
 
         let _ = fs::remove_dir_all(temp_dir);
     }

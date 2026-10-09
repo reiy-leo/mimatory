@@ -1,14 +1,19 @@
-import { parseTags, tagsToInput } from './vaultApi'
+import { parseTags, type Tag, tagsToInput } from './vaultApi'
 
 export type TagCount = { count: number; key: string; name: string }
 export type TagNavigation = `tag:${string}`
+export type TagRow = { count: number; icon: string; key: string; name: string }
 
 const tagNavigationPrefix = 'tag:'
+
+// A tag row gets this on creation, in storage as well as here, so a tag that predates the icon column
+// and one that has never been styled look the same.
+export const defaultTagIcon = 'tag'
 
 // Mirrors `normalized_tag_names` in `vault.rs`: tags are compared case-insensitively and the first
 // spelling seen is the one that gets stored, so "Work" and "work" are one tag here too. Without that
 // the sidebar would offer two rows that filter to the same items.
-function tagKey(tag: string): string {
+export function tagKey(tag: string): string {
   return tag.trim().toLowerCase()
 }
 
@@ -59,4 +64,13 @@ export function countItemTags(items: readonly { tags: readonly string[] }[], loc
 
 export function filterItemsByTag<T extends { tags: readonly string[] }>(items: readonly T[], key: string): T[] {
   return items.filter((item) => item.tags.some((tag) => tagKey(tag) === key))
+}
+
+// Which tags the sidebar offers, and how many items each one names, comes from the live item list; the
+// icon comes from the storage row. Joined here on the key both sides casefold to, so a count cannot
+// disagree with what clicking that tag reveals.
+export function tagRows(counts: readonly TagCount[], tags: readonly Tag[]): TagRow[] {
+  const icons = new Map<string, string>()
+  for (const tag of tags) icons.set(tagKey(tag.name), tag.icon)
+  return counts.map((count) => ({ ...count, icon: icons.get(count.key) ?? defaultTagIcon }))
 }

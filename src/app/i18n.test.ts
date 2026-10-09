@@ -97,21 +97,27 @@ describe('i18n', () => {
     expect(sources.filter(({ text }) => fallback.test(text)).map(({ path }) => path)).toEqual([])
   })
 
-  /* These two families are only ever reached through a template string, so nothing above can see
-     them: the item type comes from the sidebar's categories, the placeholder from the add-field menu. */
+  /* These families are only ever reached through a template string, so nothing above can see them: the
+     item type comes from the sidebar's categories, the placeholder from the add-field menu, and the icon
+     name from the tag picker's grid. */
   it('translates the keys built at runtime', () => {
     const app = readFileSync('src/App.tsx', 'utf8')
     const itemTypes = [...app.matchAll(/^\s*\['([a-z_]+)', '/gm)].map((match) => match[1])
     /* The lookbehind keeps `field_type` and `item_type` out of the sweep — only the add-field menu's
        own `type:` values pick a placeholder, and an item type is not one of them. */
     const fieldTypes = [...app.matchAll(/(?<![A-Za-z_])type: '([a-z_]+)'/g)].map((match) => match[1])
+    const tagIcons = [...readFileSync('src/app/tagIcons.ts', 'utf8').matchAll(/name: '([a-z-]+)'/g)].map(
+      (match) => match[1],
+    )
 
     expect(itemTypes.length).toBeGreaterThan(10)
     expect(fieldTypes.length).toBeGreaterThan(10)
+    expect(tagIcons.length).toBeGreaterThan(10)
 
     const derived = [
       ...itemTypes.map((itemType) => `itemTypes.${itemType}`),
       ...fieldTypes.map((fieldType) => `vault.customFieldDefaults.${fieldType}`),
+      ...tagIcons.map((tagIcon) => `tagIcons.${tagIcon}`),
     ]
     expect(missingFromSomeLocale(derived)).toEqual([])
   })

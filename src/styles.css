@@ -301,6 +301,22 @@
     @apply h-screen overflow-hidden;
   }
 
+  /* Nothing here is a document: a value is copied by its own button, not dragged across with the
+     mouse, and a selection started on a label or a row is only ever an accident. A text field is the
+     exception — one you cannot select inside is a field you cannot edit. */
+  * {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  select,
+  [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
   button,
   input,
   textarea,
@@ -2262,5 +2278,51 @@
 
   .add-more-button.placement-top svg:last-child {
     transform: rotate(180deg);
+  }
+
+  /* A destructive menu row says so with the danger text role, not by being a different shape. */
+  .menu-option.is-danger,
+  .menu-option.is-danger svg {
+    color: var(--color-text-danger);
+  }
+
+  /* The tag picker borrows the confirmation card, so it sheds the browser's fieldset chrome and keeps
+     the card's own measure; the legend reads as a field label. */
+  .tag-icon-picker {
+    @apply mb-0 ml-0 mr-0 mt-200 border-0 p-0;
+  }
+
+  .tag-icon-picker legend {
+    color: var(--color-text-subtle);
+    @apply mb-050 text-body-small;
+  }
+
+  .tag-icon-grid {
+    @apply grid grid-cols-4 gap-050;
+  }
+
+  .tag-icon-option {
+    color: var(--color-icon-subtle);
+    background: var(--color-background-input);
+    border: var(--border-width-default) solid var(--color-border-input);
+    border-radius: var(--radius-medium);
+    @apply grid h-400 place-items-center p-0;
+  }
+
+  .tag-icon-option:hover {
+    background: var(--color-background-neutral-subtle-hovered);
+  }
+
+  /* A picked icon is a selection, not the primary action, so it wears button-selected. */
+  .tag-icon-option[aria-pressed="true"] {
+    color: var(--color-icon-selected);
+    background: var(--color-background-selected);
+    border-color: var(--color-border-selected);
+  }
+
+  .tag-icon-option:focus-visible {
+    outline: var(--border-width-focused) solid var(--color-border-focused);
+    outline-offset: var(--space-025);
+    border-radius: var(--radius-large);
   }
 }

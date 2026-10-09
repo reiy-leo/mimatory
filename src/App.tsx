@@ -4,6 +4,7 @@ import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewW
 import {
   AlertCircle,
   Archive,
+  BadgeCheck,
   Calendar,
   CalendarRange,
   ChevronDown,
@@ -11,13 +12,16 @@ import {
   CircleMinus,
   Cog,
   Copy,
+  CreditCard,
   Database,
+  DollarSign,
   Edit3,
   Eye,
   EyeOff,
   Fingerprint,
   GripVertical,
   Group,
+  IdCard,
   Inbox,
   KeyRound,
   Link,
@@ -26,6 +30,7 @@ import {
   LogIn,
   Mail,
   MapPin,
+  NotebookTabs,
   Paperclip,
   Phone,
   Plus,
@@ -36,6 +41,7 @@ import {
   ShieldCheck,
   ShieldQuestion,
   Star,
+  Terminal,
   Timer,
   Trash2,
   Type,
@@ -62,9 +68,12 @@ import {
   filterItemsByTag,
   removeTag,
   type TagNavigation,
+  type TagRow,
+  tagKey,
   tagKeyFromNavigation,
   tagList,
   tagNavigationId,
+  tagRows,
 } from './app/itemTags'
 import { getItemTemplate } from './app/itemTemplates'
 import { getLockScreenVariant, shouldShowTouchIdUnlock } from './app/lockScreen'
@@ -84,6 +93,7 @@ import {
   type SecurityPreferences,
   saveSecurityPreferences,
 } from './app/securityPreferences'
+import { tagIconComponent, tagIconOptions } from './app/tagIcons'
 import { getInitialTheme, type Theme } from './app/theme'
 import {
   buildOtpAuthUri,
@@ -107,6 +117,7 @@ import {
   parseCustomFields,
   parseTags,
   randomGeneratorOptions,
+  type Tag,
   tagsToInput,
   type UrlMatchType,
   type VaultSummary,
@@ -115,7 +126,7 @@ import {
 } from './app/vaultApi'
 
 type VaultMode = 'loading' | 'setup' | 'locked' | 'unlocked'
-type CategoryNavigation = `category:${(typeof categoryItemTypes)[number]}`
+type CategoryNavigation = `category:${(typeof categoryItems)[number]['itemType']}`
 type ActiveNavigation = (typeof navigationItems)[number]['id'] | CategoryNavigation | TagNavigation
 
 type LoginFormState = LoginItemInput & {
@@ -231,6 +242,7 @@ const sectionChildOptions = addMoreOptions.filter((option) => sectionChildFieldT
 const menuRowHeight = 36
 const addMoreMenuHeight = addMoreOptions.length * menuRowHeight + 40
 const sectionMenuHeight = Math.ceil(sectionChildOptions.length / 2) * menuRowHeight + 24
+const tagMenuHeight = 2 * menuRowHeight + 24
 
 // These belong with the credentials they protect, so they render in the username /
 // password group instead of the custom field list.
@@ -239,19 +251,21 @@ const loginSectionFieldTypes = ['otp', 'sign_in_with', 'passkey']
 // Ordered weakest to strongest; the meter fills one segment per step.
 const strengthLevels = ['weak', 'fair', 'strong', 'excellent'] as const
 
-const categoryItemTypes = [
-  'login',
-  'secure_note',
-  'credit_card',
-  'identity',
-  'password',
-  'ssh_key',
-  'bank_account',
-  'database',
-  'email',
-  'router',
-  'server',
-  'software_license',
+// The sidebar's categories are the item types the vault can hold, each with the accent hue its icon
+// wears. The ramp is decoration only — it never stands in for a status.
+const categoryItems = [
+  { colorClass: 'text-accent-icon-teal', icon: KeyRound, itemType: 'login' },
+  { colorClass: 'text-accent-icon-yellow', icon: NotebookTabs, itemType: 'secure_note' },
+  { colorClass: 'text-accent-icon-blue', icon: CreditCard, itemType: 'credit_card' },
+  { colorClass: 'text-accent-icon-green', icon: IdCard, itemType: 'identity' },
+  { colorClass: 'text-accent-icon-gray', icon: KeyRound, itemType: 'password' },
+  { colorClass: 'text-accent-icon-yellow', icon: Terminal, itemType: 'ssh_key' },
+  { colorClass: 'text-accent-icon-orange', icon: DollarSign, itemType: 'bank_account' },
+  { colorClass: 'text-accent-icon-lime', icon: Database, itemType: 'database' },
+  { colorClass: 'text-accent-icon-magenta', icon: Mail, itemType: 'email' },
+  { colorClass: 'text-accent-icon-blue', icon: Router, itemType: 'router' },
+  { colorClass: 'text-accent-icon-gray', icon: Server, itemType: 'server' },
+  { colorClass: 'text-accent-icon-blue', icon: BadgeCheck, itemType: 'software_license' },
 ] as const
 
 function parseSectionFields(value: string): SectionChildField[] {
@@ -523,6 +537,16 @@ const settingsTabLabels: Record<SettingsTab, string> = {
 
 export function App() {
   const view = new URLSearchParams(window.location.search).get('view')
+
+  // These are tools, not pages: the webview's own right-click menu offers reload, inspect element and
+  // Save As, none of which belong in a password vault. Every window mounts through here, so one
+  // listener covers all three, and the tag rows' own menu is a React handler that runs first.
+  useEffect(() => {
+    const onContextMenu = (event: MouseEvent) => event.preventDefault()
+    window.addEventListener('contextmenu', onContextMenu)
+    return () => window.removeEventListener('contextmenu', onContextMenu)
+  }, [])
+
   if (view === 'settings') {
     return <SettingsWindow />
   }
@@ -588,6 +612,15 @@ function VaultWindow() {
   // category list otherwise pushes the rest of the sidebar out of the window.
   const [categoriesCollapsed, setCategoriesCollapsed] = useState(false)
   const [tagsCollapsed, setTagsCollapsed] = useState(false)
+  // A tag's spelling and icon live on the storage row, while which rows the sidebar shows — and how many
+  // items each names — is read off the live items, so the two are joined per render. All three panels
+  // below address a tag by name, because a name is the only handle an item carries.
+  const [tagRecords, setTagRecords] = useState<Tag[]>([])
+  const [tagMenu, setTagMenu] = useState<TagRow | null>(null)
+  const [tagMenuAnchor, setTagMenuAnchor] = useState<MenuAnchor>()
+  const [tagEditor, setTagEditor] = useState<{ from: string; icon: string; name: string } | null>(null)
+  const [tagDeleteTarget, setTagDeleteTarget] = useState<TagRow | null>(null)
+  const tagNameInputRef = useRef<HTMLInputElement>(null)
   const [passwordStrength, setPasswordStrength] = useState<PasswordStrength | null>(null)
   const [showAddMore, setShowAddMore] = useState(false)
   const [sectionMenuIndex, setSectionMenuIndex] = useState<number | null>(null)
@@ -786,6 +819,24 @@ function VaultWindow() {
   const tagCounts = useMemo(() => countItemTags(items, i18n.language), [i18n.language, items])
   const activeTagName = tagCounts.find((entry) => entry.key === activeTagKey)?.name ?? activeTagKey
 
+  // The icon is the one thing about a tag the item list does not carry, so the rows are read back
+  // whenever that list changes — which is also when a tag can have appeared or gone away.
+  useEffect(() => {
+    if (mode !== 'unlocked') return
+    let stale = false
+    vaultApi
+      .tags()
+      .then((nextTags) => {
+        if (!stale) setTagRecords(nextTags)
+      })
+      .catch((nextError: unknown) => setError(String(nextError)))
+    return () => {
+      stale = true
+    }
+  }, [items, mode])
+
+  const sidebarTags = useMemo(() => tagRows(tagCounts, tagRecords), [tagCounts, tagRecords])
+
   const topSearchResults = useMemo(() => {
     const normalizedQuery = topSearch.trim().toLowerCase()
     if (!normalizedQuery) return []
@@ -871,6 +922,13 @@ function VaultWindow() {
   useEffect(() => {
     if (isCreatingVault) vaultNameInputRef.current?.focus()
   }, [isCreatingVault])
+
+  // Keyed on which tag is open rather than on the draft, so typing in the name — or picking an icon —
+  // does not drag the caret back to the field every keystroke.
+  const editingTagName = tagEditor?.from ?? ''
+  useEffect(() => {
+    if (editingTagName) tagNameInputRef.current?.focus()
+  }, [editingTagName])
 
   useEffect(() => {
     if (!form.password) {
@@ -1270,14 +1328,82 @@ function VaultWindow() {
     setSectionMenuAnchor(undefined)
     setSectionMenuIndex(null)
     setShowAddMore(false)
+    setTagMenu(null)
+    setTagMenuAnchor(undefined)
+  }
+
+  // The panel hangs off the cursor's height and the row's width, so it reads as belonging to that tag
+  // without covering the row it came from. The native menu is already prevented at the window.
+  function openTagMenu(event: ReactMouseEvent<HTMLButtonElement>, tag: TagRow) {
+    const rect = event.currentTarget.getBoundingClientRect()
+    setTagMenu(tag)
+    setTagMenuAnchor(
+      getMenuAnchorStyle({
+        menuHeight: tagMenuHeight,
+        rect: { bottom: event.clientY, left: rect.left, top: event.clientY, width: rect.width },
+        viewportHeight: window.innerHeight,
+      }),
+    )
+  }
+
+  function openTagEditor() {
+    if (!tagMenu) return
+    setTagEditor({ from: tagMenu.name, icon: tagMenu.icon, name: tagMenu.name })
+    closeFieldMenus()
+  }
+
+  function closeTagEditor() {
+    setTagEditor(null)
+  }
+
+  async function handleTagSave(event: FormEvent<HTMLFormElement>) {
+    if (!tagEditor) return
+    event.preventDefault()
+    const name = tagEditor.name.trim()
+    if (!name) return
+    const wasFilteredOn = activeNavigation === tagNavigationId(tagKey(tagEditor.from))
+    setError(null)
+    try {
+      await vaultApi.updateTag(tagEditor.from, name, tagEditor.icon)
+      await refreshItems()
+      closeTagEditor()
+      // A rename changes the key the view is addressed by, so the filter follows the tag rather than
+      // falling back to the whole vault mid-edit.
+      if (wasFilteredOn) setActiveNavigation(tagNavigationId(tagKey(name)))
+      setOperationMessage(t('messages.renamedTag', { name }))
+    } catch (nextError) {
+      setError(String(nextError))
+    }
+  }
+
+  function askTagDelete() {
+    if (!tagMenu) return
+    setTagDeleteTarget(tagMenu)
+    closeFieldMenus()
+  }
+
+  async function handleTagDelete() {
+    if (!tagDeleteTarget) return
+    const wasFilteredOn = activeNavigation === tagNavigationId(tagDeleteTarget.key)
+    setError(null)
+    try {
+      await vaultApi.deleteTag(tagDeleteTarget.name)
+      await refreshItems()
+      setTagDeleteTarget(null)
+      // The label is gone, so the view it was reached through is too; the items it named stay.
+      if (wasFilteredOn) setActiveNavigation('vaults')
+      setOperationMessage(t('messages.deletedTag', { name: tagDeleteTarget.name }))
+    } catch (nextError) {
+      setError(String(nextError))
+    }
   }
 
   // Every transient panel here has to dismiss itself. wry implements none of the WKUIDelegate
-  // dialog methods, so there is no native sheet to lean on, and both field menus are anchored to
+  // dialog methods, so there is no native sheet to lean on, and all three menus are anchored to
   // the viewport — which lets one cover the very button that opened it.
   useEffect(() => {
-    const menuOpen = showAddMore || sectionMenuIndex !== null
-    if (!menuOpen && !purgeTarget && !isCreatingVault) return
+    const menuOpen = showAddMore || sectionMenuIndex !== null || tagMenu !== null
+    if (!menuOpen && !purgeTarget && !isCreatingVault && !tagEditor && !tagDeleteTarget) return
     const handleClick = (event: MouseEvent) => {
       if (!menuOpen) return
       if ((event.target as HTMLElement | null)?.closest('[data-field-menu]')) return
@@ -1288,6 +1414,8 @@ function VaultWindow() {
       if (menuOpen) closeFieldMenus()
       setPurgeTarget(null)
       closeCreateVault()
+      closeTagEditor()
+      setTagDeleteTarget(null)
     }
     window.addEventListener('click', handleClick)
     window.addEventListener('keydown', handleKeyDown)
@@ -1295,7 +1423,7 @@ function VaultWindow() {
       window.removeEventListener('click', handleClick)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isCreatingVault, purgeTarget, sectionMenuIndex, showAddMore])
+  }, [isCreatingVault, purgeTarget, sectionMenuIndex, showAddMore, tagDeleteTarget, tagEditor, tagMenu])
 
   async function addCustomField(fieldType: (typeof addMoreOptions)[number]['type']) {
     const attachmentPath = fieldType === 'file' ? await vaultApi.pickAttachmentFile() : null
@@ -1809,20 +1937,25 @@ function VaultWindow() {
             />
             {tagsCollapsed ? null : (
               <div className="nav-sublist">
-                {tagCounts.map((entry) => (
-                  <button
-                    className={
-                      activeNavigation === tagNavigationId(entry.key) ? 'nav-item tag-item active' : 'nav-item tag-item'
-                    }
-                    key={entry.key}
-                    onClick={() => setActiveNavigation(tagNavigationId(entry.key))}
-                    type="button"
-                  >
-                    <span>{entry.name}</span>
-                    <span className="nav-count">{entry.count}</span>
-                  </button>
-                ))}
-                {tagCounts.length === 0 ? <p className="nav-sublist-empty">{t('vault.noTags')}</p> : null}
+                {sidebarTags.map((tag) => {
+                  const Icon = tagIconComponent(tag.icon)
+                  return (
+                    <button
+                      className={
+                        activeNavigation === tagNavigationId(tag.key) ? 'nav-item tag-item active' : 'nav-item tag-item'
+                      }
+                      key={tag.key}
+                      onClick={() => setActiveNavigation(tagNavigationId(tag.key))}
+                      onContextMenu={(event) => openTagMenu(event, tag)}
+                      type="button"
+                    >
+                      <Icon size={16} />
+                      <span>{tag.name}</span>
+                      <span className="nav-count">{tag.count}</span>
+                    </button>
+                  )
+                })}
+                {sidebarTags.length === 0 ? <p className="nav-sublist-empty">{t('vault.noTags')}</p> : null}
               </div>
             )}
           </nav>
@@ -1835,16 +1968,18 @@ function VaultWindow() {
             />
             {categoriesCollapsed ? null : (
               <div className="nav-list">
-                {categoryItemTypes.map((itemType) => {
-                  const id = `category:${itemType}` as const
+                {categoryItems.map((category) => {
+                  const id = `category:${category.itemType}` as const
+                  const Icon = category.icon
                   return (
                     <button
                       className={activeNavigation === id ? 'nav-item category-item active' : 'nav-item category-item'}
-                      key={itemType}
+                      key={category.itemType}
                       onClick={() => setActiveNavigation(id)}
                       type="button"
                     >
-                      <span>{t(`itemTypes.${itemType}`)}</span>
+                      <Icon className={category.colorClass} size={16} />
+                      <span>{t(`itemTypes.${category.itemType}`)}</span>
                       <span className="nav-count">{navigationCounts[id] ?? 0}</span>
                     </button>
                   )
@@ -2600,6 +2735,95 @@ function VaultWindow() {
           </div>
         )}
       </section>
+      {/* A tag row is the only place its icon and name can be changed, and a right-click is how you get
+          there. The panel is the same anchored menu the field buttons use, so it clears the sidebar's
+          clip and flips above the cursor when the row sits near the foot of the window. */}
+      {tagMenu ? (
+        <div className="add-more-menu" data-field-menu="" style={tagMenuAnchor?.style}>
+          <button className="menu-option with-icon" onClick={openTagEditor} type="button">
+            <Edit3 aria-hidden="true" size={15} />
+            <span className="menu-option-label">
+              <span>{t('vault.editTag')}</span>
+            </span>
+          </button>
+          <button className="menu-option with-icon is-danger" onClick={askTagDelete} type="button">
+            <Trash2 aria-hidden="true" size={15} />
+            <span className="menu-option-label">
+              <span>{t('vault.deleteTag')}</span>
+            </span>
+          </button>
+        </div>
+      ) : null}
+      {/* Renaming a tag is one row, not every item that names it, so this panel changes the row and the
+          items read the new spelling on their own. */}
+      {tagEditor ? (
+        <div className="confirm-layer">
+          <button aria-label={t('common.close')} className="confirm-backdrop" onClick={closeTagEditor} type="button" />
+          <div aria-labelledby="tag-editor-title" aria-modal="true" className="confirm-dialog" role="dialog">
+            <h2 id="tag-editor-title">{t('vault.editTag')}</h2>
+            <form onSubmit={handleTagSave}>
+              <label>
+                {t('vault.tagName')}
+                <input
+                  onChange={(event) => setTagEditor({ ...tagEditor, name: event.target.value })}
+                  ref={tagNameInputRef}
+                  type="text"
+                  value={tagEditor.name}
+                />
+              </label>
+              <fieldset className="tag-icon-picker">
+                <legend>{t('vault.tagIcon')}</legend>
+                <div className="tag-icon-grid">
+                  {tagIconOptions.map((option) => (
+                    <button
+                      aria-label={t(`tagIcons.${option.name}`)}
+                      aria-pressed={tagEditor.icon === option.name}
+                      className="tag-icon-option"
+                      key={option.name}
+                      onClick={() => setTagEditor({ ...tagEditor, icon: option.name })}
+                      type="button"
+                    >
+                      <option.icon aria-hidden="true" size={16} />
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              <div className="confirm-actions">
+                <button className="secondary-button" onClick={closeTagEditor} type="button">
+                  {t('vault.cancelEditing')}
+                </button>
+                <button className="primary-button" disabled={!tagEditor.name.trim()} type="submit">
+                  {t('common.save')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+      {/* Deleting a label is not deleting what it labels, and the panel has to say that in the same
+          breath it asks — the count is how many items lose their way to this tag. */}
+      {tagDeleteTarget ? (
+        <div className="confirm-layer">
+          <button
+            aria-label={t('common.close')}
+            className="confirm-backdrop"
+            onClick={() => setTagDeleteTarget(null)}
+            type="button"
+          />
+          <div aria-labelledby="tag-delete-title" aria-modal="true" className="confirm-dialog" role="alertdialog">
+            <h2 id="tag-delete-title">{t('vault.deleteTag')}</h2>
+            <p>{t('vault.confirmDeleteTag', { count: tagDeleteTarget.count, name: tagDeleteTarget.name })}</p>
+            <div className="confirm-actions">
+              <button className="secondary-button" onClick={() => setTagDeleteTarget(null)} type="button">
+                {t('vault.cancelEditing')}
+              </button>
+              <button className="danger-button" onClick={handleTagDelete} type="button">
+                {t('common.delete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {/* The only way to end a trashed row is here, and window.confirm() answers false without ever
           showing anything, so the question is drawn in the page. Its dismiss is a real button behind
           the card, not a click handler on a div: it stays keyboard reachable, and a click inside the
