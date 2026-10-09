@@ -1353,10 +1353,6 @@
     @apply m-0 text-body;
   }
 
-  .sync-grid {
-    @apply grid grid-cols-2 gap-150;
-  }
-
   .integration-actions {
     @apply flex flex-wrap gap-100;
   }
@@ -1371,38 +1367,6 @@
 
   .watchtower-grid {
     @apply grid grid-cols-2 gap-100 text-body text-text;
-  }
-
-  .archive-list {
-    @apply grid gap-075;
-  }
-
-  .archive-row {
-    @apply grid min-h-400 rounded-medium border border-border-input bg-background-input px-100 py-100 text-left text-inherit hover:bg-background-input-hovered;
-  }
-
-  .archive-row strong,
-  .archive-row small {
-    @apply block;
-  }
-
-  .archive-row small {
-    @apply mt-025 text-body-small font-regular text-text-subtle;
-  }
-
-  .import-preview {
-    background: var(--passless-surface-raised);
-    border-color: var(--passless-border);
-    @apply grid gap-050 rounded-large border px-100 py-100 text-body;
-  }
-
-  .import-preview strong,
-  .import-preview small {
-    @apply block;
-  }
-
-  .import-preview small {
-    @apply text-body-small text-text-subtle;
   }
 
   .shortcut-list {
@@ -1715,9 +1679,7 @@
   .item-row small,
   .menu-option small,
   .item-search-empty,
-  .integration-card p,
-  .import-preview small,
-  .archive-row small {
+  .integration-card p {
     color: var(--color-text-subtlest);
     @apply text-body-small;
   }
@@ -1885,7 +1847,6 @@
   .generator-output,
   .generator-controls,
   .integration-card,
-  .import-preview,
   .shortcut-row {
     background: var(--color-surface);
     border-color: var(--theme-border);
@@ -2050,10 +2011,6 @@
     @apply gap-100 p-150;
   }
 
-  .sync-grid {
-    @apply gap-100;
-  }
-
   .integration-actions {
     @apply gap-075;
   }
@@ -2082,23 +2039,8 @@
     @apply rounded-medium px-100 py-050;
   }
 
-  .archive-list,
   .shortcut-list {
     @apply gap-050;
-  }
-
-  .archive-row {
-    background: var(--color-surface);
-    border-color: var(--theme-border);
-    @apply min-h-400 rounded-medium border px-100 py-075 text-left text-body;
-  }
-
-  .archive-row:hover {
-    background: var(--theme-hover);
-  }
-
-  .import-preview {
-    @apply gap-050 px-100 py-075 text-body;
   }
 
   .security-group {

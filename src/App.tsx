@@ -82,7 +82,6 @@ import {
   type CustomField,
   customFieldsToInput,
   emptyLoginItem,
-  type ImportPreviewResult,
   type ItemUrl,
   type LoginItem,
   type LoginItemInput,
@@ -90,7 +89,6 @@ import {
   type PasswordStrength,
   parseCustomFields,
   parseTags,
-  type SnapshotSummary,
   tagsToInput,
   type UrlMatchType,
   type VaultSummary,
@@ -469,10 +467,8 @@ const settingsTabLabels: Record<SettingsTab, string> = {
   appearance: 'settings.tabs.appearance',
   browser: 'settings.tabs.browser',
   general: 'settings.tabs.general',
-  'import-export': 'settings.tabs.importExport',
   security: 'settings.tabs.security',
   shortcuts: 'settings.tabs.shortcuts',
-  sync: 'settings.tabs.sync',
   watchtower: 'settings.tabs.watchtower',
 }
 
@@ -503,12 +499,7 @@ function VaultWindow() {
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [repoUrl, setRepoUrl] = useState('')
-  const [githubToken, setGithubToken] = useState('')
-  const [syncBranch, setSyncBranch] = useState('main')
-  const [syncPath, setSyncPath] = useState('vault.enc')
   const [operationMessage, setOperationMessage] = useState<string | null>(null)
-  const [autoSync, setAutoSync] = useState(false)
   const [archivedItems, setArchivedItems] = useState<LoginItem[]>([])
   const [biometricsAvailable, setBiometricsAvailable] = useState(false)
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
@@ -617,18 +608,6 @@ function VaultWindow() {
   useEffect(() => {
     if (mode !== 'unlocked') return
     loadArchivedItems().catch((nextError) => setError(String(nextError)))
-  }, [mode])
-
-  useEffect(() => {
-    if (mode !== 'unlocked') return
-    let unlisten: (() => void) | undefined
-    listen('passless-vault-changed', () => {
-      refreshItems().catch((nextError) => setError(String(nextError)))
-      loadArchivedItems().catch((nextError) => setError(String(nextError)))
-    }).then((nextUnlisten) => {
-      unlisten = nextUnlisten
-    })
-    return () => unlisten?.()
   }, [mode])
 
   useEffect(() => {
@@ -821,16 +800,6 @@ function VaultWindow() {
       setMasterPassword('')
       setMode('unlocked')
       await loadVaults()
-      vaultApi.loadSyncSettings().then((settings) => {
-        if (!settings) return
-        setRepoUrl(settings.repo_url)
-        setSyncBranch(settings.branch)
-        setSyncPath(settings.path)
-        setAutoSync(settings.auto_sync)
-      })
-      vaultApi.loadGithubPat().then((token) => {
-        if (token) setGithubToken(token)
-      })
       loadArchivedItems().catch((nextError) => setError(String(nextError)))
       setStatus((current) => (current ? { ...current, has_master_password: true, unlocked: true } : current))
     } catch (nextError) {
@@ -883,7 +852,6 @@ function VaultWindow() {
       setItems(nextItems)
       setSelectedId(saved.id)
       setIsEditing(false)
-      await maybeAutoSync()
     } catch (nextError) {
       setError(String(nextError))
     } finally {
@@ -1241,7 +1209,6 @@ function VaultWindow() {
     setItems(nextItems)
     setSelectedId(nextItems[0]?.id ?? null)
     await loadArchivedItems()
-    await maybeAutoSync()
   }
 
   async function handleFavorite() {
@@ -1313,21 +1280,6 @@ function VaultWindow() {
     setSelectedId((current) => current ?? nextItems[0]?.id ?? null)
   }
 
-  async function maybeAutoSync() {
-    if (!autoSync || !repoUrl || !githubToken) return
-    const result = await vaultApi.githubUpload(syncConfig())
-    setOperationMessage(t('messages.autoSynced', { count: result.item_count }))
-  }
-
-  function syncConfig() {
-    return {
-      branch: syncBranch || 'main',
-      path: syncPath || 'vault.enc',
-      repo_url: repoUrl,
-      token: githubToken,
-    }
-  }
-
   async function loadArchivedItems() {
     setArchivedItems(await vaultApi.archived())
   }
@@ -1336,7 +1288,6 @@ function VaultWindow() {
     await vaultApi.restore(id)
     await refreshItems()
     await loadArchivedItems()
-    await maybeAutoSync()
   }
 
   async function openSettingsWindow() {
@@ -2236,26 +2187,9 @@ function VaultWindow() {
   )
 }
 
-type SettingsTab =
-  | 'general'
-  | 'appearance'
-  | 'import-export'
-  | 'sync'
-  | 'browser'
-  | 'watchtower'
-  | 'security'
-  | 'shortcuts'
+type SettingsTab = 'general' | 'appearance' | 'browser' | 'watchtower' | 'security' | 'shortcuts'
 
-const settingsTabs: SettingsTab[] = [
-  'general',
-  'appearance',
-  'import-export',
-  'sync',
-  'browser',
-  'watchtower',
-  'security',
-  'shortcuts',
-]
+const settingsTabs: SettingsTab[] = ['general', 'appearance', 'browser', 'watchtower', 'security', 'shortcuts']
 
 function SettingsWindow() {
   const { t } = useTranslation()
@@ -2263,17 +2197,8 @@ function SettingsWindow() {
   const [status, setStatus] = useState<AppStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [operationMessage, setOperationMessage] = useState<string | null>(null)
-  const [importPreview, setImportPreview] = useState<ImportPreviewResult | null>(null)
-  const [jsonPath, setJsonPath] = useState('')
-  const [backupPassword, setBackupPassword] = useState('')
-  const [repoUrl, setRepoUrl] = useState('')
-  const [githubToken, setGithubToken] = useState('')
-  const [syncBranch, setSyncBranch] = useState('main')
-  const [syncPath, setSyncPath] = useState('vault.enc')
-  const [autoSync, setAutoSync] = useState(false)
   const [watchtower, setWatchtower] = useState<WatchtowerReport | null>(null)
   const [breachResult, setBreachResult] = useState<BreachCheckResult | null>(null)
-  const [snapshots, setSnapshots] = useState<SnapshotSummary[]>([])
   const [browserToken, setBrowserToken] = useState('')
   const [totpSecret, setTotpSecret] = useState('')
   const [totpCode, setTotpCode] = useState('')
@@ -2327,16 +2252,6 @@ function SettingsWindow() {
       .initialize()
       .then(setStatus)
       .catch((nextError) => setError(String(nextError)))
-    vaultApi.loadSyncSettings().then((settings) => {
-      if (!settings) return
-      setRepoUrl(settings.repo_url)
-      setSyncBranch(settings.branch)
-      setSyncPath(settings.path)
-      setAutoSync(settings.auto_sync)
-    })
-    vaultApi.loadGithubPat().then((token) => {
-      if (token) setGithubToken(token)
-    })
     vaultApi
       .isAutostartEnabled()
       .then(setAutostartEnabled)
@@ -2351,107 +2266,6 @@ function SettingsWindow() {
     } catch (nextError) {
       setError(String(nextError))
     }
-  }
-
-  function syncConfig() {
-    return {
-      branch: syncBranch || 'main',
-      path: syncPath || 'vault.enc',
-      repo_url: repoUrl,
-      token: githubToken,
-    }
-  }
-
-  async function notifyVaultChanged() {
-    await emit('passless-vault-changed')
-  }
-
-  async function chooseImportFile() {
-    const path = await vaultApi.pickImportFile()
-    if (path) setJsonPath(path)
-  }
-
-  async function chooseExportFile() {
-    const path = await vaultApi.pickExportFile()
-    if (path) setJsonPath(path)
-  }
-
-  async function handlePreviewImport(path: string) {
-    if (!path) return
-    setError(null)
-    setOperationMessage(null)
-    try {
-      setImportPreview(await vaultApi.previewImport(path, backupPassword))
-    } catch (nextError) {
-      setError(String(nextError))
-    }
-  }
-
-  async function handleJsonExport() {
-    setError(null)
-    setOperationMessage(null)
-    try {
-      const count = await vaultApi.exportBackup(jsonPath, backupPassword)
-      setBackupPassword('')
-      setOperationMessage(t('messages.exportedBackup', { count }))
-    } catch (nextError) {
-      setError(String(nextError))
-    }
-  }
-
-  async function handleJsonImport() {
-    setError(null)
-    setOperationMessage(null)
-    try {
-      const count = await vaultApi.importBackup(jsonPath, backupPassword)
-      setBackupPassword('')
-      await notifyVaultChanged()
-      setOperationMessage(t('messages.importedBackup', { count }))
-    } catch (nextError) {
-      setError(String(nextError))
-    }
-  }
-
-  async function saveSyncSettings() {
-    await vaultApi.saveSyncSettings({
-      auto_sync: autoSync,
-      branch: syncBranch || 'main',
-      path: syncPath || 'vault.enc',
-      repo_url: repoUrl,
-    })
-  }
-
-  async function handleGithubUpload() {
-    setError(null)
-    setOperationMessage(null)
-    try {
-      const result = await vaultApi.githubUpload(syncConfig())
-      if (githubToken) await vaultApi.saveGithubPat(githubToken)
-      await saveSyncSettings()
-      setOperationMessage(t('messages.uploaded', { commit: result.commit_sha ?? 'created', count: result.item_count }))
-    } catch (nextError) {
-      setError(String(nextError))
-    }
-  }
-
-  async function handleGithubDownload() {
-    setError(null)
-    setOperationMessage(null)
-    try {
-      const imported = await vaultApi.githubDownload(syncConfig())
-      if (githubToken) await vaultApi.saveGithubPat(githubToken)
-      await saveSyncSettings()
-      await notifyVaultChanged()
-      setOperationMessage(t('messages.downloaded', { count: imported }))
-    } catch (nextError) {
-      setError(String(nextError))
-    }
-  }
-
-  async function clearSavedGithubPat() {
-    await vaultApi.deleteGithubPat()
-    setGithubToken('')
-    setOperationMessage(t('messages.githubTokenRemoved'))
   }
 
   async function loadWatchtower() {
@@ -2473,22 +2287,6 @@ function SettingsWindow() {
     } finally {
       setOperationMessage(null)
     }
-  }
-
-  async function createSnapshot() {
-    const snapshot = await vaultApi.createSnapshot(t('messages.manualSnapshot'))
-    setOperationMessage(t('messages.createdSnapshot', { count: snapshot.item_count }))
-    setSnapshots(await vaultApi.listSnapshots())
-  }
-
-  async function loadSnapshots() {
-    setSnapshots(await vaultApi.listSnapshots())
-  }
-
-  async function restoreSnapshot(id: string) {
-    const count = await vaultApi.restoreSnapshot(id)
-    await notifyVaultChanged()
-    setOperationMessage(t('messages.restoredSnapshot', { count }))
   }
 
   async function generatePairingToken() {
@@ -2639,178 +2437,6 @@ function SettingsWindow() {
                 >
                   {t('settings.dark')}
                 </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {activeTab === 'import-export' ? (
-          <div className="settings-section">
-            <div className="integration-card">
-              <h2>{t('integrations.vaultBackup')}</h2>
-              <p>{t('integrations.vaultBackupDescription')}</p>
-              <label>
-                {t('integrations.filePath')}
-                <input
-                  onChange={(event) => setJsonPath(event.target.value)}
-                  placeholder="/path/to/passless-backup.json"
-                  value={jsonPath}
-                />
-              </label>
-              <label>
-                {t('integrations.backupPassword')}
-                <input
-                  onChange={(event) => setBackupPassword(event.target.value)}
-                  type="password"
-                  value={backupPassword}
-                />
-              </label>
-              <p>{t('integrations.backupPasswordHint')}</p>
-              <div className="integration-actions">
-                <button className="secondary-button" onClick={chooseImportFile} type="button">
-                  {t('common.chooseFile')}
-                </button>
-                <button className="secondary-button" onClick={chooseExportFile} type="button">
-                  {t('common.chooseExportPath')}
-                </button>
-                <button
-                  className="secondary-button"
-                  disabled={!jsonPath}
-                  onClick={() => handlePreviewImport(jsonPath)}
-                  type="button"
-                >
-                  {t('integrations.previewImport')}
-                </button>
-                <button
-                  className="secondary-button"
-                  disabled={!jsonPath || !backupPassword || locked}
-                  onClick={handleJsonExport}
-                  type="button"
-                >
-                  {t('integrations.exportBackup')}
-                </button>
-                <button
-                  className="secondary-button"
-                  disabled={!jsonPath || locked}
-                  onClick={handleJsonImport}
-                  type="button"
-                >
-                  {t('integrations.importBackup')}
-                </button>
-              </div>
-              {importPreview ? (
-                <div className="import-preview">
-                  <strong>
-                    {importPreview.encrypted && importPreview.total_items === 0
-                      ? t('integrations.encryptedBackupNotice')
-                      : t('integrations.importPreviewSummary', { total: importPreview.total_items })}
-                  </strong>
-                  {importPreview.sample_titles.length ? <small>{importPreview.sample_titles.join(', ')}</small> : null}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-
-        {activeTab === 'sync' ? (
-          <div className="settings-section">
-            <div className="integration-card">
-              <h2>{t('integrations.githubSync')}</h2>
-              <p>{t('integrations.githubDescription')}</p>
-              <div className="sync-grid">
-                <label>
-                  {t('integrations.repoUrl')}
-                  <input
-                    onChange={(event) => setRepoUrl(event.target.value)}
-                    placeholder="https://github.com/user/private-vault.git"
-                    value={repoUrl}
-                  />
-                </label>
-                <label>
-                  {t('integrations.pat')}
-                  <input
-                    onChange={(event) => setGithubToken(event.target.value)}
-                    placeholder="github_pat_..."
-                    type="password"
-                    value={githubToken}
-                  />
-                </label>
-                <label>
-                  {t('integrations.branch')}
-                  <input onChange={(event) => setSyncBranch(event.target.value)} value={syncBranch} />
-                </label>
-                <label>
-                  {t('integrations.syncFile')}
-                  <input onChange={(event) => setSyncPath(event.target.value)} value={syncPath} />
-                </label>
-              </div>
-              <div className="integration-actions">
-                <button
-                  className="secondary-button"
-                  disabled={!repoUrl || !githubToken || locked}
-                  onClick={handleGithubUpload}
-                  type="button"
-                >
-                  <RefreshCw size={16} />
-                  {t('integrations.upload')}
-                </button>
-                <button
-                  className="secondary-button"
-                  disabled={!repoUrl || !githubToken || locked}
-                  onClick={handleGithubDownload}
-                  type="button"
-                >
-                  <RefreshCw size={16} />
-                  {t('integrations.download')}
-                </button>
-              </div>
-              <label className="checkbox-row">
-                <input checked={autoSync} onChange={(event) => setAutoSync(event.target.checked)} type="checkbox" />
-                {t('integrations.autoUpload')}
-              </label>
-              <div className="integration-actions">
-                <button
-                  className="secondary-button"
-                  disabled={!githubToken}
-                  onClick={() => vaultApi.saveGithubPat(githubToken)}
-                  type="button"
-                >
-                  {t('integrations.savePat')}
-                </button>
-                <button className="secondary-button" onClick={clearSavedGithubPat} type="button">
-                  {t('integrations.clearPat')}
-                </button>
-                <button className="secondary-button" onClick={saveSyncSettings} type="button">
-                  {t('integrations.saveSyncSettings')}
-                </button>
-              </div>
-            </div>
-
-            <div className="integration-card">
-              <h2>{t('integrations.syncHistory')}</h2>
-              <p>{t('integrations.syncHistoryDescription')}</p>
-              <div className="integration-actions">
-                <button className="secondary-button" disabled={locked} onClick={createSnapshot} type="button">
-                  {t('integrations.createSnapshot')}
-                </button>
-                <button className="secondary-button" disabled={locked} onClick={loadSnapshots} type="button">
-                  {t('integrations.loadSnapshots')}
-                </button>
-              </div>
-              <div className="archive-list">
-                {snapshots.map((snapshot) => (
-                  <button
-                    className="archive-row"
-                    key={snapshot.id}
-                    onClick={() => restoreSnapshot(snapshot.id)}
-                    type="button"
-                  >
-                    <strong>
-                      {t('integrations.restoreSnapshot', { count: snapshot.item_count, label: snapshot.label })}
-                    </strong>
-                    <small>{snapshot.created_at}</small>
-                  </button>
-                ))}
               </div>
             </div>
           </div>
@@ -3115,7 +2741,6 @@ function QuickAccessWindow() {
 
   useEffect(() => {
     let unlistenOpened: (() => void) | undefined
-    let unlistenVault: (() => void) | undefined
     let unlistenFocus: (() => void) | undefined
 
     inputRef.current?.focus()
@@ -3131,10 +2756,6 @@ function QuickAccessWindow() {
       unlistenOpened = nextUnlisten
     })
 
-    listen('passless-vault-changed', () => void refresh()).then((nextUnlisten) => {
-      unlistenVault = nextUnlisten
-    })
-
     // An overlay you have to remember to close is a secret sitting on screen, so it
     // goes away as soon as focus moves elsewhere.
     getCurrentWebviewWindow()
@@ -3147,7 +2768,6 @@ function QuickAccessWindow() {
 
     return () => {
       unlistenOpened?.()
-      unlistenVault?.()
       unlistenFocus?.()
       if (hideTimerRef.current !== null) window.clearTimeout(hideTimerRef.current)
     }

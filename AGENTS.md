@@ -13,7 +13,7 @@ npm run test         # Vitest (jsdom environment, @testing-library/react)
 npm run lint:fix     # biome check --write (JS/TS, CSS, JSON)
 npm run tauri dev    # Full Tauri desktop app (builds frontend + Rust backend)
 npm run tauri build  # Production .app bundle — the only build where the CSP takes effect
-cd src-tauri && cargo test   # Rust unit tests (vault, storage, crypto, backups, bridge)
+cd src-tauri && cargo test   # Rust unit tests (vault, storage, crypto, bridge)
 ```
 
 No CI workflows. No pre-commit hooks. Run `npm run build`, `npm run test` and `cargo test` manually before claiming work is done.
@@ -61,15 +61,11 @@ src-tauri/src/        # Rust backend
   vault.rs            # VaultService: CRUD, encryption, session management
   storage.rs          # SQLite connection + schema + the 0600/0700 permission helpers
   crypto.rs           # AES-GCM + argon2 KDF
-  secure_store.rs     # macOS Keychain (keyring crate)
   biometric.rs        # Touch ID via objc2-local-authentication
   browser_bridge.rs   # HTTP server on 127.0.0.1:17891 for browser extension
-  github_sync.rs      # Encrypted vault sync to GitHub repos — the shipped sync, no cloud-drive variant
-  sync_history.rs     # On-disk vault snapshots: manual, and automatic before GitHub sync
   shell.rs            # Tray menu, ⌘⇧Space Quick Access window, autostart, single instance
   totp.rs             # TOTP code generation
   breach_check.rs     # Have I Been Pwned k-anonymity check
-  json_transfer.rs    # Encrypted vault backup export/import (legacy plain JSON still reads)
 
 DESIGN.md             # Atlassian design contract (revision 0.0.7) — the UI source of truth, see Design conformance
 browser-extension/    # Manifest V3 extension (not built by Vite)
@@ -81,9 +77,9 @@ browser-extension/    # Manifest V3 extension (not built by Vite)
 - **Three windows**: `main`, `settings` (`/?view=settings`), and `quick-access` (`/?view=quick-access`, created on demand by `shell.rs`). Any new window label must also be added to `src-tauri/capabilities/main.json` `windows`, or its `invoke()` calls are denied at runtime.
 - **No router**: `App.tsx` is one file with all state; the view is chosen from the `?view=` query param.
 - **Shell integration** (`shell.rs`): tray menu, `⌘⇧Space` Quick Access (global-shortcut + positioner, anchored `TopCenter` from the keystroke and `TrayBottomCenter` from the tray), autostart via `MacosLauncher::LaunchAgent`, single-instance refocus. Window creation must happen inside `run_on_main_thread` — macOS forbids building a webview from the global-shortcut callback's thread.
-- **The vault key is never persisted.** It lives only in the `AppState` session mutex for the unlocked lifetime. Do not cache it in the Keychain, write a decrypted vault cache, or embed it in a backup file.
-- **Backup files are encrypted** (`json_transfer.rs`, format `passless-backup-v1`): Argon2id over a *typed backup password* plus a random per-file salt → AES-256-GCM envelope. Deliberately *not* keyed with the session key, so a backup restores on a fresh install with a different vault salt. Commands `export_backup_file`, `import_json_file`, `preview_import_file` all take `BackupRequest { path, password }`; pre-encryption plain JSON exports still import.
-- **File permissions**: use `storage::set_private_permissions` (0600, re-applied on every `open_database` so existing installs self-repair, and it covers the `-journal`/`-wal`/`-shm` sidecars) and `storage::create_private_directory` (0700). Any file the app writes — snapshot, backup, decrypted attachment temp — must go through both. A decrypted temp copy has no other confidentiality.
+- **The vault key is never persisted.** It lives only in the `AppState` session mutex for the unlocked lifetime. Do not add an OS Keychain entry for it, write a decrypted vault cache, or ship it inside any exported file.
+- **There is no export, no import, and no sync.** The vault exists only as the on-disk SQLite file. `json_transfer.rs`, `github_sync.rs` and `sync_history.rs` were deleted on 2026-10-09 together with their two settings tabs, so a forgotten master password has no recovery path — do not re-add a transport without the owner asking for one.
+- **File permissions**: use `storage::set_private_permissions` (0600, re-applied on every `open_database` so existing installs self-repair, and it covers the `-journal`/`-wal`/`-shm` sidecars) and `storage::create_private_directory` (0700). Any file the app writes — today that is only the decrypted attachment temp — must go through both. A decrypted temp copy has no other confidentiality.
 - **CSP**: `tauri.conf.json` `app.security.csp` is `default-src 'self'` + `script-src 'self'`, with `ipc:`/`http://ipc.localhost` in `connect-src` and `data:` in `img-src` (built CSS embeds an SVG data URI) — those two must be listed by hand because Tauri's `set_csp` only injects script/style hashes. It applies **only to packaged builds**: `PROXY_DEV_SERVER = cfg!(all(dev, mobile))`, so on macOS `tauri dev` loads Vite's `http://localhost:1430` with no CSP. Verify with `npm run tauri build`.
 - **Browser bridge**: the pairing token is compared in constant time (`tokens_match`). The server is `Access-Control-Allow-Origin: *` on `127.0.0.1:17891` and returns plaintext credentials to a paired client — do not widen its reach or add endpoints that expose more.
 - **Two kinds of soft delete**: `items.archived` (reversible, surfaced in the UI) and `items.trashed` + `deleted_at` (Trash — see Known gaps). Tags are relational (`tags`, `item_tags`), not a JSON column on the item.
@@ -104,7 +100,7 @@ browser-extension/    # Manifest V3 extension (not built by Vite)
 - **Extension CSS**: Built separately by `npm run build:extension-css`. Tailwind processes `browser-extension/popup.tailwind.css` → `popup.css`.
 - **Extension i18n**: the popup is localised by Chrome, not by the app — `browser-extension/_locales/{en,zh,ja}/messages.json` plus `__MSG_key__` in `manifest.json`, and `chrome.i18n.getMessage` applied to `[data-i18n]` / `[data-i18n-placeholder]` by `popup.js` (`getUILanguage()` sets `document.documentElement.lang`). English is the in-file fallback so the popup still reads if a message is missing. The desktop app's own language picker stays in-app (`src/app/i18n.ts`); the two lists are independent.
 - **Env vars**: Vite exposes `VITE_*` and `TAURI_*` prefixed env vars only.
-- **macOS-first**: Keychain uses `apple-native` feature. Touch ID uses `objc2-local-authentication`. `keyring` crate is the cross-platform abstraction.
+- **macOS-first**: Touch ID uses `objc2-local-authentication`. There is no OS Keychain access — the `keyring` crate and `secure_store.rs` went with the GitHub PAT on 2026-10-09.
 - **Database**: Each command opens a fresh `storage::open_default_database()` connection — no connection pooling.
 - **Testing**: Co-located `*.test.ts` files next to source. Vitest globals available (`describe`/`it`/`expect` without imports). Setup file loads `@testing-library/jest-dom/vitest`. Rust tests live in each module's `#[cfg(test)] mod tests`; `src-tauri/tests/` does not exist.
 - **The design contract is tested, not just documented**: `src/app/designContract.test.ts` reads `src/styles.css`,
@@ -181,14 +177,15 @@ Still open, owned by the same rulings about *roadmap* rather than visual design:
 - `⌘K` should become search / command palette. Not done — `⌘K` currently locks the vault and `⌘F`
   only focuses the list search.
 
-Closed by the owner on 2026-10-08 — these are decided, not pending:
+Closed by the owner — these are decided, not pending:
 
-- **No cloud-drive sync.** The "move `github_sync.rs` to iCloud Drive / Google Drive" idea was dropped;
-  GitHub sync plus local snapshots is the shipped path. Do not build an iCloud/Drive transport.
-- **No `.1pux` import.** The 1Password importer and its settings card were deleted outright
-  (`import_1pux.rs`, the `import_1pux_file` command, the `zip` crate, the frontend wrapper and its
-  translation keys). The only supported import path is `json_transfer.rs` — an encrypted Passless
-  backup. The related open question about `.1pux` collections flattening to a list died with the feature.
+- **No sync of any kind.** The 2026-10-08 ruling dropped the iCloud Drive / Google Drive transport in
+  favour of GitHub sync plus local snapshots; on 2026-10-09 the owner deleted that too. The vault is
+  local-only. Do not build a GitHub, cloud-drive, or snapshot transport.
+- **No import.** The 1Password importer (`import_1pux.rs`) was deleted on 2026-10-08 and the encrypted
+  Passless backup reader (`json_transfer.rs`) followed on 2026-10-09, along with both settings tabs.
+  There is no supported way to bring external data in. The related open question about `.1pux`
+  collections flattening to a list died with the feature.
 
 ## Known gaps
 
@@ -207,5 +204,6 @@ decisions are in the section above.
   `lock.enterPasswordPlaceholder`, the generator labels, …), so those strings render in English in zh and
   ja. `i18n.test.ts` only proves the three locales match *each other*. Add the key to all three bundles
   and drop the `defaultValue` when you touch one of these sites.
-- **Remaining at-rest audit items** (the 2026-10-08 audit's #1 export encryption, #2 file permissions and #4 CSP + constant-time pairing are fixed): #3 attachment temp-file cleanup, #5 no rate limiting on the bridge or master-password attempts, #6 default security preferences / master-password strength enforced in Rust / zeroize on lock / key rotation.
+- **Leftovers from the 2026-10-09 sync/backup deletion**: `VaultService::import_login_items`, `set_encrypted_setting` and `get_encrypted_setting` are now `pub fn`s with no caller (`cargo` cannot warn about them); the `settings` row `github_sync_settings`, any `~/Library/Application Support/app.passless.desktop/sync-history/*.snapshot`, and the Keychain item `app.passless.desktop` / `github_pat` are all unreachable but were not cleaned up.
+- **Remaining at-rest audit items** (the 2026-10-08 audit's #2 file permissions and #4 CSP + constant-time pairing are fixed; #1 export encryption was mooted when export itself was deleted): #3 attachment temp-file cleanup, #5 no rate limiting on the bridge or master-password attempts, #6 default security preferences / master-password strength enforced in Rust / zeroize on lock / key rotation.
 

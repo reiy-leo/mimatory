@@ -58,28 +58,6 @@ export type PasswordStrength = {
   level: 'excellent' | 'fair' | 'strong' | 'weak'
 }
 
-export type ImportPreviewResult = {
-  total_items: number
-  sample_titles: string[]
-  encrypted: boolean
-}
-
-export type GitHubSyncConfig = {
-  repo_url: string
-  token: string
-  branch: string
-  path: string
-}
-
-export type GitHubSyncSettings = Omit<GitHubSyncConfig, 'token'> & {
-  auto_sync: boolean
-}
-
-export type SyncResult = {
-  item_count: number
-  commit_sha: string | null
-}
-
 export type WatchtowerReport = {
   total_items: number
   weak_passwords: string[]
@@ -92,13 +70,6 @@ export type WatchtowerReport = {
 
 export type BreachCheckResult = {
   breached_passwords: string[]
-}
-
-export type SnapshotSummary = {
-  id: string
-  label: string
-  created_at: string
-  item_count: number
 }
 
 export type TotpCode = {
@@ -159,39 +130,23 @@ export const vaultApi = {
   canUseBiometrics: () => invoke<boolean>('can_use_biometrics'),
   checkBreaches: () => invoke<BreachCheckResult>('check_breached_passwords'),
   create: (input: LoginItemInput) => invoke<LoginItem>('create_login_item', { input }),
-  createSnapshot: (label: string) => invoke<SnapshotSummary>('create_sync_history_snapshot', { label }),
   createVault: (name: string) => invoke<VaultSummary>('create_vault', { name }),
-  deleteGithubPat: () => invoke<void>('delete_github_pat'),
   exportAttachmentToTemp: (id: string) => invoke<string>('export_attachment_to_temp', { id }),
-  exportBackup: (path: string, password: string) => invoke<number>('export_backup_file', { input: { password, path } }),
   favorite: (id: string, favorite: boolean) => invoke<void>('set_login_favorite', { favorite, id }),
   generateBrowserPairingToken: () => invoke<string>('generate_browser_pairing_token'),
   generatePassword: (options: PasswordGeneratorOptions) => invoke<string>('generate_password_command', { options }),
   generateTotp: (secret: string) => invoke<TotpCode>('generate_totp_code', { secret }),
-  githubDownload: (config: GitHubSyncConfig) => invoke<number>('github_sync_download', { config }),
-  githubUpload: (config: GitHubSyncConfig) => invoke<SyncResult>('github_sync_upload', { config }),
   hideQuickAccess: () => invoke<void>('hide_quick_access'),
-  importBackup: (path: string, password: string) => invoke<number>('import_json_file', { input: { password, path } }),
   initialize: () => invoke<AppStatus>('initialize_database'),
   isAutostartEnabled: () => invoke<boolean>('is_autostart_enabled'),
   list: (query?: string) => invoke<LoginItem[]>('list_login_items', { query: query || null }),
-  listSnapshots: () => invoke<SnapshotSummary[]>('list_sync_history_snapshots'),
   listVaults: () => invoke<VaultSummary[]>('list_vaults'),
-  loadGithubPat: () => invoke<string | null>('load_github_pat'),
-  loadSyncSettings: () => invoke<GitHubSyncSettings | null>('load_sync_settings'),
   lock: () => invoke<void>('lock_vault'),
   passwordStrength: (password: string) => invoke<PasswordStrength>('password_strength', { password }),
   pickAttachmentFile: () => invoke<string | null>('pick_attachment_file'),
-  pickExportFile: () => invoke<string | null>('pick_export_file'),
-  pickImportFile: () => invoke<string | null>('pick_import_file'),
-  previewImport: (path: string, password = '') =>
-    invoke<ImportPreviewResult>('preview_import_file', { input: { password, path } }),
   purge: (id: string) => invoke<void>('purge_login_item', { id }),
   restore: (id: string) => invoke<void>('restore_login_item', { id }),
   restoreFromTrash: (id: string) => invoke<void>('restore_trashed_login_item', { id }),
-  restoreSnapshot: (id: string) => invoke<number>('restore_sync_history_snapshot', { id }),
-  saveGithubPat: (token: string) => invoke<void>('save_github_pat', { token }),
-  saveSyncSettings: (settings: GitHubSyncSettings) => invoke<void>('save_sync_settings', { settings }),
   setAutostart: (enabled: boolean) => invoke<void>('set_autostart', { enabled }),
   setup: (password: string) => invoke<LoginItem[]>('setup_master_password', { password }),
   switchVault: (id: string) => invoke<LoginItem[]>('switch_vault', { id }),

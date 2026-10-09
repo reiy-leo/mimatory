@@ -2,23 +2,16 @@ mod biometric;
 mod breach_check;
 mod browser_bridge;
 mod crypto;
-mod github_sync;
-mod json_transfer;
-mod secure_store;
 mod shell;
 mod storage;
-mod sync_history;
 mod totp;
 mod vault;
 
 use breach_check::BreachCheckResult;
-use github_sync::{download_snapshot, upload_snapshot, GitHubSyncConfig, SyncResult};
-use json_transfer::{preview_export, read_export, write_backup};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use sync_history::SnapshotSummary;
 use tauri::State;
 use totp::TotpCode;
 use vault::{
@@ -38,31 +31,6 @@ struct AppStatus {
     database_ready: bool,
     has_master_password: bool,
     unlocked: bool,
-}
-
-#[derive(Serialize)]
-struct ImportPreviewResult {
-    total_items: usize,
-    sample_titles: Vec<String>,
-    encrypted: bool,
-}
-
-/// Backup files are encrypted with a password the user types for each export, so the
-/// transfer commands need it alongside the path. Plain JSON exports stay importable and
-/// simply pass an empty password.
-#[derive(Deserialize)]
-struct BackupRequest {
-    path: String,
-    #[serde(default)]
-    password: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-struct SyncSettings {
-    repo_url: String,
-    branch: String,
-    path: String,
-    auto_sync: bool,
 }
 
 #[tauri::command]
@@ -320,23 +288,6 @@ fn generate_totp_code(secret: String) -> Result<TotpCode, String> {
 }
 
 #[tauri::command]
-fn pick_import_file() -> Result<Option<String>, String> {
-    Ok(rfd::FileDialog::new()
-        .add_filter("Passless backup", &["json"])
-        .pick_file()
-        .map(|path| path.to_string_lossy().to_string()))
-}
-
-#[tauri::command]
-fn pick_export_file() -> Result<Option<String>, String> {
-    Ok(rfd::FileDialog::new()
-        .add_filter("Passless backup", &["json"])
-        .set_file_name("passless-backup.json")
-        .save_file()
-        .map(|path| path.to_string_lossy().to_string()))
-}
-
-#[tauri::command]
 fn pick_attachment_file() -> Result<Option<String>, String> {
     Ok(rfd::FileDialog::new()
         .pick_file()
@@ -380,21 +331,6 @@ fn export_attachment_to_temp(id: String, state: State<AppState>) -> Result<Strin
 }
 
 #[tauri::command]
-fn save_github_pat(token: String) -> Result<(), String> {
-    secure_store::save_github_pat(&token).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn load_github_pat() -> Result<Option<String>, String> {
-    secure_store::load_github_pat().map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn delete_github_pat() -> Result<(), String> {
-    secure_store::delete_github_pat().map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 fn generate_browser_pairing_token(state: State<AppState>) -> Result<String, String> {
     let token = uuid::Uuid::new_v4().to_string();
     *state
@@ -431,39 +367,6 @@ fn unlock_with_biometrics(state: State<AppState>) -> Result<Vec<LoginItem>, Stri
 }
 
 #[tauri::command]
-fn preview_import_file(input: BackupRequest) -> Result<ImportPreviewResult, String> {
-    let preview =
-        preview_export(&PathBuf::from(input.path), &input.password).map_err(|error| error.to_string())?;
-    Ok(ImportPreviewResult {
-        total_items: preview.total_items,
-        sample_titles: preview.sample_titles,
-        encrypted: preview.encrypted,
-    })
-}
-
-#[tauri::command]
-fn export_backup_file(input: BackupRequest, state: State<AppState>) -> Result<usize, String> {
-    let session = current_session(&state)?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
-    let service = VaultService::new(connection);
-    let items = service.export_login_items(&session).map_err(String::from)?;
-    write_backup(&PathBuf::from(input.path), items, &input.password)
-        .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn import_json_file(input: BackupRequest, state: State<AppState>) -> Result<usize, String> {
-    let session = current_session(&state)?;
-    let items = read_export(&PathBuf::from(input.path), &input.password)
-        .map_err(|error| error.to_string())?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
-    let mut service = VaultService::new(connection);
-    service
-        .import_login_items(&session, items)
-        .map_err(String::from)
-}
-
-#[tauri::command]
 fn watchtower_report(state: State<AppState>) -> Result<WatchtowerReport, String> {
     let session = current_session(&state)?;
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
@@ -478,81 +381,6 @@ fn check_breached_passwords(state: State<AppState>) -> Result<BreachCheckResult,
     let service = VaultService::new(connection);
     let items = service.export_login_items(&session).map_err(String::from)?;
     breach_check::check_breached_passwords(&items).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn create_sync_history_snapshot(
-    label: String,
-    state: State<AppState>,
-) -> Result<SnapshotSummary, String> {
-    let session = current_session(&state)?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
-    let service = VaultService::new(connection);
-    let items = service.export_login_items(&session).map_err(String::from)?;
-    sync_history::create_snapshot(&session, &label, items).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn list_sync_history_snapshots(state: State<AppState>) -> Result<Vec<SnapshotSummary>, String> {
-    let session = current_session(&state)?;
-    sync_history::list_snapshots(&session).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn restore_sync_history_snapshot(id: String, state: State<AppState>) -> Result<usize, String> {
-    let session = current_session(&state)?;
-    let items = sync_history::restore_snapshot(&session, &id).map_err(|error| error.to_string())?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
-    let mut service = VaultService::new(connection);
-    service
-        .import_login_items(&session, items)
-        .map_err(String::from)
-}
-
-#[tauri::command]
-fn save_sync_settings(settings: SyncSettings, state: State<AppState>) -> Result<(), String> {
-    let session = current_session(&state)?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
-    let service = VaultService::new(connection);
-    service
-        .set_encrypted_setting(&session, "github_sync_settings", &settings)
-        .map_err(String::from)
-}
-
-#[tauri::command]
-fn load_sync_settings(state: State<AppState>) -> Result<Option<SyncSettings>, String> {
-    let session = current_session(&state)?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
-    let service = VaultService::new(connection);
-    service
-        .get_encrypted_setting(&session, "github_sync_settings")
-        .map_err(String::from)
-}
-
-#[tauri::command]
-fn github_sync_upload(
-    config: GitHubSyncConfig,
-    state: State<AppState>,
-) -> Result<SyncResult, String> {
-    let session = current_session(&state)?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
-    let service = VaultService::new(connection);
-    let items = service.export_login_items(&session).map_err(String::from)?;
-    let _ = sync_history::create_snapshot(&session, "Before GitHub upload", items.clone());
-    upload_snapshot(&session, &config, items).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn github_sync_download(config: GitHubSyncConfig, state: State<AppState>) -> Result<usize, String> {
-    let session = current_session(&state)?;
-    let items = download_snapshot(&session, &config).map_err(|error| error.to_string())?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
-    let mut service = VaultService::new(connection);
-    let current_items = service.export_login_items(&session).map_err(String::from)?;
-    let _ = sync_history::create_snapshot(&session, "Before GitHub download", current_items);
-    service
-        .import_login_items(&session, items)
-        .map_err(String::from)
 }
 
 fn current_session(state: &State<AppState>) -> Result<Session, String> {
@@ -624,29 +452,14 @@ pub fn run() {
             generate_password_command,
             password_strength,
             generate_totp_code,
-            pick_import_file,
-            pick_export_file,
             pick_attachment_file,
             attach_file_to_item,
             export_attachment_to_temp,
-            save_github_pat,
-            load_github_pat,
-            delete_github_pat,
             generate_browser_pairing_token,
             can_use_biometrics,
             unlock_with_biometrics,
-            preview_import_file,
-            export_backup_file,
-            import_json_file,
             watchtower_report,
             check_breached_passwords,
-            create_sync_history_snapshot,
-            list_sync_history_snapshots,
-            restore_sync_history_snapshot,
-            save_sync_settings,
-            load_sync_settings,
-            github_sync_upload,
-            github_sync_download,
             set_autostart,
             is_autostart_enabled,
             hide_quick_access
