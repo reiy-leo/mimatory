@@ -3,6 +3,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import {
   AlertCircle,
+  Archive,
   BadgeCheck,
   Calendar,
   CalendarRange,
@@ -328,6 +329,7 @@ const iconById = {
   favorites: Star,
   generator: KeyRound,
   tags: Tags,
+  trash: Trash2,
   vaults: Vault,
   watchtower: ShieldCheck,
 } as const
@@ -542,6 +544,7 @@ function VaultWindow() {
   const [saving, setSaving] = useState(false)
   const [operationMessage, setOperationMessage] = useState<string | null>(null)
   const [archivedItems, setArchivedItems] = useState<LoginItem[]>([])
+  const [trashedItems, setTrashedItems] = useState<LoginItem[]>([])
   const [biometricsAvailable, setBiometricsAvailable] = useState(false)
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
   const [form, setForm] = useState<LoginFormState>(() => toFormState(emptyLoginItem()))
@@ -653,6 +656,7 @@ function VaultWindow() {
   useEffect(() => {
     if (mode !== 'unlocked') return
     loadArchivedItems().catch((nextError) => setError(String(nextError)))
+    loadTrashedItems().catch((nextError) => setError(String(nextError)))
   }, [mode])
 
   useEffect(() => {
@@ -707,6 +711,8 @@ function VaultWindow() {
 
   const visibleItems = useMemo(() => {
     if (activeNavigation === 'generator' || activeNavigation === 'watchtower') return []
+    // Trash has its own list and its own rows, so it never reads from the live items.
+    if (activeNavigation === 'trash') return []
     if (activeNavigation === 'favorites') return items.filter((item) => item.favorite)
     if (activeNavigation === 'tags') return items.filter((item) => item.tags.length > 0)
     if (activeTagKey) return filterItemsByTag(items, activeTagKey)
@@ -724,6 +730,8 @@ function VaultWindow() {
     const counts: Record<string, number> = {
       favorites: items.filter((item) => item.favorite).length,
       tags: items.filter((item) => item.tags.length > 0).length,
+      // The trash list is a separate read, so its count comes from that rather than from `items`.
+      trash: trashedItems.length,
       vaults: items.length,
     }
     for (const item of items) {
@@ -731,7 +739,7 @@ function VaultWindow() {
       counts[category] = (counts[category] ?? 0) + 1
     }
     return counts
-  }, [items])
+  }, [items, trashedItems])
 
   const tagCounts = useMemo(() => countItemTags(items, i18n.language), [i18n.language, items])
   const activeTagName = tagCounts.find((entry) => entry.key === activeTagKey)?.name ?? activeTagKey
@@ -783,6 +791,7 @@ function VaultWindow() {
     if (activeTagKey) return activeTagName ?? t('listTitle.tags')
     if (activeNavigation === 'generator') return t('listTitle.generator')
     if (activeNavigation === 'watchtower') return t('listTitle.watchtower')
+    if (activeNavigation === 'trash') return t('listTitle.trash')
     if (activeNavigation.startsWith('category:')) {
       const itemType = activeNavigation.replace('category:', '')
       return t(`itemTypes.${itemType}`, { defaultValue: itemType })
@@ -914,6 +923,7 @@ function VaultWindow() {
       setMode('unlocked')
       await loadVaults()
       loadArchivedItems().catch((nextError) => setError(String(nextError)))
+      loadTrashedItems().catch((nextError) => setError(String(nextError)))
       setStatus((current) => (current ? { ...current, has_master_password: true, unlocked: true } : current))
     } catch (nextError) {
       setError(String(nextError))
@@ -1049,6 +1059,7 @@ function VaultWindow() {
       setSelectedId(nextItems[0]?.id ?? null)
       setForm(toFormState(nextItems[0] ?? emptyLoginItem()))
       await loadArchivedItems()
+      await loadTrashedItems()
     } catch (nextError) {
       setError(String(nextError))
     }
@@ -1065,6 +1076,7 @@ function VaultWindow() {
       setActiveVaultId(vault.id)
       setItems([])
       setArchivedItems([])
+      setTrashedItems([])
       setSelectedId(null)
       setForm(toFormState(emptyLoginItem()))
       setIsEditing(true)
@@ -1386,13 +1398,22 @@ function VaultWindow() {
     })
   }
 
-  async function handleDelete() {
+  async function handleArchive() {
     if (!selectedItem) return
     await vaultApi.archive(selectedItem.id)
     const nextItems = await vaultApi.list()
     setItems(nextItems)
     setSelectedId(nextItems[0]?.id ?? null)
     await loadArchivedItems()
+  }
+
+  async function handleTrash() {
+    if (!selectedItem) return
+    await vaultApi.trash(selectedItem.id)
+    const nextItems = await vaultApi.list()
+    setItems(nextItems)
+    setSelectedId(nextItems[0]?.id ?? null)
+    await loadTrashedItems()
   }
 
   async function handleFavorite() {
@@ -1468,6 +1489,25 @@ function VaultWindow() {
 
   async function loadArchivedItems() {
     setArchivedItems(await vaultApi.archived())
+  }
+
+  async function loadTrashedItems() {
+    setTrashedItems(await vaultApi.trashed())
+  }
+
+  async function restoreTrashedItem(id: string) {
+    await vaultApi.restoreFromTrash(id)
+    await refreshItems()
+    await loadTrashedItems()
+  }
+
+  // Purging deletes the row, so it is the one action here that cannot be walked back from
+  // anywhere in the app. The confirm is what stands between a stray click and lost secrets.
+  async function purgeTrashedItem(id: string) {
+    const item = trashedItems.find((entry) => entry.id === id)
+    if (!window.confirm(t('vault.confirmPurge', { title: item?.title ?? '' }))) return
+    await vaultApi.purge(id)
+    await loadTrashedItems()
   }
 
   async function restoreArchivedItem(id: string) {
@@ -1782,25 +1822,62 @@ function VaultWindow() {
         ) : null}
 
         <div className="rows">
-          {visibleItems.map((item) => (
-            <button
-              className={item.id === selectedId ? 'item-row active' : 'item-row'}
-              key={item.id}
-              onClick={() => setSelectedId(item.id)}
-              type="button"
-            >
-              <span className="item-icon">{item.title.slice(0, 1).toUpperCase() || 'L'}</span>
-              <span className="item-row-text">
-                <strong>{item.title}</strong>
-                <small>
-                  <span className="row-subtitle">{item.username || item.website || t('vault.loginFallback')}</span>
-                  <span className="row-stamp">{formatItemTimestamp(item.updated_at, i18n.language)}</span>
-                </small>
-              </span>
-              {item.favorite ? <Star className="row-star" size={14} /> : null}
-            </button>
-          ))}
-          {visibleItems.length === 0 && activeNavigation !== 'generator' && activeNavigation !== 'watchtower' ? (
+          {activeNavigation === 'trash'
+            ? trashedItems.map((item) => (
+                // A trashed row is not selectable: the detail pane only ever edits live items, so
+                // restore and permanent delete are the actions this row can offer.
+                <div className="item-row trash-row" key={item.id}>
+                  <span className="item-icon">{item.title.slice(0, 1).toUpperCase() || 'L'}</span>
+                  <span className="item-row-text">
+                    <strong>{item.title}</strong>
+                    <small>
+                      <span className="row-subtitle">{item.username || item.website || t('vault.loginFallback')}</span>
+                      <span className="row-stamp">{formatItemTimestamp(item.updated_at, i18n.language)}</span>
+                    </small>
+                    <span className="trash-row-actions">
+                      <button
+                        aria-label={t('vault.restore', { title: item.title })}
+                        className="trash-row-button"
+                        onClick={() => restoreTrashedItem(item.id)}
+                        title={t('vault.restore', { title: item.title })}
+                        type="button"
+                      >
+                        {t('vault.restoreAction')}
+                      </button>
+                      <button
+                        aria-label={t('vault.purgeItem', { title: item.title })}
+                        className="trash-row-button danger"
+                        onClick={() => purgeTrashedItem(item.id)}
+                        title={t('vault.purgeItem', { title: item.title })}
+                        type="button"
+                      >
+                        {t('vault.purge')}
+                      </button>
+                    </span>
+                  </span>
+                </div>
+              ))
+            : visibleItems.map((item) => (
+                <button
+                  className={item.id === selectedId ? 'item-row active' : 'item-row'}
+                  key={item.id}
+                  onClick={() => setSelectedId(item.id)}
+                  type="button"
+                >
+                  <span className="item-icon">{item.title.slice(0, 1).toUpperCase() || 'L'}</span>
+                  <span className="item-row-text">
+                    <strong>{item.title}</strong>
+                    <small>
+                      <span className="row-subtitle">{item.username || item.website || t('vault.loginFallback')}</span>
+                      <span className="row-stamp">{formatItemTimestamp(item.updated_at, i18n.language)}</span>
+                    </small>
+                  </span>
+                  {item.favorite ? <Star className="row-star" size={14} /> : null}
+                </button>
+              ))}
+          {(activeNavigation === 'trash' ? trashedItems.length === 0 : visibleItems.length === 0) &&
+          activeNavigation !== 'generator' &&
+          activeNavigation !== 'watchtower' ? (
             <p className="empty-state">{t('vault.noItems', { target: listTitle })}</p>
           ) : null}
         </div>
@@ -2524,10 +2601,16 @@ function VaultWindow() {
 
               <div className="detail-actions">
                 {selectedItem ? (
-                  <button className="danger-button" onClick={handleDelete} type="button">
-                    <Trash2 size={16} />
-                    {t('vault.archiveAction')}
-                  </button>
+                  <>
+                    <button className="secondary-button" onClick={handleArchive} type="button">
+                      <Archive size={16} />
+                      {t('vault.archiveAction')}
+                    </button>
+                    <button className="danger-button" onClick={handleTrash} type="button">
+                      <Trash2 size={16} />
+                      {t('vault.trashAction')}
+                    </button>
+                  </>
                 ) : null}
                 {isEditing && hasUnsavedChanges ? (
                   <span className="unsaved-hint">{t('vault.unsavedChanges')}</span>

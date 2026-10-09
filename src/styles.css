@@ -1768,6 +1768,30 @@
     @apply shrink-0;
   }
 
+  /* A trashed row has no detail pane to open, so it must not answer to the hover that says it does. */
+  .trash-row:hover {
+    background: transparent;
+  }
+
+  .trash-row-actions {
+    @apply mt-075 flex items-center gap-075;
+  }
+
+  .trash-row-button {
+    background: var(--color-background-neutral-subtle);
+    border-color: var(--color-border);
+    @apply inline-flex min-h-300 items-center rounded-small border px-100 text-body-small font-medium text-text-subtle transition-colors;
+  }
+
+  .trash-row-button:hover {
+    color: var(--color-text);
+    background: var(--color-background-neutral-subtle-hovered);
+  }
+
+  .trash-row-button.danger {
+    color: var(--color-text-danger);
+  }
+
   .row-star {
     @apply ml-auto shrink-0 text-text-warning;
   }
