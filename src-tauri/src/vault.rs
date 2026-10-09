@@ -398,22 +398,6 @@ impl VaultService {
         Ok(session)
     }
 
-    pub fn import_login_items(
-        &mut self,
-        session: &Session,
-        items: Vec<LoginItemInput>,
-    ) -> Result<usize, VaultError> {
-        let mut imported = 0;
-        for item in items {
-            if self.item_exists(session, &item)? {
-                continue;
-            }
-            self.create_login_item(session, item)?;
-            imported += 1;
-        }
-        Ok(imported)
-    }
-
     pub fn update_login_item(
         &mut self,
         session: &Session,
@@ -663,45 +647,6 @@ impl VaultService {
             expiring_items,
             score,
         })
-    }
-
-    pub fn set_encrypted_setting<T: Serialize>(
-        &self,
-        session: &Session,
-        key: &str,
-        value: &T,
-    ) -> Result<(), VaultError> {
-        self.connection.execute(
-            "INSERT INTO settings (key, value_ciphertext) VALUES (?1, ?2)
-             ON CONFLICT(key) DO UPDATE SET value_ciphertext = excluded.value_ciphertext",
-            params![
-                key,
-                encrypt_string_to_blob(&session.key, &serde_json::to_string(value)?)?
-            ],
-        )?;
-        Ok(())
-    }
-
-    pub fn get_encrypted_setting<T: for<'de> Deserialize<'de>>(
-        &self,
-        session: &Session,
-        key: &str,
-    ) -> Result<Option<T>, VaultError> {
-        let blob = self
-            .connection
-            .query_row(
-                "SELECT value_ciphertext FROM settings WHERE key = ?1",
-                [key],
-                |row| row.get::<_, Vec<u8>>(0),
-            )
-            .optional()?;
-        let Some(blob) = blob else {
-            return Ok(None);
-        };
-        Ok(Some(serde_json::from_str(&decrypt_string_from_blob(
-            &session.key,
-            &blob,
-        )?)?))
     }
 
     pub fn add_attachment(
@@ -1239,29 +1184,12 @@ impl VaultService {
             .optional()?)
     }
 
-    fn item_exists(&self, session: &Session, input: &LoginItemInput) -> Result<bool, VaultError> {
-        Ok(self
-            .list_login_items(session, Some(&input.title))?
-            .into_iter()
-            .any(|item| {
-                item.title == input.title
-                    && item.username == input.username
-                    && item.website == primary_website(&input.website, &input.urls)
-            }))
-    }
-
     fn record_event(&self, event_type: &str, message: &str) -> Result<(), VaultError> {
         self.connection.execute(
             "INSERT INTO audit_events (id, event_type, message, created_at) VALUES (?1, ?2, ?3, ?4)",
             params![Uuid::new_v4().to_string(), event_type, message, Utc::now().to_rfc3339()],
         )?;
         Ok(())
-    }
-}
-
-impl Session {
-    pub(crate) fn key(&self) -> &VaultKey {
-        &self.key
     }
 }
 
@@ -1609,13 +1537,6 @@ fn url_matches_host(stored: &str, request_host: &str, match_type: &str) -> bool 
         return stored_host == request_host;
     }
     stored_host == request_host || request_host.ends_with(&format!(".{stored_host}"))
-}
-
-fn primary_website(website: &str, urls: &[ItemUrl]) -> String {
-    normalized_urls(website, urls)
-        .first()
-        .map(|item_url| item_url.url.clone())
-        .unwrap_or_else(|| website.trim().to_string())
 }
 
 fn normalized_item_type(item_type: &str) -> String {
@@ -2047,7 +1968,7 @@ mod tests {
             )
             .expect("login should save");
 
-        let legacy_blob = encrypt_string_to_blob(session.key(), r#"["old","code"]"#)
+        let legacy_blob = encrypt_string_to_blob(&session.key, r#"["old","code"]"#)
             .expect("legacy payload should encrypt");
         service
             .connection()
