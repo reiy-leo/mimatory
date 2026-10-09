@@ -63,6 +63,7 @@ import { getItemTemplate } from './app/itemTemplates'
 import { getLockScreenVariant, shouldShowTouchIdUnlock } from './app/lockScreen'
 import { getMenuAnchorStyle, type MenuAnchor } from './app/menuPlacement'
 import { navigationItems } from './app/navigation'
+import { formatItemTimestamp } from './app/relativeTime'
 import {
   type AccountPasswordRequirement,
   type AutoLockIdleDuration,
@@ -1728,9 +1729,12 @@ function VaultWindow() {
               type="button"
             >
               <span className="item-icon">{item.title.slice(0, 1).toUpperCase() || 'L'}</span>
-              <span>
+              <span className="item-row-text">
                 <strong>{item.title}</strong>
-                <small>{item.username || item.website || t('vault.loginFallback')}</small>
+                <small>
+                  <span className="row-subtitle">{item.username || item.website || t('vault.loginFallback')}</span>
+                  <span className="row-stamp">{formatItemTimestamp(item.updated_at, i18n.language)}</span>
+                </small>
               </span>
               {item.favorite ? <Star className="row-star" size={14} /> : null}
             </button>

@@ -775,7 +775,7 @@
   }
 
   .item-row small {
-    @apply mt-050 text-body-small text-text-subtle;
+    @apply mt-050 flex items-baseline justify-between gap-100 text-body-small text-text-subtle;
   }
 
   .row-star {
@@ -1754,6 +1754,18 @@
   .item-row strong {
     color: var(--color-text);
     @apply truncate text-body font-medium;
+  }
+
+  .item-row .item-row-text {
+    @apply min-w-0 flex-1;
+  }
+
+  .item-row .row-subtitle {
+    @apply min-w-0 flex-1 truncate;
+  }
+
+  .item-row .row-stamp {
+    @apply shrink-0;
   }
 
   .row-star {
