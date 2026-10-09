@@ -223,6 +223,7 @@
     --measure-content-max: 760px;
     --measure-settings-max: 860px;
     --measure-lock-panel: 390px;
+    --measure-modal: 400px;
     --measure-detail-header: 720px;
     --measure-sidebar: 244px;
     --measure-item-list-min: 150px;
@@ -1790,6 +1791,37 @@
 
   .trash-row-button.danger {
     color: var(--color-text-danger);
+  }
+
+  /* The panel that asks before a trashed row is gone for good. DESIGN.md's modal recipe: blanket +
+     surface-overlay + radius-xlarge + shadow-overlay, on the 400px small tier. The blanket is the
+     contract's own scrim, so it dims the page instead of washing it out. */
+  .confirm-layer {
+    @apply fixed inset-0 grid place-items-center p-200;
+  }
+
+  .confirm-backdrop {
+    @apply absolute inset-0 rounded-none border-0 bg-blanket;
+  }
+
+  .confirm-dialog {
+    background: var(--color-surface-overlay);
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-overlay);
+    @apply relative w-full max-w-modal rounded-xlarge border p-300;
+  }
+
+  .confirm-dialog h2 {
+    @apply text-heading-small;
+  }
+
+  .confirm-dialog p {
+    color: var(--color-text-subtle);
+    @apply mt-100 text-body;
+  }
+
+  .confirm-actions {
+    @apply mt-300 flex items-center justify-end gap-100;
   }
 
   .row-star {

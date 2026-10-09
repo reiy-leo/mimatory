@@ -559,6 +559,9 @@ function VaultWindow() {
   const [operationMessage, setOperationMessage] = useState<string | null>(null)
   const [archivedItems, setArchivedItems] = useState<LoginItem[]>([])
   const [trashedItems, setTrashedItems] = useState<LoginItem[]>([])
+  // The item whose permanent delete is being confirmed. There is no native confirm in this webview,
+  // so the question is state the window has to render itself.
+  const [purgeTarget, setPurgeTarget] = useState<LoginItem | null>(null)
   const [biometricsAvailable, setBiometricsAvailable] = useState(false)
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
   const [form, setForm] = useState<LoginFormState>(() => toFormState(emptyLoginItem()))
@@ -1214,6 +1217,30 @@ function VaultWindow() {
     setShowAddMore(false)
   }
 
+  // Every transient panel here has to dismiss itself. wry implements none of the WKUIDelegate
+  // dialog methods, so there is no native sheet to lean on, and both field menus are anchored to
+  // the viewport — which lets one cover the very button that opened it.
+  useEffect(() => {
+    const menuOpen = showAddMore || sectionMenuIndex !== null
+    if (!menuOpen && !purgeTarget) return
+    const handleClick = (event: MouseEvent) => {
+      if (!menuOpen) return
+      if ((event.target as HTMLElement | null)?.closest('[data-field-menu]')) return
+      closeFieldMenus()
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (menuOpen) closeFieldMenus()
+      setPurgeTarget(null)
+    }
+    window.addEventListener('click', handleClick)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('click', handleClick)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [purgeTarget, sectionMenuIndex, showAddMore])
+
   async function addCustomField(fieldType: (typeof addMoreOptions)[number]['type']) {
     const attachmentPath = fieldType === 'file' ? await vaultApi.pickAttachmentFile() : null
     if (fieldType === 'file' && !attachmentPath) {
@@ -1563,11 +1590,11 @@ function VaultWindow() {
   }
 
   // Purging deletes the row, so it is the one action here that cannot be walked back from
-  // anywhere in the app. The confirm is what stands between a stray click and lost secrets.
-  async function purgeTrashedItem(id: string) {
-    const item = trashedItems.find((entry) => entry.id === id)
-    if (!window.confirm(t('vault.confirmPurge', { title: item?.title ?? '' }))) return
-    await vaultApi.purge(id)
+  // anywhere in the app. The panel that asks is what stands between a stray click and lost secrets.
+  async function purgeTrashedItem() {
+    if (!purgeTarget) return
+    await vaultApi.purge(purgeTarget.id)
+    setPurgeTarget(null)
     await loadTrashedItems()
   }
 
@@ -1908,7 +1935,7 @@ function VaultWindow() {
                       <button
                         aria-label={t('vault.purgeItem', { title: item.title })}
                         className="trash-row-button danger"
-                        onClick={() => purgeTrashedItem(item.id)}
+                        onClick={() => setPurgeTarget(item)}
                         title={t('vault.purgeItem', { title: item.title })}
                         type="button"
                       >
@@ -2518,6 +2545,7 @@ function VaultWindow() {
                                 </div>
                                 <button
                                   className="inline-add-button section-add-button"
+                                  data-field-menu=""
                                   onClick={(event) => toggleSectionMenu(index, event.currentTarget)}
                                   type="button"
                                 >
@@ -2525,7 +2553,7 @@ function VaultWindow() {
                                   {t('vault.addFieldToSection')}
                                 </button>
                                 {sectionMenuIndex === index ? (
-                                  <div className="section-add-menu" style={sectionMenuAnchor?.style}>
+                                  <div className="section-add-menu" data-field-menu="" style={sectionMenuAnchor?.style}>
                                     {sectionChildOptions.map((option) => (
                                       <button
                                         className="menu-option with-icon"
@@ -2632,7 +2660,7 @@ function VaultWindow() {
                         ))}
                       </div>
                     ) : null}
-                    <div className="add-more-wrap">
+                    <div className="add-more-wrap" data-field-menu="">
                       <button
                         className={
                           addMoreMenuAnchor?.placement === 'above' ? 'add-more-button placement-top' : 'add-more-button'
@@ -2710,6 +2738,32 @@ function VaultWindow() {
           </>
         )}
       </section>
+      {/* The only way to end a trashed row is here, and window.confirm() answers false without ever
+          showing anything, so the question is drawn in the page. Its dismiss is a real button behind
+          the card, not a click handler on a div: it stays keyboard reachable, and a click inside the
+          card cannot reach it. */}
+      {purgeTarget ? (
+        <div className="confirm-layer">
+          <button
+            aria-label={t('vault.cancelEditing')}
+            className="confirm-backdrop"
+            onClick={() => setPurgeTarget(null)}
+            type="button"
+          />
+          <div aria-labelledby="purge-confirm-title" aria-modal="true" className="confirm-dialog" role="alertdialog">
+            <h2 id="purge-confirm-title">{t('vault.purgeHeading')}</h2>
+            <p>{t('vault.confirmPurge', { title: purgeTarget.title })}</p>
+            <div className="confirm-actions">
+              <button className="secondary-button" onClick={() => setPurgeTarget(null)} type="button">
+                {t('vault.cancelEditing')}
+              </button>
+              <button className="danger-button" onClick={purgeTrashedItem} type="button">
+                {t('vault.purge')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   )
 }

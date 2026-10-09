@@ -167,6 +167,7 @@ export default {
         content: 'var(--measure-content-max)',
         'detail-header': 'var(--measure-detail-header)',
         'lock-panel': 'var(--measure-lock-panel)',
+        modal: 'var(--measure-modal)',
         settings: 'var(--measure-settings-max)',
       },
       minWidth: {
