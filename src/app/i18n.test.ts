@@ -102,7 +102,7 @@ describe('i18n', () => {
      name from the tag picker's grid. */
   it('translates the keys built at runtime', () => {
     const app = readFileSync('src/App.tsx', 'utf8')
-    const itemTypes = [...app.matchAll(/^\s*\['([a-z_]+)', '/gm)].map((match) => match[1])
+    const itemTypes = [...app.matchAll(/icon: \w+, itemType: '([a-z_]+)' \}/g)].map((match) => match[1])
     /* The lookbehind keeps `field_type` and `item_type` out of the sweep — only the add-field menu's
        own `type:` values pick a placeholder, and an item type is not one of them. */
     const fieldTypes = [...app.matchAll(/(?<![A-Za-z_])type: '([a-z_]+)'/g)].map((match) => match[1])

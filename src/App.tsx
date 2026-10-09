@@ -5,12 +5,15 @@ import {
   AlertCircle,
   Archive,
   BadgeCheck,
+  Braces,
   Calendar,
   CalendarRange,
+  Car,
   ChevronDown,
   ChevronRight,
   CircleMinus,
   Cog,
+  Coins,
   Copy,
   CreditCard,
   Database,
@@ -33,6 +36,7 @@ import {
   NotebookTabs,
   Paperclip,
   Phone,
+  Plane,
   Plus,
   QrCode,
   Router,
@@ -46,6 +50,7 @@ import {
   Trash2,
   Type,
   Vault,
+  Wifi,
   X,
 } from 'lucide-react'
 import {
@@ -133,7 +138,8 @@ import {
 } from './app/vaultApi'
 
 type VaultMode = 'loading' | 'setup' | 'locked' | 'unlocked'
-type CategoryNavigation = `category:${(typeof categoryItems)[number]['itemType']}`
+type CategoryItemType = (typeof categoryItems)[number]['itemType']
+type CategoryNavigation = `category:${CategoryItemType}`
 type ActiveNavigation = (typeof navigationItems)[number]['id'] | CategoryNavigation | TagNavigation
 
 type LoginFormState = LoginItemInput & {
@@ -258,8 +264,10 @@ const loginSectionFieldTypes = ['otp', 'sign_in_with', 'passkey']
 // Ordered weakest to strongest; the meter fills one segment per step.
 const strengthLevels = ['weak', 'fair', 'strong', 'excellent'] as const
 
-// The sidebar's categories are the item types the vault can hold, each with the accent hue its icon
-// wears. The ramp is decoration only — it never stands in for a status.
+// One table for every item type the vault can hold: it is the sidebar's category list *and* the
+// new-item picker's list, in the same order, so a type can never be creatable but nowhere to be
+// found. Each row carries the accent hue its icon wears; the ramp is decoration only and never
+// stands in for a status. `i18n.test.ts` reads this shape to prove every `itemTypes.*` key exists.
 const categoryItems = [
   { colorClass: 'text-accent-icon-teal', icon: KeyRound, itemType: 'login' },
   { colorClass: 'text-accent-icon-yellow', icon: NotebookTabs, itemType: 'secure_note' },
@@ -268,11 +276,16 @@ const categoryItems = [
   { colorClass: 'text-accent-icon-gray', icon: KeyRound, itemType: 'password' },
   { colorClass: 'text-accent-icon-yellow', icon: Terminal, itemType: 'ssh_key' },
   { colorClass: 'text-accent-icon-orange', icon: DollarSign, itemType: 'bank_account' },
+  { colorClass: 'text-accent-icon-purple', icon: Plane, itemType: 'passport' },
+  { colorClass: 'text-accent-icon-orange', icon: Car, itemType: 'driver_license' },
+  { colorClass: 'text-accent-icon-teal', icon: Wifi, itemType: 'wifi' },
+  { colorClass: 'text-accent-icon-magenta', icon: Braces, itemType: 'api_credential' },
+  { colorClass: 'text-accent-icon-gray', icon: Server, itemType: 'server' },
   { colorClass: 'text-accent-icon-lime', icon: Database, itemType: 'database' },
   { colorClass: 'text-accent-icon-magenta', icon: Mail, itemType: 'email' },
   { colorClass: 'text-accent-icon-blue', icon: Router, itemType: 'router' },
-  { colorClass: 'text-accent-icon-gray', icon: Server, itemType: 'server' },
   { colorClass: 'text-accent-icon-blue', icon: BadgeCheck, itemType: 'software_license' },
+  { colorClass: 'text-accent-icon-lime', icon: Coins, itemType: 'crypto_wallet' },
 ] as const
 
 function parseSectionFields(value: string): SectionChildField[] {
@@ -512,26 +525,6 @@ function toInput(form: LoginFormState): LoginItemInput {
   }
 }
 
-const itemTypes = [
-  ['login', 'Login'],
-  ['secure_note', 'Secure note'],
-  ['credit_card', 'Credit card'],
-  ['identity', 'Identity'],
-  ['password', 'Password'],
-  ['ssh_key', 'SSH key'],
-  ['bank_account', 'Bank account'],
-  ['passport', 'Passport'],
-  ['driver_license', 'Driver license'],
-  ['wifi', 'Wi-Fi'],
-  ['api_credential', 'API credential'],
-  ['server', 'Server'],
-  ['database', 'Database'],
-  ['email', 'Email'],
-  ['router', 'Router'],
-  ['software_license', 'Software license'],
-  ['crypto_wallet', 'Crypto wallet'],
-] as const
-
 const settingsTabLabels: Record<SettingsTab, string> = {
   appearance: 'settings.tabs.appearance',
   browser: 'settings.tabs.browser',
@@ -619,6 +612,12 @@ function VaultWindow() {
   // category list otherwise pushes the rest of the sidebar out of the window.
   const [categoriesCollapsed, setCategoriesCollapsed] = useState(false)
   const [tagsCollapsed, setTagsCollapsed] = useState(false)
+  // A new item asks for its type before anything is written, and the category the pick lands in is
+  // focused in the sidebar — so the row you just committed to is the row you can see.
+  const [itemTypePickerOpen, setItemTypePickerOpen] = useState(false)
+  const [categoryToFocus, setCategoryToFocus] = useState<CategoryItemType | null>(null)
+  const categoryListRef = useRef<HTMLDivElement>(null)
+  const itemTypeFirstOptionRef = useRef<HTMLButtonElement>(null)
   // A tag's spelling and icon live on the storage row, while which rows the sidebar shows — and how many
   // items each names — is read off the live items, so the two are joined per render. All three panels
   // below address a tag by name, because a name is the only handle an item carries.
@@ -756,7 +755,7 @@ function VaultWindow() {
         void openSettingsWindow()
       } else if (key === 'n') {
         event.preventDefault()
-        void handleNewItem()
+        openItemTypePicker()
       } else if (key === 'f') {
         event.preventDefault()
         topSearchInputRef.current?.focus()
@@ -929,6 +928,25 @@ function VaultWindow() {
   useEffect(() => {
     if (isCreatingVault) vaultNameInputRef.current?.focus()
   }, [isCreatingVault])
+
+  // The type picker's grid is all buttons, so it opens on the first one — Tab from there walks the
+  // rest, and Return picks. Same reason the create-vault panel takes the caret by effect, not by
+  // `autoFocus`.
+  useEffect(() => {
+    if (itemTypePickerOpen) itemTypeFirstOptionRef.current?.focus()
+  }, [itemTypePickerOpen])
+
+  // The category a new draft was built under is scrolled into view and focused, which has to happen
+  // after the row exists: an unfolded section and its rows arrive in the same commit as this state.
+  useEffect(() => {
+    if (!categoryToFocus) return
+    const row = categoryListRef.current?.querySelector<HTMLButtonElement>(`[data-item-type="${categoryToFocus}"]`)
+    setCategoryToFocus(null)
+    if (!row) return
+    row.scrollIntoView({ block: 'nearest' })
+    // The scroll above already chose where the row lands; focus would otherwise scroll it again.
+    row.focus({ preventScroll: true })
+  }, [categoryToFocus])
 
   // Keyed on which tag is open rather than on the draft, so typing in the name — or picking an icon —
   // does not drag the caret back to the field every keystroke.
@@ -1160,13 +1178,26 @@ function VaultWindow() {
     })
   }
 
-  async function handleNewItem() {
+  function openItemTypePicker() {
+    setError(null)
+    setOperationMessage(null)
+    closeFieldMenus()
+    setItemTypePickerOpen(true)
+  }
+
+  function handleNewItem(itemType: CategoryItemType) {
     setSelectedId(null)
-    setForm(buildDraftForm(newItemCategory))
+    setForm(buildDraftForm(itemType))
     setShowPassword(false)
     closeFieldMenus()
     setComposing(true)
     setIsEditing(true)
+    setItemTypePickerOpen(false)
+    // The draft belongs to its category, so the view follows it and the row it came from is unfolded
+    // and focused — a pick that left no trace in the sidebar would be indistinguishable from a no-op.
+    setCategoriesCollapsed(false)
+    setActiveNavigation(`category:${itemType}`)
+    setCategoryToFocus(itemType)
   }
 
   async function loadVaults() {
@@ -1416,7 +1447,7 @@ function VaultWindow() {
   // the viewport — which lets one cover the very button that opened it.
   useEffect(() => {
     const menuOpen = showAddMore || sectionMenuIndex !== null || tagMenu !== null
-    if (!menuOpen && !purgeTarget && !isCreatingVault && !tagEditor && !tagDeleteTarget) return
+    if (!menuOpen && !purgeTarget && !isCreatingVault && !tagEditor && !tagDeleteTarget && !itemTypePickerOpen) return
     const handleClick = (event: MouseEvent) => {
       if (!menuOpen) return
       if ((event.target as HTMLElement | null)?.closest('[data-field-menu]')) return
@@ -1429,6 +1460,7 @@ function VaultWindow() {
       closeCreateVault()
       closeTagEditor()
       setTagDeleteTarget(null)
+      setItemTypePickerOpen(false)
     }
     window.addEventListener('click', handleClick)
     window.addEventListener('keydown', handleKeyDown)
@@ -1436,7 +1468,16 @@ function VaultWindow() {
       window.removeEventListener('click', handleClick)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isCreatingVault, purgeTarget, sectionMenuIndex, showAddMore, tagDeleteTarget, tagEditor, tagMenu])
+  }, [
+    isCreatingVault,
+    itemTypePickerOpen,
+    purgeTarget,
+    sectionMenuIndex,
+    showAddMore,
+    tagDeleteTarget,
+    tagEditor,
+    tagMenu,
+  ])
 
   async function addCustomField(fieldType: (typeof addMoreOptions)[number]['type']) {
     const attachmentPath = fieldType === 'file' ? await vaultApi.pickAttachmentFile() : null
@@ -1931,10 +1972,38 @@ function VaultWindow() {
           <div className="brand-mark">
             <Lock size={16} />
           </div>
-          <div>
+          {/* Which vault is open is a property of the whole sidebar, not of the item being edited, so it
+              is named here — the detail header is left to the item alone. */}
+          <div className="brand-vault">
             <strong>{t('lock.appName')}</strong>
-            <span>{t('vault.personalVault')}</span>
+            <label className="vault-picker" data-tauri-drag-region="false">
+              <select
+                aria-label={t('vault.vaultName')}
+                onChange={(event) => handleSwitchVault(event.target.value)}
+                value={activeVaultId}
+              >
+                {vaults.length ? (
+                  vaults.map((vault) => (
+                    <option key={vault.id} value={vault.id}>
+                      {vault.name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="personal">{activeVaultName}</option>
+                )}
+              </select>
+            </label>
           </div>
+          <button
+            aria-label={t('vault.createVault')}
+            className="icon-button vault-add-button"
+            data-tauri-drag-region="false"
+            onClick={openCreateVault}
+            title={t('vault.createVault')}
+            type="button"
+          >
+            <Plus size={16} />
+          </button>
         </div>
 
         {/* The views above scroll so the two state rows below stay where they belong: at the foot of
@@ -1978,13 +2047,14 @@ function VaultWindow() {
               onToggle={() => setCategoriesCollapsed((next) => !next)}
             />
             {categoriesCollapsed ? null : (
-              <div className="nav-list">
+              <div className="nav-list" ref={categoryListRef}>
                 {categoryItems.map((category) => {
                   const id = `category:${category.itemType}` as const
                   const Icon = category.icon
                   return (
                     <button
                       className={activeNavigation === id ? 'nav-item category-item active' : 'nav-item category-item'}
+                      data-item-type={category.itemType}
                       key={category.itemType}
                       onClick={() => setActiveNavigation(id)}
                       type="button"
@@ -2032,7 +2102,7 @@ function VaultWindow() {
             </div>
           ) : null}
         </div>
-        <button className="top-new-item-button" onClick={handleNewItem} type="button">
+        <button className="top-new-item-button" onClick={openItemTypePicker} type="button">
           <Plus size={16} />
           {t('vault.newItem')}
         </button>
@@ -2114,52 +2184,39 @@ function VaultWindow() {
       />
 
       <section aria-label={t('landmarks.itemDetails')} className="detail-pane">
+        {/* Everything the pane can do to the item lives in its top-right corner: the type is the only
+            thing named on the left, and the row under the fields went with it. */}
         <div className="detail-topbar" data-tauri-drag-region="deep">
-          <div className="vault-picker-row">
-            <label className="vault-picker">
-              <select onChange={(event) => handleSwitchVault(event.target.value)} value={activeVaultId}>
-                {vaults.length ? (
-                  vaults.map((vault) => (
-                    <option key={vault.id} value={vault.id}>
-                      {vault.name}
-                    </option>
-                  ))
-                ) : (
-                  <option value="personal">{activeVaultName}</option>
-                )}
-              </select>
-            </label>
-            <button
-              aria-label={t('vault.createVault')}
-              className="icon-button vault-add-button"
-              onClick={openCreateVault}
-              title={t('vault.createVault')}
-              type="button"
-            >
-              <Plus size={16} />
-            </button>
-          </div>
+          {selectedItem || composing ? <span className="type-display">{t(`itemTypes.${form.item_type}`)}</span> : null}
           <div className="detail-topbar-actions">
-            {selectedItem && !isEditing ? (
+            {isEditing && hasUnsavedChanges ? <span className="unsaved-hint">{t('vault.unsavedChanges')}</span> : null}
+            {selectedItem ? (
+              <>
+                <button className="secondary-button" onClick={handleArchive} type="button">
+                  <Archive size={15} />
+                  {t('vault.archiveAction')}
+                </button>
+                <button className="danger-button" onClick={handleTrash} type="button">
+                  <Trash2 size={15} />
+                  {t('vault.trashAction')}
+                </button>
+              </>
+            ) : null}
+            {isEditing ? (
+              <>
+                <button className="secondary-button" onClick={handleCancelEdit} type="button">
+                  {t('vault.cancelEditing')}
+                </button>
+                {/* The submit button sits outside the form it submits, so it has to name it. */}
+                <button className="primary-button" disabled={saving} form="item-detail-form" type="submit">
+                  {saving ? t('vault.saving') : selectedItem ? t('vault.saveChanges') : t('vault.createItem')}
+                </button>
+              </>
+            ) : selectedItem ? (
               <button className="top-edit-button" onClick={() => setIsEditing(true)} type="button">
                 <Edit3 size={15} />
                 {t('vault.edit')}
               </button>
-            ) : null}
-            {isEditing ? (
-              <select
-                className="type-picker"
-                onChange={(event) => setForm((current) => ({ ...current, item_type: event.target.value }))}
-                value={form.item_type}
-              >
-                {itemTypes.map(([value]) => (
-                  <option key={value} value={value}>
-                    {t(`itemTypes.${value}`)}
-                  </option>
-                ))}
-              </select>
-            ) : selectedItem || composing ? (
-              <span className="type-display">{t(`itemTypes.${form.item_type}`)}</span>
             ) : null}
           </div>
         </div>
@@ -2217,7 +2274,7 @@ function VaultWindow() {
                 })}
               </section>
             ) : null}
-            <form className="detail-form" onSubmit={handleSave}>
+            <form className="detail-form" id="item-detail-form" onSubmit={handleSave}>
               <fieldset className="detail-fieldset" disabled={!isEditing} onScroll={closeFieldMenus}>
                 <div className="detail-header">
                   <div className="large-icon">{form.title.slice(0, 1).toUpperCase() || '+'}</div>
@@ -2700,34 +2757,6 @@ function VaultWindow() {
                   </div>
                 </div>
               </fieldset>
-
-              <div className="detail-actions">
-                {selectedItem ? (
-                  <>
-                    <button className="secondary-button" onClick={handleArchive} type="button">
-                      <Archive size={16} />
-                      {t('vault.archiveAction')}
-                    </button>
-                    <button className="danger-button" onClick={handleTrash} type="button">
-                      <Trash2 size={16} />
-                      {t('vault.trashAction')}
-                    </button>
-                  </>
-                ) : null}
-                {isEditing && hasUnsavedChanges ? (
-                  <span className="unsaved-hint">{t('vault.unsavedChanges')}</span>
-                ) : null}
-                {isEditing ? (
-                  <>
-                    <button className="secondary-button" onClick={handleCancelEdit} type="button">
-                      {t('vault.cancelEditing')}
-                    </button>
-                    <button className="primary-button" disabled={saving} type="submit">
-                      {saving ? t('vault.saving') : selectedItem ? t('vault.saveChanges') : t('vault.createLogin')}
-                    </button>
-                  </>
-                ) : null}
-              </div>
             </form>
 
             {operationMessage ? <div className="success-banner mt-300 max-w-content">{operationMessage}</div> : null}
@@ -2739,13 +2768,51 @@ function VaultWindow() {
             <Inbox aria-hidden="true" className="detail-empty-icon" size={28} />
             <h2>{t('vault.noItemSelected')}</h2>
             <p>{t('vault.noItemSelectedHint')}</p>
-            <button className="secondary-button" onClick={handleNewItem} type="button">
+            <button className="secondary-button" onClick={openItemTypePicker} type="button">
               <Plus size={15} />
               {t('vault.newItem')}
             </button>
           </div>
         )}
       </section>
+      {/* Every item type is created from here, because the type decides which fields the draft opens
+          with — the old flow defaulted to a login and let the dropdown convert it afterwards, and the
+          dropdown is gone. The grid is the sidebar's own category list, in the sidebar's own order. */}
+      {itemTypePickerOpen ? (
+        <div className="confirm-layer">
+          <button
+            aria-label={t('common.close')}
+            className="confirm-backdrop"
+            onClick={() => setItemTypePickerOpen(false)}
+            type="button"
+          />
+          <div aria-labelledby="item-type-picker-title" aria-modal="true" className="confirm-dialog" role="dialog">
+            <h2 id="item-type-picker-title">{t('vault.chooseItemType')}</h2>
+            <div className="item-type-grid">
+              {categoryItems.map((category, index) => {
+                const Icon = category.icon
+                return (
+                  <button
+                    className="item-type-option"
+                    key={category.itemType}
+                    onClick={() => handleNewItem(category.itemType)}
+                    ref={index === 0 ? itemTypeFirstOptionRef : undefined}
+                    type="button"
+                  >
+                    <Icon aria-hidden="true" className={category.colorClass} size={16} />
+                    <span>{t(`itemTypes.${category.itemType}`)}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="confirm-actions">
+              <button className="secondary-button" onClick={() => setItemTypePickerOpen(false)} type="button">
+                {t('vault.cancelEditing')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {/* A tag row is the only place its icon and name can be changed, and a right-click is how you get
           there. The panel is the same anchored menu the field buttons use, so it clears the sidebar's
           clip and flips above the cursor when the row sits near the foot of the window. */}

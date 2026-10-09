@@ -743,30 +743,25 @@
 
   .detail-topbar {
     border-color: var(--passless-border-soft);
-    @apply mb-150 flex max-w-content items-center justify-between gap-100 border-b pb-150;
+    @apply mb-150 flex max-w-content flex-wrap items-center justify-between gap-100 border-b pb-150;
   }
 
   .vault-picker {
-    @apply block min-w-400;
+    @apply block min-w-0;
   }
 
-  .vault-picker-row {
-    @apply flex items-center gap-075;
-  }
-
-  .vault-add-button {
-    @apply h-400 w-400;
-  }
-
-  .vault-picker select,
-  .type-picker {
+  .vault-picker select {
     background-color: var(--passless-surface-muted);
     border-color: var(--passless-border);
-    @apply h-400 rounded-medium px-100 pr-100 text-body font-medium shadow-none;
+    @apply h-400 w-full rounded-medium px-100 text-body font-medium shadow-none;
+  }
+
+  .brand-vault {
+    @apply min-w-0 flex-1;
   }
 
   .detail-topbar-actions {
-    @apply flex items-center gap-100;
+    @apply ml-auto flex flex-wrap items-center justify-end gap-100;
   }
 
   .top-edit-button {
@@ -1197,10 +1192,6 @@
 
   .icon-button.active {
     @apply text-icon-selected;
-  }
-
-  .detail-actions {
-    @apply mt-250 flex max-w-content items-center justify-end gap-100;
   }
 
   .primary-button,
@@ -1773,10 +1764,11 @@
   }
 
   .vault-picker select,
-  .type-picker,
   .type-display {
     color: var(--theme-text-70);
-    background: var(--color-surface);
+    /* background-color, never the `background` shorthand: the shorthand resets the chevron's
+       repeat and position that `@layer base` sets, and the select comes out tiled. */
+    background-color: var(--color-surface);
     border-color: var(--theme-border);
     @apply h-400 rounded-medium border px-100 text-body-small font-medium shadow-none;
   }
@@ -2024,14 +2016,24 @@
     @apply mx-050 min-h-400 rounded-medium px-100 py-075 text-body;
   }
 
-  .detail-actions {
-    background: var(--theme-bg-2);
-    border-color: var(--theme-border);
-    @apply sticky bottom-0 mt-0 max-w-none justify-end border-t px-0 py-100;
+  /* A new item's type is picked from the same list the sidebar shows, so the option reads the way the
+     row it will focus reads: an accent-worn icon and the type's own name. */
+  .item-type-grid {
+    @apply mt-200 grid grid-cols-2 gap-075;
+  }
+
+  .item-type-option {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+    @apply flex min-h-400 items-center gap-100 rounded-medium border px-100 text-left text-body text-inherit transition-colors;
+  }
+
+  .item-type-option:hover {
+    background: var(--color-background-neutral-subtle-hovered);
   }
 
   .unsaved-hint {
-    @apply mr-auto text-body-small text-text-subtle;
+    @apply text-body-small text-text-subtle;
   }
 
   .password-strength {
