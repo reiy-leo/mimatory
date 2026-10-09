@@ -1824,6 +1824,31 @@
     @apply mt-300 flex items-center justify-end gap-100;
   }
 
+  /* The create-vault panel borrows the purge confirmation's shell, so its one field has to bring its
+     own step down from the heading. */
+  .confirm-dialog label {
+    @apply mt-200;
+  }
+
+  /* Nothing open and nobody drafting: the pane names its own state instead of showing a blank form. */
+  .detail-empty {
+    @apply m-auto flex max-w-modal flex-col items-center px-200 py-400 text-center;
+  }
+
+  .detail-empty-icon {
+    color: var(--color-text-subtlest);
+    @apply mb-200;
+  }
+
+  .detail-empty h2 {
+    @apply text-heading-small;
+  }
+
+  .detail-empty p {
+    color: var(--color-text-subtle);
+    @apply mt-075 mb-150 text-body;
+  }
+
   .row-star {
     @apply ml-auto shrink-0 text-text-warning;
   }

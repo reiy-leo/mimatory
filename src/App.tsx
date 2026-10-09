@@ -21,6 +21,7 @@ import {
   GripVertical,
   Group,
   IdCard,
+  Inbox,
   KeyRound,
   Link,
   Link2,
@@ -562,6 +563,11 @@ function VaultWindow() {
   // The item whose permanent delete is being confirmed. There is no native confirm in this webview,
   // so the question is state the window has to render itself.
   const [purgeTarget, setPurgeTarget] = useState<LoginItem | null>(null)
+  // A new vault's name. window.prompt() answers null here without showing a box, so the question is
+  // drawn in the page with the same modal recipe as the purge confirmation above.
+  const [isCreatingVault, setIsCreatingVault] = useState(false)
+  const [vaultNameDraft, setVaultNameDraft] = useState('')
+  const vaultNameInputRef = useRef<HTMLInputElement>(null)
   const [biometricsAvailable, setBiometricsAvailable] = useState(false)
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
   const [form, setForm] = useState<LoginFormState>(() => toFormState(emptyLoginItem()))
@@ -588,6 +594,9 @@ function VaultWindow() {
   const otpInputRefs = useRef<Record<number, HTMLInputElement | null>>({})
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
   const [tagDraft, setTagDraft] = useState('')
+  // Whether the pane is showing a draft instead of a saved item. Without it, "nothing selected" and
+  // "writing a new item" are one state, so trashing the open item dropped into a blank create form.
+  const [composing, setComposing] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   // What the current form was loaded from. A ref, not state: the switch effect below runs only
   // when the selected item changes, and it has to compare the outgoing form against the baseline
@@ -816,7 +825,7 @@ function VaultWindow() {
     if (activeNavigation === 'trash') return t('listTitle.trash')
     if (activeNavigation.startsWith('category:')) {
       const itemType = activeNavigation.replace('category:', '')
-      return t(`itemTypes.${itemType}`, { defaultValue: itemType })
+      return t(`itemTypes.${itemType}`)
     }
     return t('listTitle.vaults')
   }, [activeNavigation, activeTagName, t])
@@ -835,7 +844,10 @@ function VaultWindow() {
     const restored = draftsRef.current[draftKey]
     setForm(restored ?? nextBaseline)
     baselineRef.current = nextBaseline
-    setIsEditing(Boolean(restored) || !selectedItem)
+    // A saved item opens read-only unless a draft is waiting on it; an unsaved draft is always
+    // editable, but only while the user is actually composing one.
+    if (selectedItem) setComposing(false)
+    setIsEditing(selectedItem ? Boolean(restored) : composing)
     draftKeyRef.current = draftKey
     setShowPassword(false)
     setFieldTotpPreviews({})
@@ -844,6 +856,12 @@ function VaultWindow() {
     setOtpQrHint(null)
     setTagDraft('')
   }, [draftKey])
+
+  // The panel opens on the keyboard, so the caret has to be where the typing goes. `autoFocus` would
+  // add a third lint error to this file's baseline, and it only fires on mount anyway.
+  useEffect(() => {
+    if (isCreatingVault) vaultNameInputRef.current?.focus()
+  }, [isCreatingVault])
 
   useEffect(() => {
     if (!form.password) {
@@ -977,6 +995,9 @@ function VaultWindow() {
     setForm(toFormState(emptyLoginItem()))
     draftsRef.current = {}
     draftKeyRef.current = ''
+    setComposing(false)
+    setIsCreatingVault(false)
+    setVaultNameDraft('')
     setIsEditing(false)
   }
 
@@ -987,7 +1008,10 @@ function VaultWindow() {
     try {
       const input = toInput(form)
       if (!input.title) {
-        throw new Error(t('vault.titleRequired'))
+        // A thrown message reaches the banner as "Error: 标题必填" through String(), so the
+        // validation failure is written straight to the banner and the save never starts.
+        setError(t('vault.titleRequired'))
+        return
       }
       const saved = selectedItem ? await vaultApi.update(selectedItem.id, input) : await vaultApi.create(input)
       const nextItems = await vaultApi.list()
@@ -998,6 +1022,7 @@ function VaultWindow() {
       baselineRef.current = toFormState(saved)
       setItems(nextItems)
       setSelectedId(saved.id)
+      setComposing(false)
       setIsEditing(false)
     } catch (nextError) {
       setError(String(nextError))
@@ -1016,7 +1041,8 @@ function VaultWindow() {
     setFocusedOtpField('')
     setOtpQrHint(null)
     setTagDraft('')
-    setIsEditing(!selectedItem)
+    setComposing(false)
+    setIsEditing(false)
   }
 
   // The chip box is a view of `tagsInput`, so committing only rewrites that one string. Leaving the
@@ -1065,6 +1091,7 @@ function VaultWindow() {
     setForm(buildDraftForm(newItemCategory))
     setShowPassword(false)
     closeFieldMenus()
+    setComposing(true)
     setIsEditing(true)
   }
 
@@ -1084,6 +1111,7 @@ function VaultWindow() {
       setItems(nextItems)
       setSelectedId(nextItems[0]?.id ?? null)
       setForm(toFormState(nextItems[0] ?? emptyLoginItem()))
+      setComposing(false)
       await loadArchivedItems()
       await loadTrashedItems()
     } catch (nextError) {
@@ -1091,9 +1119,24 @@ function VaultWindow() {
     }
   }
 
-  async function handleCreateVault() {
-    const name = window.prompt(t('vault.createVaultPrompt', { defaultValue: 'Vault name' }))
-    if (!name?.trim()) return
+  function openCreateVault() {
+    setError(null)
+    setOperationMessage(null)
+    setVaultNameDraft('')
+    setIsCreatingVault(true)
+  }
+
+  function closeCreateVault() {
+    setIsCreatingVault(false)
+    setVaultNameDraft('')
+  }
+
+  // The name arrives from the panel, not from window.prompt(): wry leaves WKUIDelegate's text-input
+  // method unimplemented, so prompt() answered null without showing a box and the button did nothing.
+  async function handleCreateVault(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const name = vaultNameDraft.trim()
+    if (!name) return
     setError(null)
     try {
       const vault = await vaultApi.createVault(name)
@@ -1105,8 +1148,11 @@ function VaultWindow() {
       setTrashedItems([])
       setSelectedId(null)
       setForm(toFormState(emptyLoginItem()))
+      // A new vault has nothing to open, so the first item starts here instead of at an empty list.
+      setComposing(true)
       setIsEditing(true)
-      setOperationMessage(t('messages.createdVault', { defaultValue: 'Created vault {{name}}', name: vault.name }))
+      closeCreateVault()
+      setOperationMessage(t('messages.createdVault', { name: vault.name }))
     } catch (nextError) {
       setError(String(nextError))
     }
@@ -1222,7 +1268,7 @@ function VaultWindow() {
   // the viewport — which lets one cover the very button that opened it.
   useEffect(() => {
     const menuOpen = showAddMore || sectionMenuIndex !== null
-    if (!menuOpen && !purgeTarget) return
+    if (!menuOpen && !purgeTarget && !isCreatingVault) return
     const handleClick = (event: MouseEvent) => {
       if (!menuOpen) return
       if ((event.target as HTMLElement | null)?.closest('[data-field-menu]')) return
@@ -1232,6 +1278,7 @@ function VaultWindow() {
       if (event.key !== 'Escape') return
       if (menuOpen) closeFieldMenus()
       setPurgeTarget(null)
+      closeCreateVault()
     }
     window.addEventListener('click', handleClick)
     window.addEventListener('keydown', handleKeyDown)
@@ -1239,7 +1286,7 @@ function VaultWindow() {
       window.removeEventListener('click', handleClick)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [purgeTarget, sectionMenuIndex, showAddMore])
+  }, [isCreatingVault, purgeTarget, sectionMenuIndex, showAddMore])
 
   async function addCustomField(fieldType: (typeof addMoreOptions)[number]['type']) {
     const attachmentPath = fieldType === 'file' ? await vaultApi.pickAttachmentFile() : null
@@ -1420,7 +1467,7 @@ function VaultWindow() {
     setError(null)
     try {
       const path = await vaultApi.exportAttachmentToTemp(field.value.replace('attachment://', ''))
-      setOperationMessage(t('messages.exportedAttachment', { defaultValue: 'Attachment exported to {{path}}', path }))
+      setOperationMessage(t('messages.exportedAttachment', { path }))
     } catch (nextError) {
       setError(String(nextError))
     }
@@ -1500,7 +1547,10 @@ function VaultWindow() {
     await vaultApi.trash(selectedItem.id)
     const nextItems = await vaultApi.list()
     setItems(nextItems)
-    setSelectedId(nextItems[0]?.id ?? null)
+    // Nothing takes the place of the item that just left — the pane goes to its empty state rather
+    // than opening a create form nobody asked for.
+    setSelectedId(null)
+    setComposing(false)
     await loadTrashedItems()
   }
 
@@ -1549,6 +1599,7 @@ function VaultWindow() {
     setActiveNavigation('vaults')
     setForm((current) => ({ ...current, password: generatedPassword }))
     setShowPassword(true)
+    setComposing(true)
     setIsEditing(true)
   }
 
@@ -1661,7 +1712,7 @@ function VaultWindow() {
                 autoFocus
                 minLength={8}
                 onChange={(event) => setMasterPassword(event.target.value)}
-                placeholder={t('lock.enterPasswordPlaceholder', { defaultValue: 'Enter your password' })}
+                placeholder={t('lock.enterPasswordPlaceholder')}
                 type={showPassword ? 'text' : 'password'}
                 value={masterPassword}
               />
@@ -1742,7 +1793,7 @@ function VaultWindow() {
             <Lock size={16} />
           </div>
           <div>
-            <strong>Passless</strong>
+            <strong>{t('lock.appName')}</strong>
             <span>{t('vault.personalVault')}</span>
           </div>
         </div>
@@ -1995,10 +2046,10 @@ function VaultWindow() {
               </select>
             </label>
             <button
-              aria-label={t('vault.createVault', { defaultValue: 'Create vault' })}
+              aria-label={t('vault.createVault')}
               className="icon-button vault-add-button"
-              onClick={handleCreateVault}
-              title={t('vault.createVault', { defaultValue: 'Create vault' })}
+              onClick={openCreateVault}
+              title={t('vault.createVault')}
               type="button"
             >
               <Plus size={16} />
@@ -2017,15 +2068,15 @@ function VaultWindow() {
                 onChange={(event) => setForm((current) => ({ ...current, item_type: event.target.value }))}
                 value={form.item_type}
               >
-                {itemTypes.map(([value, label]) => (
+                {itemTypes.map(([value]) => (
                   <option key={value} value={value}>
-                    {t(`itemTypes.${value}`, { defaultValue: label })}
+                    {t(`itemTypes.${value}`)}
                   </option>
                 ))}
               </select>
-            ) : (
-              <span className="type-display">{t(`itemTypes.${form.item_type}`, { defaultValue: form.item_type })}</span>
-            )}
+            ) : selectedItem || composing ? (
+              <span className="type-display">{t(`itemTypes.${form.item_type}`)}</span>
+            ) : null}
           </div>
         </div>
         {activeNavigation === 'generator' ? (
@@ -2036,18 +2087,14 @@ function VaultWindow() {
               </div>
               <div>
                 <h2>{t('vault.passwordGenerator')}</h2>
-                <p>
-                  {t('vault.generatorDescription', {
-                    defaultValue: 'Create a password with precise length and character controls.',
-                  })}
-                </p>
+                <p>{t('vault.generatorHint')}</p>
               </div>
             </div>
 
             <div className="generator-output">
               <input
-                aria-label={t('vault.generatedPassword', { defaultValue: 'Generated password' })}
-                placeholder={t('vault.generatedPasswordPlaceholder', { defaultValue: 'Generate a password' })}
+                aria-label={t('vault.generatedPassword')}
+                placeholder={t('vault.generatePassword')}
                 readOnly
                 value={generatedPassword}
               />
@@ -2148,7 +2195,7 @@ function VaultWindow() {
                 onClick={useGeneratedPassword}
                 type="button"
               >
-                {t('vault.useGeneratedPassword', { defaultValue: 'Use in current item' })}
+                {t('vault.useGeneratedPassword')}
               </button>
               <button
                 className="primary-button"
@@ -2161,7 +2208,7 @@ function VaultWindow() {
               </button>
             </div>
           </section>
-        ) : (
+        ) : selectedItem || composing ? (
           <>
             {!isEditing && otpFieldIndexes.length ? (
               <section aria-label={t('vault.twoFactorCode')} className="otp-card">
@@ -2314,9 +2361,7 @@ function VaultWindow() {
                             aria-label={t('vault.fieldLabel')}
                             className="custom-field-name-input"
                             onChange={(event) => updateCustomField(index, { label: event.target.value })}
-                            placeholder={t(`vault.customFieldDefaults.${field.field_type}`, {
-                              defaultValue: t('vault.fieldLabel'),
-                            })}
+                            placeholder={t(`vault.customFieldDefaults.${field.field_type}`)}
                             value={field.label}
                           />
                           <div className="login-custom-field-value">
@@ -2510,9 +2555,7 @@ function VaultWindow() {
                                           onChange={(event) =>
                                             updateSectionChild(index, childIndex, { label: event.target.value })
                                           }
-                                          placeholder={t(`vault.customFieldDefaults.${child.field_type}`, {
-                                            defaultValue: t('vault.fieldLabel'),
-                                          })}
+                                          placeholder={t(`vault.customFieldDefaults.${child.field_type}`)}
                                           value={child.label}
                                         />
                                         <input
@@ -2579,9 +2622,7 @@ function VaultWindow() {
                                   aria-label={t('vault.fieldLabel')}
                                   className="custom-field-name-input"
                                   onChange={(event) => updateCustomField(index, { label: event.target.value })}
-                                  placeholder={t(`vault.customFieldDefaults.${field.field_type}`, {
-                                    defaultValue: t('vault.fieldLabel'),
-                                  })}
+                                  placeholder={t(`vault.customFieldDefaults.${field.field_type}`)}
                                   value={field.label}
                                 />
                                 {field.field_type === 'related_item' ? (
@@ -2633,7 +2674,7 @@ function VaultWindow() {
                                         onClick={() => openAttachment(field)}
                                         type="button"
                                       >
-                                        {t('vault.exportAttachment', { defaultValue: 'Export attachment' })}
+                                        {t('vault.exportAttachment')}
                                       </button>
                                     ) : null}
                                     {field.value ? <small title={field.value}>{field.value}</small> : null}
@@ -2736,6 +2777,18 @@ function VaultWindow() {
 
             {operationMessage ? <div className="success-banner mt-300 max-w-content">{operationMessage}</div> : null}
           </>
+        ) : (
+          /* Nothing is open and no draft is being written, so the pane says so instead of showing a
+             blank create form — the state the list lands in after the open item is trashed. */
+          <div className="detail-empty">
+            <Inbox aria-hidden="true" className="detail-empty-icon" size={28} />
+            <h2>{t('vault.noItemSelected')}</h2>
+            <p>{t('vault.noItemSelectedHint')}</p>
+            <button className="secondary-button" onClick={handleNewItem} type="button">
+              <Plus size={15} />
+              {t('vault.newItem')}
+            </button>
+          </div>
         )}
       </section>
       {/* The only way to end a trashed row is here, and window.confirm() answers false without ever
@@ -2761,6 +2814,40 @@ function VaultWindow() {
                 {t('vault.purge')}
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+      {/* A new vault needs a name before anything can go in it. prompt() is as dead here as confirm()
+          was, so the same small modal recipe collects it with a labelled field. */}
+      {isCreatingVault ? (
+        <div className="confirm-layer">
+          <button
+            aria-label={t('common.close')}
+            className="confirm-backdrop"
+            onClick={closeCreateVault}
+            type="button"
+          />
+          <div aria-labelledby="create-vault-title" aria-modal="true" className="confirm-dialog" role="dialog">
+            <h2 id="create-vault-title">{t('vault.createVault')}</h2>
+            <form onSubmit={handleCreateVault}>
+              <label>
+                {t('vault.vaultName')}
+                <input
+                  onChange={(event) => setVaultNameDraft(event.target.value)}
+                  ref={vaultNameInputRef}
+                  type="text"
+                  value={vaultNameDraft}
+                />
+              </label>
+              <div className="confirm-actions">
+                <button className="secondary-button" onClick={closeCreateVault} type="button">
+                  {t('vault.cancelEditing')}
+                </button>
+                <button className="primary-button" disabled={!vaultNameDraft.trim()} type="submit">
+                  {t('common.create')}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       ) : null}
