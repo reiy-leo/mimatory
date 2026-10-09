@@ -16,7 +16,16 @@ npm run tauri build  # Production .app bundle — the only build where the CSP t
 cd src-tauri && cargo test   # Rust unit tests (vault, storage, crypto, bridge)
 ```
 
-No CI workflows. No pre-commit hooks. Run `npm run build`, `npm run test` and `cargo test` manually before claiming work is done.
+No CI workflows. No pre-commit hooks. Run the gates manually before claiming work is done, but run only the
+ones the turn's diff needs: this is a 6-core/12-thread Intel machine and a full `cargo test` plus `vite build`
+together saturate every core, so the whole computer stops responding for minutes. `.cargo/config.toml` caps
+cargo at 3 jobs — do not raise it, and prefix long builds with `nice -n 10`.
+
+- `src/**` touched: `npm run build` + `npm run test` + `npm run lint:fix`.
+- `src-tauri/**` touched: `cd src-tauri && cargo test`. Use `cargo check` while chasing a type error, and
+  `cargo test --no-run` once so later runs only relink the test binary.
+- `npm run tauri build` only when the packaged build itself is under test (CSP, bundling): it is a release
+  build of all 545 dependency crates and costs minutes of all-core CPU.
 
 ## Workflow
 

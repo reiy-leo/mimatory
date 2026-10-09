@@ -1,0 +1,5 @@
+# This crate has 545 crates in its dependency graph and the dev machine exposes 12
+# logical CPUs. Cargo defaults to one job per logical CPU, which saturates every core
+# and starves the window server, so an agent turn's `cargo test` freezes the machine.
+[build]
+jobs = 3
