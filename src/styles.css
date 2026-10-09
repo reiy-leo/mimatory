@@ -227,7 +227,6 @@
     --measure-detail-header: 720px;
     --measure-sidebar: 244px;
     --measure-item-list-min: 150px;
-    --measure-archive-list-max: 150px;
     --measure-window-min: 960px;
     --measure-settings-nav: 220px;
     --measure-slider-min: 160px;
@@ -473,7 +472,6 @@
     @apply grid h-screen min-h-0 min-w-window grid-rows-titlebar overflow-hidden;
   }
 
-  .sidebar,
   .item-list,
   .detail-pane {
     @apply min-h-0 overflow-y-auto;
@@ -634,10 +632,9 @@
   }
 
   .sidebar-footer {
-    @apply mt-auto grid gap-100;
+    @apply mt-auto grid;
   }
 
-  .theme-toggle,
   .toolbar button,
   .password-control button,
   .icon-button {
@@ -646,60 +643,14 @@
     @apply min-h-400 rounded-medium border text-text-subtle transition-colors;
   }
 
-  .theme-toggle:hover,
   .toolbar button:hover,
   .password-control button:hover,
   .icon-button:hover {
     background: var(--passless-control-hover);
   }
 
-  .theme-toggle {
-    @apply inline-flex items-center justify-center gap-100 px-100 font-medium;
-  }
-
   .sidebar-section-title {
     @apply flex items-center justify-between text-body-small font-medium text-text-subtle;
-  }
-
-  .sidebar-section-title button {
-    background: var(--color-background-neutral-subtle);
-    border-color: var(--passless-border);
-    @apply grid h-300 w-300 place-items-center rounded-medium border text-icon-subtle;
-  }
-
-  .sidebar-section-title button:hover {
-    background: var(--passless-control-hover);
-  }
-
-  .sidebar-archive {
-    background: var(--passless-surface-muted);
-    border-color: var(--passless-border);
-    @apply grid gap-100 rounded-large border p-100;
-  }
-
-  .sidebar-archive-list {
-    @apply grid max-h-400 gap-050 overflow-auto;
-  }
-
-  .sidebar-archive-list button {
-    @apply flex min-h-400 items-center gap-100 rounded-medium border border-transparent bg-transparent px-100 text-left text-text;
-  }
-
-  .sidebar-archive-list button:hover {
-    background: var(--passless-control-hover);
-    border-color: var(--passless-border);
-  }
-
-  .sidebar-archive-list button span {
-    @apply grid h-300 w-300 flex-none place-items-center rounded-xsmall bg-background-neutral-subtle-hovered text-body-small font-medium text-text-subtle;
-  }
-
-  .sidebar-archive-list button strong {
-    @apply truncate text-body font-medium;
-  }
-
-  .sidebar-archive-list p {
-    @apply m-0 px-050 text-body;
   }
 
   .item-list {
@@ -1484,7 +1435,12 @@
     color: var(--theme-text-70);
     background: var(--color-surface-sunken);
     border-color: var(--theme-border);
-    @apply row-span-2 flex h-screen flex-col gap-200 overflow-x-hidden overflow-y-auto border-r px-100 pb-100 pt-titlebar;
+    @apply row-span-2 flex h-screen min-h-0 flex-col gap-200 overflow-hidden border-r px-100 pb-100 pt-titlebar;
+  }
+
+  /* Only the views above the foot scroll, because the two state rows are pinned to the bottom. */
+  .sidebar-scroll {
+    @apply grid min-h-0 flex-1 gap-200 overflow-y-auto;
   }
 
   .brand,
@@ -1577,7 +1533,6 @@
     background: var(--passless-control-hover);
   }
 
-  .theme-toggle,
   .toolbar button,
   .password-control button,
   .icon-button {
@@ -1586,46 +1541,11 @@
     @apply min-h-400 rounded-medium border border-transparent text-body;
   }
 
-  .theme-toggle:hover,
   .toolbar button:hover,
   .password-control button:hover,
   .icon-button:hover {
     color: var(--theme-text-70);
     background: var(--theme-hover);
-  }
-
-  .sidebar-footer {
-    @apply gap-100;
-  }
-
-  .sidebar-archive {
-    background: var(--color-background-neutral-subtle);
-    border-color: var(--color-border);
-    @apply gap-050 rounded-large border p-075 shadow-none;
-  }
-
-  .sidebar-archive-list {
-    @apply max-h-archive-list gap-px;
-  }
-
-  .sidebar-archive-list button {
-    color: var(--color-text-subtle);
-    @apply min-h-400 gap-100 rounded-medium px-075 py-050 text-body;
-  }
-
-  .sidebar-archive-list button:hover {
-    background: var(--theme-hover);
-    border-color: transparent;
-  }
-
-  .sidebar-archive-list button span {
-    color: var(--theme-color);
-    background: var(--color-background-selected);
-    @apply h-250 w-250 rounded-medium text-body-small font-medium;
-  }
-
-  .sidebar-archive-list button strong {
-    @apply text-body-small font-medium;
   }
 
   .top-search-bar {
@@ -1735,27 +1655,28 @@
     @apply shrink-0;
   }
 
-  /* A trashed row has no detail pane to open, so it must not answer to the hover that says it does. */
-  .trash-row:hover {
+  /* A row in a state view has no detail pane to open, so it must not answer to the hover that says it
+     does. Archived and trash rows share this because their actions are the whole interaction. */
+  .state-row:hover {
     background: transparent;
   }
 
-  .trash-row-actions {
+  .state-row-actions {
     @apply mt-075 flex items-center gap-075;
   }
 
-  .trash-row-button {
+  .state-row-button {
     background: var(--color-background-neutral-subtle);
     border-color: var(--color-border);
     @apply inline-flex min-h-300 items-center rounded-small border px-100 text-body-small font-medium text-text-subtle transition-colors;
   }
 
-  .trash-row-button:hover {
+  .state-row-button:hover {
     color: var(--color-text);
     background: var(--color-background-neutral-subtle-hovered);
   }
 
-  .trash-row-button.danger {
+  .state-row-button.danger {
     color: var(--color-text-danger);
   }
 

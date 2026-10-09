@@ -30,7 +30,6 @@ import {
   Phone,
   Plus,
   QrCode,
-  RefreshCw,
   Router,
   Search,
   Server,
@@ -70,7 +69,7 @@ import {
 import { getItemTemplate } from './app/itemTemplates'
 import { getLockScreenVariant, shouldShowTouchIdUnlock } from './app/lockScreen'
 import { getMenuAnchorStyle, type MenuAnchor } from './app/menuPlacement'
-import { navigationItems } from './app/navigation'
+import { type NavigationItem, navigationItems } from './app/navigation'
 import { clipboardImageFile, otpSecretFromQrImage } from './app/otpQrImport'
 import { formatItemTimestamp } from './app/relativeTime'
 import {
@@ -323,6 +322,7 @@ function fileNameFromPath(path: string) {
 }
 
 const iconById = {
+  archived: Archive,
   favorites: Star,
   trash: Trash2,
   vaults: Vault,
@@ -749,8 +749,8 @@ function VaultWindow() {
   const activeTagKey = tagKeyFromNavigation(activeNavigation)
 
   const visibleItems = useMemo(() => {
-    // Trash has its own list and its own rows, so it never reads from the live items.
-    if (activeNavigation === 'trash') return []
+    // Archived and trash each have their own list and their own rows, so neither reads live items.
+    if (activeNavigation === 'trash' || activeNavigation === 'archived') return []
     if (activeNavigation === 'favorites') return items.filter((item) => item.favorite)
     if (activeTagKey) return filterItemsByTag(items, activeTagKey)
     if (activeNavigation.startsWith('category:')) {
@@ -760,13 +760,19 @@ function VaultWindow() {
     return items
   }, [activeNavigation, activeTagKey, items])
 
+  // Both state views read their own list instead of the live items, and each row's restore means a
+  // different return: out of the trash, or back into the vault.
+  const stateRows = activeNavigation === 'trash' ? trashedItems : activeNavigation === 'archived' ? archivedItems : null
+  const restoreStateItem = activeNavigation === 'trash' ? restoreTrashedItem : restoreArchivedItem
+
   // Counted from the whole vault rather than `visibleItems`, because a sidebar number has to say how
   // many a click will reveal — not how many the current selection already shows. Search is excluded
   // for the same reason: the list can be filtered while the sidebar keeps its meaning.
   const navigationCounts = useMemo(() => {
     const counts: Record<string, number> = {
+      // Both state views are separate reads, so both counts come from their own list.
+      archived: archivedItems.length,
       favorites: items.filter((item) => item.favorite).length,
-      // The trash list is a separate read, so its count comes from that rather than from `items`.
       trash: trashedItems.length,
       vaults: items.length,
     }
@@ -775,7 +781,7 @@ function VaultWindow() {
       counts[category] = (counts[category] ?? 0) + 1
     }
     return counts
-  }, [items, trashedItems])
+  }, [archivedItems, items, trashedItems])
 
   const tagCounts = useMemo(() => countItemTags(items, i18n.language), [i18n.language, items])
   const activeTagName = tagCounts.find((entry) => entry.key === activeTagKey)?.name ?? activeTagKey
@@ -825,6 +831,7 @@ function VaultWindow() {
     if (activeNavigation === 'favorites') return t('listTitle.favorites')
     if (activeTagKey) return activeTagName ?? t('listTitle.tags')
     if (activeNavigation === 'trash') return t('listTitle.trash')
+    if (activeNavigation === 'archived') return t('listTitle.archived')
     if (activeNavigation.startsWith('category:')) {
       const itemType = activeNavigation.replace('category:', '')
       return t(`itemTypes.${itemType}`)
@@ -1753,6 +1760,28 @@ function VaultWindow() {
     )
   }
 
+  // One renderer for both halves of the sidebar, because the rows are the same control and only
+  // their place differs: what the vault holds on top, and what was taken out of it at the foot.
+  function sidebarViewRows(group: NavigationItem['group']) {
+    return navigationItems
+      .filter((item) => item.group === group)
+      .map((item) => {
+        const Icon = iconById[item.id]
+        return (
+          <button
+            className={item.id === activeNavigation ? 'nav-item active' : 'nav-item'}
+            key={item.id}
+            onClick={() => setActiveNavigation(item.id)}
+            type="button"
+          >
+            <Icon size={16} />
+            <span>{t(`nav.${item.id}`)}</span>
+            <span className="nav-count">{navigationCounts[item.id]}</span>
+          </button>
+        )
+      })
+  }
+
   return (
     <main className="app-shell" style={{ '--item-list-width': `${itemListWidth}px` } as CSSProperties}>
       <h1 className="sr-only">{t('landmarks.vaultItems')}</h1>
@@ -1767,108 +1796,66 @@ function VaultWindow() {
           </div>
         </div>
 
-        <nav className="nav-list">
-          {navigationItems.map((item) => {
-            const Icon = iconById[item.id]
-            return (
-              <button
-                className={item.id === activeNavigation ? 'nav-item active' : 'nav-item'}
-                key={item.id}
-                onClick={() => setActiveNavigation(item.id)}
-                type="button"
-              >
-                <Icon size={16} />
-                <span>{t(`nav.${item.id}`)}</span>
-                <span className="nav-count">{navigationCounts[item.id]}</span>
-              </button>
-            )
-          })}
-        </nav>
+        {/* The views above scroll so the two state rows below stay where they belong: at the foot of
+            the sidebar, reachable without hunting past a long category list. */}
+        <div className="sidebar-scroll">
+          <nav className="nav-list">{sidebarViewRows('vault')}</nav>
 
-        <nav aria-label={t('common.tags')} className="section-nav">
-          <SidebarSectionToggle
-            collapsed={tagsCollapsed}
-            label={t('common.tags')}
-            onToggle={() => setTagsCollapsed((next) => !next)}
-          />
-          {tagsCollapsed ? null : (
-            <div className="nav-sublist">
-              {tagCounts.map((entry) => (
-                <button
-                  className={
-                    activeNavigation === tagNavigationId(entry.key) ? 'nav-item tag-item active' : 'nav-item tag-item'
-                  }
-                  key={entry.key}
-                  onClick={() => setActiveNavigation(tagNavigationId(entry.key))}
-                  type="button"
-                >
-                  <span>{entry.name}</span>
-                  <span className="nav-count">{entry.count}</span>
-                </button>
-              ))}
-              {tagCounts.length === 0 ? <p className="nav-sublist-empty">{t('vault.noTags')}</p> : null}
-            </div>
-          )}
-        </nav>
-
-        <nav aria-label={t('common.categories')} className="section-nav">
-          <SidebarSectionToggle
-            collapsed={categoriesCollapsed}
-            label={t('common.categories')}
-            onToggle={() => setCategoriesCollapsed((next) => !next)}
-          />
-          {categoriesCollapsed ? null : (
-            <div className="nav-list">
-              {categoryItemTypes.map((itemType) => {
-                const id = `category:${itemType}` as const
-                return (
+          <nav aria-label={t('common.tags')} className="section-nav">
+            <SidebarSectionToggle
+              collapsed={tagsCollapsed}
+              label={t('common.tags')}
+              onToggle={() => setTagsCollapsed((next) => !next)}
+            />
+            {tagsCollapsed ? null : (
+              <div className="nav-sublist">
+                {tagCounts.map((entry) => (
                   <button
-                    className={activeNavigation === id ? 'nav-item category-item active' : 'nav-item category-item'}
-                    key={itemType}
-                    onClick={() => setActiveNavigation(id)}
+                    className={
+                      activeNavigation === tagNavigationId(entry.key) ? 'nav-item tag-item active' : 'nav-item tag-item'
+                    }
+                    key={entry.key}
+                    onClick={() => setActiveNavigation(tagNavigationId(entry.key))}
                     type="button"
                   >
-                    <span>{t(`itemTypes.${itemType}`)}</span>
-                    <span className="nav-count">{navigationCounts[id] ?? 0}</span>
+                    <span>{entry.name}</span>
+                    <span className="nav-count">{entry.count}</span>
                   </button>
-                )
-              })}
-            </div>
-          )}
-        </nav>
+                ))}
+                {tagCounts.length === 0 ? <p className="nav-sublist-empty">{t('vault.noTags')}</p> : null}
+              </div>
+            )}
+          </nav>
+
+          <nav aria-label={t('common.categories')} className="section-nav">
+            <SidebarSectionToggle
+              collapsed={categoriesCollapsed}
+              label={t('common.categories')}
+              onToggle={() => setCategoriesCollapsed((next) => !next)}
+            />
+            {categoriesCollapsed ? null : (
+              <div className="nav-list">
+                {categoryItemTypes.map((itemType) => {
+                  const id = `category:${itemType}` as const
+                  return (
+                    <button
+                      className={activeNavigation === id ? 'nav-item category-item active' : 'nav-item category-item'}
+                      key={itemType}
+                      onClick={() => setActiveNavigation(id)}
+                      type="button"
+                    >
+                      <span>{t(`itemTypes.${itemType}`)}</span>
+                      <span className="nav-count">{navigationCounts[id] ?? 0}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </nav>
+        </div>
 
         <div className="sidebar-footer">
-          <button className="theme-toggle" onClick={openSettingsWindow} type="button">
-            <Cog size={16} />
-            {t('common.settings')}
-          </button>
-          <section aria-label={t('common.archive')} className="sidebar-archive">
-            <div className="sidebar-section-title">
-              <span>{t('common.archive')}</span>
-              <button
-                aria-label={t('common.refreshArchive')}
-                onClick={loadArchivedItems}
-                title={t('common.refreshArchive')}
-                type="button"
-              >
-                <RefreshCw size={16} />
-              </button>
-            </div>
-            <div className="sidebar-archive-list">
-              {archivedItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => restoreArchivedItem(item.id)}
-                  title={t('vault.restore', { title: item.title })}
-                  type="button"
-                >
-                  <span>{item.title.slice(0, 1).toUpperCase() || 'A'}</span>
-                  <strong>{item.title}</strong>
-                </button>
-              ))}
-              {archivedItems.length === 0 ? <p>{t('common.noArchivedItems')}</p> : null}
-            </div>
-          </section>
+          <nav className="nav-list">{sidebarViewRows('footer')}</nav>
         </div>
       </aside>
 
@@ -1912,11 +1899,11 @@ function VaultWindow() {
         </div>
 
         <div className="rows">
-          {activeNavigation === 'trash'
-            ? trashedItems.map((item) => (
-                // A trashed row is not selectable: the detail pane only ever edits live items, so
-                // restore and permanent delete are the actions this row can offer.
-                <div className="item-row trash-row" key={item.id}>
+          {stateRows
+            ? stateRows.map((item) => (
+                // A state row is not selectable: the detail pane only ever edits live items, so the
+                // row carries its own way back, and the trash carries the way out as well.
+                <div className="item-row state-row" key={item.id}>
                   <span className="item-icon">{item.title.slice(0, 1).toUpperCase() || 'L'}</span>
                   <span className="item-row-text">
                     <strong>{item.title}</strong>
@@ -1924,25 +1911,27 @@ function VaultWindow() {
                       <span className="row-subtitle">{item.username || item.website || t('vault.loginFallback')}</span>
                       <span className="row-stamp">{formatItemTimestamp(item.updated_at, i18n.language)}</span>
                     </small>
-                    <span className="trash-row-actions">
+                    <span className="state-row-actions">
                       <button
                         aria-label={t('vault.restore', { title: item.title })}
-                        className="trash-row-button"
-                        onClick={() => restoreTrashedItem(item.id)}
+                        className="state-row-button"
+                        onClick={() => restoreStateItem(item.id)}
                         title={t('vault.restore', { title: item.title })}
                         type="button"
                       >
                         {t('vault.restoreAction')}
                       </button>
-                      <button
-                        aria-label={t('vault.purgeItem', { title: item.title })}
-                        className="trash-row-button danger"
-                        onClick={() => setPurgeTarget(item)}
-                        title={t('vault.purgeItem', { title: item.title })}
-                        type="button"
-                      >
-                        {t('vault.purge')}
-                      </button>
+                      {activeNavigation === 'trash' ? (
+                        <button
+                          aria-label={t('vault.purgeItem', { title: item.title })}
+                          className="state-row-button danger"
+                          onClick={() => setPurgeTarget(item)}
+                          title={t('vault.purgeItem', { title: item.title })}
+                          type="button"
+                        >
+                          {t('vault.purge')}
+                        </button>
+                      ) : null}
                     </span>
                   </span>
                 </div>
@@ -1965,7 +1954,7 @@ function VaultWindow() {
                   {item.favorite ? <Star className="row-star" size={14} /> : null}
                 </button>
               ))}
-          {(activeNavigation === 'trash' ? trashedItems.length === 0 : visibleItems.length === 0) ? (
+          {(stateRows ? stateRows.length === 0 : visibleItems.length === 0) ? (
             <p className="empty-state">{t('vault.noItems', { target: listTitle })}</p>
           ) : null}
         </div>

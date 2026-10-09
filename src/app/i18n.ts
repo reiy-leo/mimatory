@@ -26,17 +26,13 @@ const resources = {
   en: {
     translation: {
       common: {
-        archive: 'Archive',
         categories: 'Categories',
         close: 'Close',
         create: 'Create',
         darkMode: 'Dark mode',
         lightMode: 'Light mode',
         lockVault: 'Lock vault',
-        noArchivedItems: 'No archived items',
-        refreshArchive: 'Refresh archive',
         save: 'Save',
-        settings: 'Settings',
         tags: 'Tags',
       },
       integrations: {
@@ -111,6 +107,7 @@ const resources = {
         vaultItems: 'Vault items',
       },
       listTitle: {
+        archived: 'Archive',
         favorites: 'Favorites',
         tags: 'Tagged items',
         trash: 'Trash',
@@ -142,6 +139,7 @@ const resources = {
         settingsWindowFailed: 'Settings window failed: {{error}}',
       },
       nav: {
+        archived: 'Archived',
         favorites: 'Favorites',
         trash: 'Trash',
         vaults: 'Personal',
@@ -403,17 +401,13 @@ const resources = {
   ja: {
     translation: {
       common: {
-        archive: 'アーカイブ',
         categories: 'カテゴリ',
         close: '閉じる',
         create: '作成',
         darkMode: 'ダークモード',
         lightMode: 'ライトモード',
         lockVault: '保管庫をロック',
-        noArchivedItems: 'アーカイブ項目はありません',
-        refreshArchive: 'アーカイブを更新',
         save: '保存',
-        settings: '設定',
         tags: 'タグ',
       },
       integrations: {
@@ -488,6 +482,7 @@ const resources = {
         vaultItems: '保管庫の項目',
       },
       listTitle: {
+        archived: 'アーカイブ',
         favorites: 'お気に入り',
         tags: 'タグ付き項目',
         trash: 'ごみ箱',
@@ -519,6 +514,7 @@ const resources = {
         settingsWindowFailed: '設定ウィンドウに失敗しました: {{error}}',
       },
       nav: {
+        archived: 'アーカイブ済み',
         favorites: 'お気に入り',
         trash: 'ごみ箱',
         vaults: '個人',
@@ -779,17 +775,13 @@ const resources = {
   zh: {
     translation: {
       common: {
-        archive: '归档',
         categories: '分类',
         close: '关闭',
         create: '创建',
         darkMode: '深色模式',
         lightMode: '浅色模式',
         lockVault: '锁定保险库',
-        noArchivedItems: '没有归档项目',
-        refreshArchive: '刷新归档',
         save: '保存',
-        settings: '设置',
         tags: '标签',
       },
       integrations: {
@@ -863,6 +855,7 @@ const resources = {
         vaultItems: '保管库项目',
       },
       listTitle: {
+        archived: '归档',
         favorites: '收藏',
         tags: '带标签项目',
         trash: '废纸篓',
@@ -894,6 +887,7 @@ const resources = {
         settingsWindowFailed: '设置窗口失败：{{error}}',
       },
       nav: {
+        archived: '已归档',
         favorites: '收藏',
         trash: '废纸篓',
         vaults: '个人',

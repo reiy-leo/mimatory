@@ -159,9 +159,6 @@ export default {
       gridTemplateRows: {
         titlebar: 'var(--measure-titlebar) minmax(0,1fr)',
       },
-      maxHeight: {
-        'archive-list': 'var(--measure-archive-list-max)',
-      },
       /* Documented layout measures (see styles.css `--measure-*`), not spacing steps. */
       maxWidth: {
         content: 'var(--measure-content-max)',
