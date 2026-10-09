@@ -32,6 +32,7 @@ import {
   Paperclip,
   Phone,
   Plus,
+  QrCode,
   RefreshCw,
   Router,
   Search,
@@ -51,6 +52,7 @@ import {
   type CSSProperties,
   type FormEvent,
   Fragment,
+  type ClipboardEvent as ReactClipboardEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   useEffect,
@@ -75,6 +77,7 @@ import { getItemTemplate } from './app/itemTemplates'
 import { getLockScreenVariant, shouldShowTouchIdUnlock } from './app/lockScreen'
 import { getMenuAnchorStyle, type MenuAnchor } from './app/menuPlacement'
 import { navigationItems } from './app/navigation'
+import { clipboardImageFile, otpSecretFromQrImage } from './app/otpQrImport'
 import { formatItemTimestamp } from './app/relativeTime'
 import {
   type AccountPasswordRequirement,
@@ -294,8 +297,8 @@ function fieldValueInputProps(
   secretMasked = false,
 ): { inputMode?: 'email' | 'tel' | 'url'; type: string } {
   if (fieldType === 'password') return { type: 'password' }
-  // A saved seed is not a display value. The two-factor card reveals it on request, so the resting view
-  // shows dots instead of leaving the key on screen for a screenshot or a shoulder.
+  // A saved seed is not a display value: the field rests as dots and only the one being typed in shows
+  // the key, so it is never left on screen for a screenshot or a shoulder.
   if (fieldType === 'otp') return { type: secretMasked ? 'password' : 'text' }
   if (fieldType === 'date') return { type: 'date' }
   if (fieldType === 'email') return { inputMode: 'email', type: 'text' }
@@ -430,11 +433,13 @@ function OtpCodeButton({ onCopy, preview }: { onCopy: () => void; preview: Field
 function OtpFieldActions({
   onCopy,
   onPreview,
+  onReadQr,
   preview,
   secret,
 }: {
   onCopy: () => void
   onPreview: () => void
+  onReadQr: () => void
   preview?: FieldTotpPreview
   secret: string
 }) {
@@ -446,6 +451,15 @@ function OtpFieldActions({
         {t('vault.previewOtp')}
       </button>
       {preview ? <OtpCodeButton onCopy={onCopy} preview={preview} /> : null}
+      <button
+        aria-label={t('vault.readQr')}
+        className="icon-button ml-auto"
+        onClick={onReadQr}
+        title={t('vault.readQr')}
+        type="button"
+      >
+        <QrCode size={15} />
+      </button>
     </div>
   )
 }
@@ -564,6 +578,11 @@ function VaultWindow() {
   const [sectionMenuAnchor, setSectionMenuAnchor] = useState<MenuAnchor>()
   const [fieldTotpPreviews, setFieldTotpPreviews] = useState<Record<number, FieldTotpPreview>>({})
   const [revealedTotpSecrets, setRevealedTotpSecrets] = useState<Record<number, boolean>>({})
+  // Which seed input is showing its value. A saved seed is not a display value, so it rests as dots and
+  // only the field being typed in reveals itself — see `fieldValueInputProps`.
+  const [focusedOtpField, setFocusedOtpField] = useState('')
+  const [otpQrHint, setOtpQrHint] = useState<number | null>(null)
+  const otpInputRefs = useRef<Record<number, HTMLInputElement | null>>({})
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
   const [tagDraft, setTagDraft] = useState('')
   const [isEditing, setIsEditing] = useState(false)
@@ -818,6 +837,8 @@ function VaultWindow() {
     setShowPassword(false)
     setFieldTotpPreviews({})
     setRevealedTotpSecrets({})
+    setFocusedOtpField('')
+    setOtpQrHint(null)
     setTagDraft('')
   }, [draftKey])
 
@@ -989,6 +1010,8 @@ function VaultWindow() {
     setShowPassword(false)
     setFieldTotpPreviews({})
     setRevealedTotpSecrets({})
+    setFocusedOtpField('')
+    setOtpQrHint(null)
     setTagDraft('')
     setIsEditing(!selectedItem)
   }
@@ -1270,6 +1293,44 @@ function VaultWindow() {
     if (!secret) return
     await navigator.clipboard.writeText(buildOtpAuthUri({ account: form.username, issuer: form.title, secret }))
     setOperationMessage(t('messages.copiedSetupLink'))
+  }
+
+  async function importOtpQrImage(index: number, image: Blob) {
+    setError(null)
+    const seed = await otpSecretFromQrImage(image)
+    if (!seed) {
+      setError(t('vault.readQrEmpty'))
+      return
+    }
+    updateCustomField(index, { value: seed })
+    setOtpQrHint(null)
+  }
+
+  // Reading the clipboard is the one-click version of the handoff: the QR is on the enrolment page,
+  // already copied. WKWebView may refuse that API, and then the field is focused and the paste
+  // handler below takes over, so the button never leaves the user with nothing to do.
+  async function readOtpQrFromClipboard(index: number) {
+    otpInputRefs.current[index]?.focus()
+    setOtpQrHint(index)
+    let image: Blob | null = null
+    try {
+      for (const item of await navigator.clipboard.read()) {
+        const kind = item.types.find((type) => type.startsWith('image/'))
+        if (!kind) continue
+        image = await item.getType(kind)
+        break
+      }
+    } catch {
+      return
+    }
+    if (image) await importOtpQrImage(index, image)
+  }
+
+  function handleOtpPaste(index: number, event: ReactClipboardEvent<HTMLInputElement>) {
+    const image = clipboardImageFile(event)
+    if (!image) return
+    event.preventDefault()
+    void importOtpQrImage(index, image)
   }
 
   async function chooseAttachmentForField(index: number) {
@@ -2247,19 +2308,29 @@ function VaultWindow() {
                                 <input
                                   aria-label={t('vault.fieldValue')}
                                   className="custom-field-value-input"
+                                  onBlur={() => setFocusedOtpField('')}
                                   onChange={(event) => updateCustomField(index, { value: event.target.value })}
+                                  onFocus={() => setFocusedOtpField(`login:${index}`)}
+                                  onPaste={(event) => handleOtpPaste(index, event)}
                                   placeholder={t(fieldValuePlaceholderKey(field.field_type))}
+                                  ref={(node) => {
+                                    otpInputRefs.current[index] = node
+                                  }}
                                   value={field.value}
-                                  {...fieldValueInputProps(field.field_type, !isEditing)}
+                                  {...fieldValueInputProps(field.field_type, focusedOtpField !== `login:${index}`)}
                                 />
                               )}
                               {field.field_type === 'otp' ? (
                                 <OtpFieldActions
                                   onCopy={() => copyFieldTotp(index)}
                                   onPreview={() => previewFieldTotp(index, field.value)}
+                                  onReadQr={() => void readOtpQrFromClipboard(index)}
                                   preview={fieldTotpPreviews[index]}
                                   secret={field.value}
                                 />
+                              ) : null}
+                              {field.field_type === 'otp' && otpQrHint === index ? (
+                                <p className="text-body-small text-text-subtle">{t('vault.readQrHint')}</p>
                               ) : null}
                             </div>
                             <button
@@ -2420,12 +2491,17 @@ function VaultWindow() {
                                         <input
                                           aria-label={t('vault.fieldValue')}
                                           className="custom-field-value-input"
+                                          onBlur={() => setFocusedOtpField('')}
                                           onChange={(event) =>
                                             updateSectionChild(index, childIndex, { value: event.target.value })
                                           }
+                                          onFocus={() => setFocusedOtpField(`section:${index}:${childIndex}`)}
                                           placeholder={t(fieldValuePlaceholderKey(child.field_type))}
                                           value={child.value}
-                                          {...fieldValueInputProps(child.field_type, !isEditing)}
+                                          {...fieldValueInputProps(
+                                            child.field_type,
+                                            focusedOtpField !== `section:${index}:${childIndex}`,
+                                          )}
                                         />
                                       </div>
                                       <button
@@ -2500,7 +2576,9 @@ function VaultWindow() {
                                   <input
                                     aria-label={t('vault.fieldValue')}
                                     className="custom-field-value-input"
+                                    onBlur={() => setFocusedOtpField('')}
                                     onChange={(event) => updateCustomField(index, { value: event.target.value })}
+                                    onFocus={() => setFocusedOtpField(`more:${index}`)}
                                     placeholder={t(fieldValuePlaceholderKey(field.field_type))}
                                     readOnly={field.field_type === 'file'}
                                     value={
@@ -2508,7 +2586,7 @@ function VaultWindow() {
                                         ? fileNameFromPath(field.value)
                                         : field.value
                                     }
-                                    {...fieldValueInputProps(field.field_type, !isEditing)}
+                                    {...fieldValueInputProps(field.field_type, focusedOtpField !== `more:${index}`)}
                                   />
                                 )}
                                 {field.field_type === 'file' ? (
