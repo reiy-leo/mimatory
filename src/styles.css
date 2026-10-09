@@ -1954,6 +1954,47 @@
     border-color: var(--color-border-selected);
   }
 
+  .nav-sublist {
+    @apply grid gap-025 pl-250;
+  }
+
+  .nav-sublist-empty {
+    color: var(--color-text-subtlest);
+    @apply m-0 pl-250 text-body-small;
+  }
+
+  .nav-item.tag-item {
+    @apply min-h-300 py-025 text-body-small font-regular;
+  }
+
+  .tag-field-label {
+    color: var(--color-text);
+    @apply font-medium;
+  }
+
+  .tag-chip-box {
+    @apply flex flex-wrap items-center gap-075;
+  }
+
+  .tag-chip {
+    background: var(--color-background-neutral-subtle-hovered);
+    @apply flex items-center gap-050 rounded-small px-100 py-025 text-body text-text;
+  }
+
+  .tag-chip-remove {
+    color: var(--color-text-subtlest);
+    @apply grid h-250 w-250 shrink-0 place-items-center rounded-small border-0 bg-transparent p-0;
+  }
+
+  .tag-chip-remove:hover {
+    color: var(--color-text);
+    background: var(--color-background-neutral-subtle-pressed);
+  }
+
+  .tag-input {
+    @apply min-w-0 flex-1;
+  }
+
   .onepassword-field input,
   .onepassword-field textarea,
   .onepassword-field select,

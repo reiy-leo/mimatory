@@ -197,7 +197,7 @@ decisions are in the section above.
   It renders, but it is not a designed dark theme. `needs-design-decision` — do not invent Atlassian
   dark hexes locally.
 - **Trash UI**: the `items.trashed` / `deleted_at` columns, the four Rust commands and the `vaultApi.trash/trashed/restoreFromTrash/purge` wrappers are implemented and registered; no screen calls them, and there is no Trash nav item in `navigation.ts`.
-- **Tag filtering**: `tags` and `item_tags` are populated relationally, but the sidebar only switches to "items that have any tags". Per-tag filtering UI is not built.
+- **Tag filtering**: closed 2026-10-09. The Tags nav row expands to a per-tag list with counts, picking one filters the item list (`src/app/itemTags.ts`), and the item form edits tags as chips. Tags stay case-insensitive — the helpers mirror `normalized_tag_names` in `vault.rs`, so "Work" and "work" are one tag in the UI and in storage.
 - **Runtime verification outstanding**: tray, `⌘⇧Space`, the Quick Access window and autostart are written but have never been exercised in a running app. The CSP likewise has never been checked in a packaged build. **The 2026-10-08 Atlassian restyle is also unverified in a window** — `tsc`, Vitest, the Tailwind compile and `cargo test` are all green, but nobody has opened the app or the popup and looked at it, so treat layout and every hover/pressed/disabled state as unconfirmed until `npm run tauri dev` and the packaged build have both been seen.
 - **UI strings are not all translated**: roughly 18 `t()` call sites in `App.tsx` pass a `defaultValue`
   for a key that exists in no locale bundle (`vault.copyOtp`, `messages.createdVault`,

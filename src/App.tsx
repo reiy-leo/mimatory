@@ -49,6 +49,7 @@ import {
 import {
   type CSSProperties,
   type FormEvent,
+  Fragment,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   useEffect,
@@ -59,6 +60,16 @@ import {
 import { useTranslation } from 'react-i18next'
 import i18n, { getInitialLanguage, languageOptions, type SupportedLanguage } from './app/i18n'
 import { isFormDirty } from './app/itemDrafts'
+import {
+  addTag,
+  countItemTags,
+  filterItemsByTag,
+  removeTag,
+  type TagNavigation,
+  tagKeyFromNavigation,
+  tagList,
+  tagNavigationId,
+} from './app/itemTags'
 import { getItemTemplate } from './app/itemTemplates'
 import { getLockScreenVariant, shouldShowTouchIdUnlock } from './app/lockScreen'
 import { getMenuAnchorStyle, type MenuAnchor } from './app/menuPlacement'
@@ -108,7 +119,7 @@ import {
 
 type VaultMode = 'loading' | 'setup' | 'locked' | 'unlocked'
 type CategoryNavigation = `category:${(typeof categoryItems)[number]['itemType']}`
-type ActiveNavigation = (typeof navigationItems)[number]['id'] | CategoryNavigation
+type ActiveNavigation = (typeof navigationItems)[number]['id'] | CategoryNavigation | TagNavigation
 
 type LoginFormState = LoginItemInput & {
   tagsInput: string
@@ -551,6 +562,7 @@ function VaultWindow() {
   const [fieldTotpPreviews, setFieldTotpPreviews] = useState<Record<number, FieldTotpPreview>>({})
   const [revealedTotpSecrets, setRevealedTotpSecrets] = useState<Record<number, boolean>>({})
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
+  const [tagDraft, setTagDraft] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   // What the current form was loaded from. A ref, not state: the switch effect below runs only
   // when the selected item changes, and it has to compare the outgoing form against the baseline
@@ -691,16 +703,19 @@ function VaultWindow() {
     [activeVaultId, t, vaults],
   )
 
+  const activeTagKey = tagKeyFromNavigation(activeNavigation)
+
   const visibleItems = useMemo(() => {
     if (activeNavigation === 'generator' || activeNavigation === 'watchtower') return []
     if (activeNavigation === 'favorites') return items.filter((item) => item.favorite)
     if (activeNavigation === 'tags') return items.filter((item) => item.tags.length > 0)
+    if (activeTagKey) return filterItemsByTag(items, activeTagKey)
     if (activeNavigation.startsWith('category:')) {
       const itemType = activeNavigation.replace('category:', '')
       return items.filter((item) => item.item_type === itemType)
     }
     return items
-  }, [activeNavigation, items])
+  }, [activeNavigation, activeTagKey, items])
 
   // Counted from the whole vault rather than `visibleItems`, because a sidebar number has to say how
   // many a click will reveal — not how many the current selection already shows. Search is excluded
@@ -717,6 +732,9 @@ function VaultWindow() {
     }
     return counts
   }, [items])
+
+  const tagCounts = useMemo(() => countItemTags(items, i18n.language), [i18n.language, items])
+  const activeTagName = tagCounts.find((entry) => entry.key === activeTagKey)?.name ?? activeTagKey
 
   const topSearchResults = useMemo(() => {
     const normalizedQuery = topSearch.trim().toLowerCase()
@@ -762,6 +780,7 @@ function VaultWindow() {
   const listTitle = useMemo(() => {
     if (activeNavigation === 'favorites') return t('listTitle.favorites')
     if (activeNavigation === 'tags') return t('listTitle.tags')
+    if (activeTagKey) return activeTagName ?? t('listTitle.tags')
     if (activeNavigation === 'generator') return t('listTitle.generator')
     if (activeNavigation === 'watchtower') return t('listTitle.watchtower')
     if (activeNavigation.startsWith('category:')) {
@@ -769,7 +788,7 @@ function VaultWindow() {
       return t(`itemTypes.${itemType}`, { defaultValue: itemType })
     }
     return t('listTitle.vaults')
-  }, [activeNavigation, t])
+  }, [activeNavigation, activeTagName, t])
 
   useEffect(() => {
     formRef.current = form
@@ -790,6 +809,7 @@ function VaultWindow() {
     setShowPassword(false)
     setFieldTotpPreviews({})
     setRevealedTotpSecrets({})
+    setTagDraft('')
   }, [draftKey])
 
   useEffect(() => {
@@ -959,7 +979,24 @@ function VaultWindow() {
     setShowPassword(false)
     setFieldTotpPreviews({})
     setRevealedTotpSecrets({})
+    setTagDraft('')
     setIsEditing(!selectedItem)
+  }
+
+  // The chip box is a view of `tagsInput`, so committing only rewrites that one string. Leaving the
+  // field with a half-typed tag still saves it, because the tag was never in a separate place.
+  function commitTagDraft() {
+    const pending = tagDraft.trim()
+    if (!pending) return
+    setForm((current) => ({ ...current, tagsInput: addTag(current.tagsInput, pending) }))
+    setTagDraft('')
+  }
+
+  function removeLastTag() {
+    const tags = tagList(form.tagsInput)
+    const last = tags[tags.length - 1]
+    if (!last) return
+    setForm((current) => ({ ...current, tagsInput: removeTag(current.tagsInput, last) }))
   }
 
   // A template's fields are ordinary custom fields, so a seeded item can be edited,
@@ -1588,17 +1625,41 @@ function VaultWindow() {
             // The two tools are not lists, so they get no count rather than a zero that implies an
             // empty one.
             const count = item.id === 'generator' || item.id === 'watchtower' ? null : navigationCounts[item.id]
+            // Tags narrow the tagged list, so the individual tags only appear while that list is the
+            // one on screen. A separate sidebar section would put a second "Tags" label next to this one.
+            const showTagRows = item.id === 'tags' && (activeNavigation === 'tags' || activeTagKey !== null)
             return (
-              <button
-                className={item.id === activeNavigation ? 'nav-item active' : 'nav-item'}
-                key={item.id}
-                onClick={() => setActiveNavigation(item.id)}
-                type="button"
-              >
-                <Icon size={16} />
-                <span>{t(`nav.${item.id}`)}</span>
-                {count === null ? null : <span className="nav-count">{count}</span>}
-              </button>
+              <Fragment key={item.id}>
+                <button
+                  className={item.id === activeNavigation ? 'nav-item active' : 'nav-item'}
+                  onClick={() => setActiveNavigation(item.id)}
+                  type="button"
+                >
+                  <Icon size={16} />
+                  <span>{t(`nav.${item.id}`)}</span>
+                  {count === null ? null : <span className="nav-count">{count}</span>}
+                </button>
+                {showTagRows ? (
+                  <div className="nav-sublist">
+                    {tagCounts.map((entry) => (
+                      <button
+                        className={
+                          activeNavigation === tagNavigationId(entry.key)
+                            ? 'nav-item tag-item active'
+                            : 'nav-item tag-item'
+                        }
+                        key={entry.key}
+                        onClick={() => setActiveNavigation(tagNavigationId(entry.key))}
+                        type="button"
+                      >
+                        <span>{entry.name}</span>
+                        <span className="nav-count">{entry.count}</span>
+                      </button>
+                    ))}
+                    {tagCounts.length === 0 ? <p className="nav-sublist-empty">{t('vault.noTags')}</p> : null}
+                  </div>
+                ) : null}
+              </Fragment>
             )
           })}
         </nav>
@@ -2190,14 +2251,56 @@ function VaultWindow() {
                       </button>
                     </div>
                   ) : null}
-                  <label className="onepassword-field standalone">
-                    {t('vault.tags')}
-                    <input
-                      onChange={(event) => setForm((current) => ({ ...current, tagsInput: event.target.value }))}
-                      placeholder={t('vault.tagsPlaceholder')}
-                      value={form.tagsInput}
-                    />
-                  </label>
+                  <div className="onepassword-field standalone">
+                    <span className="tag-field-label">{t('vault.tags')}</span>
+                    <div className="tag-chip-box">
+                      {tagList(form.tagsInput).map((tag) => (
+                        <span className="tag-chip" key={tag}>
+                          <span>{tag}</span>
+                          {isEditing ? (
+                            <button
+                              aria-label={t('vault.removeTag', { tag })}
+                              className="tag-chip-remove"
+                              onClick={() =>
+                                setForm((current) => ({ ...current, tagsInput: removeTag(current.tagsInput, tag) }))
+                              }
+                              type="button"
+                            >
+                              <X size={12} />
+                            </button>
+                          ) : null}
+                        </span>
+                      ))}
+                      {isEditing ? (
+                        <input
+                          aria-label={t('vault.addTag')}
+                          className="tag-input"
+                          onBlur={commitTagDraft}
+                          onChange={(event) => {
+                            const next = event.target.value
+                            // A comma means a finished tag, whether it was typed or pasted, so it
+                            // commits instead of sitting in the box as loose text.
+                            if (next.includes(',')) {
+                              setForm((current) => ({ ...current, tagsInput: addTag(current.tagsInput, next) }))
+                              setTagDraft('')
+                              return
+                            }
+                            setTagDraft(next)
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault()
+                              commitTagDraft()
+                              return
+                            }
+                            if (event.key === 'Backspace' && !tagDraft) removeLastTag()
+                          }}
+                          placeholder={t('vault.addTag')}
+                          value={tagDraft}
+                        />
+                      ) : null}
+                    </div>
+                  </div>
                   <label className="wide onepassword-field onepassword-block">
                     {t('vault.notes')}
                     <textarea
