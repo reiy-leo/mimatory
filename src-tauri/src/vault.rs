@@ -105,6 +105,7 @@ pub struct VaultSummary {
 pub struct Tag {
     pub name: String,
     pub icon: String,
+    pub color: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -553,20 +554,25 @@ impl VaultService {
 
     pub fn list_tags(&self, session: &Session) -> Result<Vec<Tag>, VaultError> {
         let mut statement = self.connection.prepare(
-            "SELECT name_ciphertext, icon FROM tags WHERE vault_id = ?1 ORDER BY created_at ASC",
+            "SELECT name_ciphertext, icon, color FROM tags WHERE vault_id = ?1 ORDER BY created_at ASC",
         )?;
         let rows = statement
             .query_map([&session.vault_id], |row| {
-                Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, String>(1)?))
+                Ok((
+                    row.get::<_, Vec<u8>>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
         drop(statement);
 
         rows.into_iter()
-            .map(|(name_ciphertext, icon)| {
+            .map(|(name_ciphertext, icon, color)| {
                 Ok(Tag {
                     name: decrypt_string_from_blob(&session.key, &name_ciphertext)?,
                     icon,
+                    color,
                 })
             })
             .collect()
@@ -582,6 +588,7 @@ impl VaultService {
         name: &str,
         new_name: &str,
         icon: &str,
+        color: &str,
     ) -> Result<(), VaultError> {
         let id = self.tag_id(session, name)?.ok_or(VaultError::TagNotFound)?;
         let new_name = new_name.trim();
@@ -610,20 +617,21 @@ impl VaultService {
                 .execute("DELETE FROM item_tags WHERE tag_id = ?1", [&id])?;
             self.connection.execute("DELETE FROM tags WHERE id = ?1", [&id])?;
             self.connection.execute(
-                "UPDATE tags SET icon = ?1, updated_at = ?2 WHERE id = ?3",
-                params![icon, now, &target_id],
+                "UPDATE tags SET icon = ?1, color = ?2, updated_at = ?3 WHERE id = ?4",
+                params![icon, color, now, &target_id],
             )?;
             self.record_event("merge_tag", &format!("Merged tag {name} into {new_name}"))?;
             return Ok(());
         }
 
         self.connection.execute(
-            "UPDATE tags SET name_ciphertext = ?1, name_hash = ?2, icon = ?3, updated_at = ?4
-             WHERE id = ?5 AND vault_id = ?6",
+            "UPDATE tags SET name_ciphertext = ?1, name_hash = ?2, icon = ?3, color = ?4,
+             updated_at = ?5 WHERE id = ?6 AND vault_id = ?7",
             params![
                 encrypt_string_to_blob(&session.key, new_name)?,
                 name_hash,
                 icon,
+                color,
                 now,
                 id,
                 &session.vault_id
@@ -2094,11 +2102,11 @@ mod tests {
         let tags = service.list_tags(&session).expect("tags should list");
         assert_eq!(tags.len(), 2);
         // One row covers both spellings, so the vault has two tags, not three.
-        assert!(tags.iter().all(|tag| tag.icon == "tag"));
+        assert!(tags.iter().all(|tag| tag.icon == "tag" && tag.color.is_empty()));
         assert!(tags.iter().any(|tag| tag.name == "Work"));
 
         service
-            .update_tag(&session, "work", "Job", "briefcase")
+            .update_tag(&session, "work", "Job", "briefcase", "teal")
             .expect("a tag is addressed by any spelling of its name");
 
         let tags = service.list_tags(&session).expect("tags should list after the rename");
@@ -2106,6 +2114,7 @@ mod tests {
         assert!(tags.iter().any(|tag| tag.name == "Job"));
         let job = tags.iter().find(|tag| tag.name == "Job").expect("Job");
         assert_eq!(job.icon, "briefcase");
+        assert_eq!(job.color, "teal");
 
         // Both items read the new spelling without either one being opened, because an item's tags are
         // the rows it links to rather than a copy of the text that was typed.
@@ -2117,14 +2126,15 @@ mod tests {
 
         // A name the vault already has merges rather than failing on the unique name hash.
         service
-            .update_tag(&session, "code", "job", "star")
+            .update_tag(&session, "code", "job", "star", "")
             .expect("renaming onto an existing tag should merge");
 
         let tags = service.list_tags(&session).expect("tags should list after the merge");
         assert_eq!(tags.len(), 1);
-        // The row that was already there keeps its own spelling; only the icon follows this edit.
+        // The row that was already there keeps its own spelling; only the styling follows this edit.
         assert_eq!(tags[0].name, "Job");
         assert_eq!(tags[0].icon, "star");
+        assert_eq!(tags[0].color, "");
 
         let items = service.list_login_items(&session, None).expect("items should list");
         let github = items
@@ -2134,11 +2144,11 @@ mod tests {
         assert_eq!(github.tags, vec!["Job"]);
 
         assert!(matches!(
-            service.update_tag(&session, "Job", "   ", "star"),
+            service.update_tag(&session, "Job", "   ", "star", ""),
             Err(VaultError::TagNameEmpty)
         ));
         assert!(matches!(
-            service.update_tag(&session, "missing-tag", "New", "star"),
+            service.update_tag(&session, "missing-tag", "New", "star", ""),
             Err(VaultError::TagNotFound)
         ));
 

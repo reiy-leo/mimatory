@@ -106,18 +106,22 @@ describe('i18n', () => {
     /* The lookbehind keeps `field_type` and `item_type` out of the sweep — only the add-field menu's
        own `type:` values pick a placeholder, and an item type is not one of them. */
     const fieldTypes = [...app.matchAll(/(?<![A-Za-z_])type: '([a-z_]+)'/g)].map((match) => match[1])
-    const tagIcons = [...readFileSync('src/app/tagIcons.ts', 'utf8').matchAll(/name: '([a-z-]+)'/g)].map(
-      (match) => match[1],
-    )
+    const tagSource = readFileSync('src/app/tagIcons.ts', 'utf8')
+    const tagIcons = [...tagSource.matchAll(/\{ icon: \w+, name: '([a-z-]+)' \}/g)].map((match) => match[1])
+    /* The "no colour" swatch is stored as an empty string, so its key is the one name the source does
+       not carry and the picker's `tagColorLabelKey` supplies instead. */
+    const tagColors = ['none', ...[...tagSource.matchAll(/swatchClass: 'bg-accent-icon-([a-z]+)'/g)].map((m) => m[1])]
 
     expect(itemTypes.length).toBeGreaterThan(10)
     expect(fieldTypes.length).toBeGreaterThan(10)
     expect(tagIcons.length).toBeGreaterThan(10)
+    expect(tagColors.length).toBeGreaterThan(10)
 
     const derived = [
       ...itemTypes.map((itemType) => `itemTypes.${itemType}`),
       ...fieldTypes.map((fieldType) => `vault.customFieldDefaults.${fieldType}`),
       ...tagIcons.map((tagIcon) => `tagIcons.${tagIcon}`),
+      ...tagColors.map((tagColor) => `tagColors.${tagColor}`),
     ]
     expect(missingFromSomeLocale(derived)).toEqual([])
   })

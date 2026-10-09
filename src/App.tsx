@@ -93,7 +93,14 @@ import {
   type SecurityPreferences,
   saveSecurityPreferences,
 } from './app/securityPreferences'
-import { tagIconComponent, tagIconOptions } from './app/tagIcons'
+import {
+  defaultTagColor,
+  tagColorClass,
+  tagColorLabelKey,
+  tagColorOptions,
+  tagIconComponent,
+  tagIconOptions,
+} from './app/tagIcons'
 import { getInitialTheme, type Theme } from './app/theme'
 import {
   buildOtpAuthUri,
@@ -618,7 +625,7 @@ function VaultWindow() {
   const [tagRecords, setTagRecords] = useState<Tag[]>([])
   const [tagMenu, setTagMenu] = useState<TagRow | null>(null)
   const [tagMenuAnchor, setTagMenuAnchor] = useState<MenuAnchor>()
-  const [tagEditor, setTagEditor] = useState<{ from: string; icon: string; name: string } | null>(null)
+  const [tagEditor, setTagEditor] = useState<{ color: string; from: string; icon: string; name: string } | null>(null)
   const [tagDeleteTarget, setTagDeleteTarget] = useState<TagRow | null>(null)
   const tagNameInputRef = useRef<HTMLInputElement>(null)
   const [passwordStrength, setPasswordStrength] = useState<PasswordStrength | null>(null)
@@ -1348,7 +1355,7 @@ function VaultWindow() {
 
   function openTagEditor() {
     if (!tagMenu) return
-    setTagEditor({ from: tagMenu.name, icon: tagMenu.icon, name: tagMenu.name })
+    setTagEditor({ color: tagMenu.color, from: tagMenu.name, icon: tagMenu.icon, name: tagMenu.name })
     closeFieldMenus()
   }
 
@@ -1364,13 +1371,19 @@ function VaultWindow() {
     const wasFilteredOn = activeNavigation === tagNavigationId(tagKey(tagEditor.from))
     setError(null)
     try {
-      await vaultApi.updateTag(tagEditor.from, name, tagEditor.icon)
+      await vaultApi.updateTag({
+        color: tagEditor.color,
+        from: tagEditor.from,
+        icon: tagEditor.icon,
+        name,
+      })
       await refreshItems()
       closeTagEditor()
       // A rename changes the key the view is addressed by, so the filter follows the tag rather than
       // falling back to the whole vault mid-edit.
       if (wasFilteredOn) setActiveNavigation(tagNavigationId(tagKey(name)))
-      setOperationMessage(t('messages.renamedTag', { name }))
+      // The dialog saves the styling and the name together, so a run of icon clicks is not a rename.
+      setOperationMessage(t(name === tagEditor.from ? 'messages.updatedTag' : 'messages.renamedTag', { name }))
     } catch (nextError) {
       setError(String(nextError))
     }
@@ -1941,15 +1954,13 @@ function VaultWindow() {
                   const Icon = tagIconComponent(tag.icon)
                   return (
                     <button
-                      className={
-                        activeNavigation === tagNavigationId(tag.key) ? 'nav-item tag-item active' : 'nav-item tag-item'
-                      }
+                      className={activeNavigation === tagNavigationId(tag.key) ? 'nav-item active' : 'nav-item'}
                       key={tag.key}
                       onClick={() => setActiveNavigation(tagNavigationId(tag.key))}
                       onContextMenu={(event) => openTagMenu(event, tag)}
                       type="button"
                     >
-                      <Icon size={16} />
+                      <Icon className={tagColorClass(tag.color)} size={16} />
                       <span>{tag.name}</span>
                       <span className="nav-count">{tag.count}</span>
                     </button>
@@ -2785,6 +2796,23 @@ function VaultWindow() {
                     >
                       <option.icon aria-hidden="true" size={16} />
                     </button>
+                  ))}
+                </div>
+              </fieldset>
+              {/* A tag is one of the two places DESIGN.md lets an accent hue stand for itself rather than
+                  for a status, so the picker offers the whole ramp and "none" alongside it. */}
+              <fieldset className="tag-color-picker">
+                <legend>{t('vault.tagColor')}</legend>
+                <div className="tag-color-row">
+                  {tagColorOptions.map((option) => (
+                    <button
+                      aria-label={t(tagColorLabelKey(option.name))}
+                      aria-pressed={tagEditor.color === option.name}
+                      className={`tag-color-option ${option.swatchClass}`}
+                      key={option.name === defaultTagColor ? 'none' : option.name}
+                      onClick={() => setTagEditor({ ...tagEditor, color: option.name })}
+                      type="button"
+                    />
                   ))}
                 </div>
               </fieldset>

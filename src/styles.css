@@ -1929,17 +1929,15 @@
     border-color: var(--color-border-selected);
   }
 
+  /* The tag list is the same list the category section renders, down to the gap between rows — the two
+     sections sit one under the other and a different rhythm reads as a mistake rather than a grouping. */
   .nav-sublist {
-    @apply grid gap-025 pl-250;
+    @apply grid gap-050;
   }
 
   .nav-sublist-empty {
     color: var(--color-text-subtlest);
-    @apply m-0 pl-250 text-body-small;
-  }
-
-  .nav-item.tag-item {
-    @apply min-h-300 py-025 text-body-small font-regular;
+    @apply m-0 px-100 text-body-small;
   }
 
   .tag-field-label {
@@ -2288,20 +2286,28 @@
 
   /* The tag picker borrows the confirmation card, so it sheds the browser's fieldset chrome and keeps
      the card's own measure; the legend reads as a field label. */
-  .tag-icon-picker {
+  .tag-icon-picker,
+  .tag-color-picker {
     @apply mb-0 ml-0 mr-0 mt-200 border-0 p-0;
   }
 
-  .tag-icon-picker legend {
+  .tag-icon-picker legend,
+  .tag-color-picker legend {
     color: var(--color-text-subtle);
     @apply mb-050 text-body-small;
   }
 
+  /* Forty glyphs at four across would push the dialog past the shortest window it can open in. */
   .tag-icon-grid {
-    @apply grid grid-cols-4 gap-050;
+    @apply grid grid-cols-5 gap-050;
   }
 
-  .tag-icon-option {
+  .tag-color-row {
+    @apply flex flex-wrap gap-050;
+  }
+
+  .tag-icon-option,
+  .tag-color-option {
     color: var(--color-icon-subtle);
     background: var(--color-background-input);
     border: var(--border-width-default) solid var(--color-border-input);
@@ -2309,7 +2315,22 @@
     @apply grid h-400 place-items-center p-0;
   }
 
-  .tag-icon-option:hover {
+  .tag-color-option {
+    @apply w-400 shrink-0;
+  }
+
+  /* The "no colour" choice cannot be a hue swatch, so it reads as the empty input it leaves behind. */
+  .tag-swatch-none {
+    background-image: linear-gradient(
+      to bottom right,
+      transparent calc(50% - var(--border-width-default)),
+      var(--color-border-input) 50%,
+      transparent calc(50% + var(--border-width-default))
+    );
+  }
+
+  .tag-icon-option:hover,
+  .tag-color-option:hover {
     background: var(--color-background-neutral-subtle-hovered);
   }
 
@@ -2320,7 +2341,14 @@
     border-color: var(--color-border-selected);
   }
 
-  .tag-icon-option:focus-visible {
+  /* A swatch already carries a hue as its background, so the selection has to be the frame instead. */
+  .tag-color-option[aria-pressed="true"] {
+    border-color: var(--color-border-selected);
+    border-width: var(--border-width-selected);
+  }
+
+  .tag-icon-option:focus-visible,
+  .tag-color-option:focus-visible {
     outline: var(--border-width-focused) solid var(--color-border-focused);
     outline-offset: var(--space-025);
     border-radius: var(--radius-large);

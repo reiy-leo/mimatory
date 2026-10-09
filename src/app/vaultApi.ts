@@ -91,6 +91,7 @@ export type BreachCheckResult = {
 }
 
 export type Tag = {
+  color: string
   icon: string
   name: string
 }
@@ -180,6 +181,6 @@ export const vaultApi = {
   unlock: (password: string) => invoke<LoginItem[]>('unlock_vault', { password }),
   unlockWithBiometrics: () => invoke<LoginItem[]>('unlock_with_biometrics'),
   update: (id: string, input: LoginItemInput) => invoke<LoginItem>('update_login_item', { input: { id, ...input } }),
-  updateTag: (from: string, name: string, icon: string) => invoke<void>('update_tag', { from, icon, name }),
+  updateTag: (patch: Tag & { from: string }) => invoke<void>('update_tag', patch),
   watchtower: () => invoke<WatchtowerReport>('watchtower_report'),
 }

@@ -133,8 +133,9 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
             name_hash BLOB NOT NULL,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            /* Last, because ALTER TABLE on an existing vault appends it here. */
+            /* Last, because ALTER TABLE on an existing vault appends them here. */
             icon TEXT NOT NULL DEFAULT 'tag',
+            color TEXT NOT NULL DEFAULT '',
             UNIQUE (vault_id, name_hash)
         );
 
@@ -211,6 +212,13 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
     if !has_column(connection, "tags", "icon")? {
         connection.execute(
             "ALTER TABLE tags ADD COLUMN icon TEXT NOT NULL DEFAULT 'tag'",
+            [],
+        )?;
+    }
+
+    if !has_column(connection, "tags", "color")? {
+        connection.execute(
+            "ALTER TABLE tags ADD COLUMN color TEXT NOT NULL DEFAULT ''",
             [],
         )?;
     }
@@ -375,7 +383,7 @@ mod tests {
     }
 
     #[test]
-    fn initialize_database_adds_an_icon_to_tags_that_already_exist() {
+    fn initialize_database_adds_tag_styling_to_tags_that_already_exist() {
         let (temp_dir, database_path) = temp_database("tag-icon");
         fs::create_dir_all(&temp_dir).expect("temp dir should exist");
 
@@ -412,16 +420,18 @@ mod tests {
 
         let connection = Connection::open(&database_path).expect("database should reopen");
         assert!(has_column(&connection, "tags", "icon").expect("column check should run"));
+        assert!(has_column(&connection, "tags", "color").expect("column check should run"));
 
-        let (icon, name_ciphertext): (String, Vec<u8>) = connection
+        let (icon, color, name_ciphertext): (String, String, Vec<u8>) = connection
             .query_row(
-                "SELECT icon, name_ciphertext FROM tags WHERE id = 'work'",
+                "SELECT icon, color, name_ciphertext FROM tags WHERE id = 'work'",
                 [],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .expect("the existing tag should survive the upgrade");
 
         assert_eq!(icon, "tag");
+        assert_eq!(color, "");
         assert_eq!(name_ciphertext, vec![1]);
 
         let _ = fs::remove_dir_all(temp_dir);

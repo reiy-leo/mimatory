@@ -10,6 +10,7 @@ import {
   tagNavigationId,
   tagRows,
 } from './itemTags'
+import { defaultTagColor } from './tagIcons'
 import type { Tag } from './vaultApi'
 
 function item(id: string, tags: string[]) {
@@ -62,28 +63,30 @@ describe('tag filtering', () => {
 describe('tag row styling', () => {
   const counts = countItemTags([item('a', ['Work']), item('b', ['home'])], 'en')
 
-  it('puts the stored icon on the row that names it, whatever spelling either side used', () => {
+  it('puts the stored icon and colour on the row that names it, whatever spelling either side used', () => {
     // In the vault an item's tags are decrypted from the row it links to, so the two spellings can only
     // differ here — the join is on the key, not on the text.
     const tags: Tag[] = [
-      { icon: 'briefcase', name: 'work' },
-      { icon: 'home', name: 'Home' },
+      { color: 'teal', icon: 'briefcase', name: 'work' },
+      { color: '', icon: 'home', name: 'Home' },
     ]
     expect(tagRows(counts, tags)).toEqual([
-      { count: 1, icon: 'home', key: 'home', name: 'home' },
-      { count: 1, icon: 'briefcase', key: 'work', name: 'Work' },
+      { color: '', count: 1, icon: 'home', key: 'home', name: 'home' },
+      { color: 'teal', count: 1, icon: 'briefcase', key: 'work', name: 'Work' },
     ])
   })
 
-  it('falls back to the default icon rather than dropping the row', () => {
+  it('falls back to the default icon and colour rather than dropping the row', () => {
     // A tag a save path created has a row, and a row the picker never styled reads as the default.
-    expect(tagRows(counts, [{ icon: defaultTagIcon, name: 'Work' }])[1]).toEqual({
+    expect(tagRows(counts, [{ color: defaultTagColor, icon: defaultTagIcon, name: 'Work' }])[1]).toEqual({
+      color: '',
       count: 1,
       icon: 'tag',
       key: 'work',
       name: 'Work',
     })
     expect(tagRows(counts, [])[1]?.icon).toBe(defaultTagIcon)
+    expect(tagRows(counts, [])[1]?.color).toBe(defaultTagColor)
   })
 
   it('shows only the tags a live item still names', () => {

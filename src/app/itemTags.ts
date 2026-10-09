@@ -1,8 +1,9 @@
+import { defaultTagColor } from './tagIcons'
 import { parseTags, type Tag, tagsToInput } from './vaultApi'
 
 export type TagCount = { count: number; key: string; name: string }
 export type TagNavigation = `tag:${string}`
-export type TagRow = { count: number; icon: string; key: string; name: string }
+export type TagRow = { color: string; count: number; icon: string; key: string; name: string }
 
 const tagNavigationPrefix = 'tag:'
 
@@ -67,10 +68,13 @@ export function filterItemsByTag<T extends { tags: readonly string[] }>(items: r
 }
 
 // Which tags the sidebar offers, and how many items each one names, comes from the live item list; the
-// icon comes from the storage row. Joined here on the key both sides casefold to, so a count cannot
-// disagree with what clicking that tag reveals.
+// icon and hue come from the storage row. Joined here on the key both sides casefold to, so a count
+// cannot disagree with what clicking that tag reveals.
 export function tagRows(counts: readonly TagCount[], tags: readonly Tag[]): TagRow[] {
-  const icons = new Map<string, string>()
-  for (const tag of tags) icons.set(tagKey(tag.name), tag.icon)
-  return counts.map((count) => ({ ...count, icon: icons.get(count.key) ?? defaultTagIcon }))
+  const styled = new Map<string, Tag>()
+  for (const tag of tags) styled.set(tagKey(tag.name), tag)
+  return counts.map((count) => {
+    const found = styled.get(count.key)
+    return { ...count, color: found?.color ?? defaultTagColor, icon: found?.icon ?? defaultTagIcon }
+  })
 }

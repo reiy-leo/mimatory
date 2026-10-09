@@ -289,12 +289,18 @@ fn list_tags(state: State<AppState>) -> Result<Vec<Tag>, String> {
 }
 
 #[tauri::command]
-fn update_tag(from: String, icon: String, name: String, state: State<AppState>) -> Result<(), String> {
+fn update_tag(
+    color: String,
+    from: String,
+    icon: String,
+    name: String,
+    state: State<AppState>,
+) -> Result<(), String> {
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
-        .update_tag(&session, &from, &name, &icon)
+        .update_tag(&session, &from, &name, &icon, &color)
         .map_err(String::from)
 }
 
