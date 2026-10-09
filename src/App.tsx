@@ -701,6 +701,22 @@ function VaultWindow() {
     return items
   }, [activeNavigation, items])
 
+  // Counted from the whole vault rather than `visibleItems`, because a sidebar number has to say how
+  // many a click will reveal — not how many the current selection already shows. Search is excluded
+  // for the same reason: the list can be filtered while the sidebar keeps its meaning.
+  const navigationCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      favorites: items.filter((item) => item.favorite).length,
+      tags: items.filter((item) => item.tags.length > 0).length,
+      vaults: items.length,
+    }
+    for (const item of items) {
+      const category = `category:${item.item_type}`
+      counts[category] = (counts[category] ?? 0) + 1
+    }
+    return counts
+  }, [items])
+
   const topSearchResults = useMemo(() => {
     const normalizedQuery = topSearch.trim().toLowerCase()
     if (!normalizedQuery) return []
@@ -1568,6 +1584,9 @@ function VaultWindow() {
         <nav className="nav-list">
           {navigationItems.map((item) => {
             const Icon = iconById[item.id]
+            // The two tools are not lists, so they get no count rather than a zero that implies an
+            // empty one.
+            const count = item.id === 'generator' || item.id === 'watchtower' ? null : navigationCounts[item.id]
             return (
               <button
                 className={item.id === activeNavigation ? 'nav-item active' : 'nav-item'}
@@ -1577,6 +1596,7 @@ function VaultWindow() {
               >
                 <Icon size={16} />
                 <span>{t(`nav.${item.id}`)}</span>
+                {count === null ? null : <span className="nav-count">{count}</span>}
               </button>
             )
           })}
@@ -1599,6 +1619,7 @@ function VaultWindow() {
                 >
                   <Icon className={category.colorClass} size={16} />
                   <span>{t(`itemTypes.${category.itemType}`)}</span>
+                  <span className="nav-count">{navigationCounts[id] ?? 0}</span>
                 </button>
               )
             })}

@@ -1561,6 +1561,15 @@
     @apply min-w-0 flex-1 truncate;
   }
 
+  .nav-item .nav-count {
+    color: var(--color-text-subtlest);
+    @apply flex-none tabular-nums text-body-small;
+  }
+
+  .nav-item.active .nav-count {
+    color: var(--color-text-selected);
+  }
+
   .nav-item:hover,
   .settings-tabs button:hover {
     color: var(--theme-text-70);
