@@ -26,6 +26,12 @@ accumulate uncommitted changes across turns. Stage by file name, never `git add 
 `git status` before committing so nothing suspicious (secrets, `src-tauri/gen/`, generated `popup.css`
  churn) gets pushed.
 
+**Check i18n completeness before every commit** (owner instruction, 2026-10-09). Every user-facing string
+added or changed in that turn — labels, notices, *and* error and success messages — must exist in all three
+bundles in `src/app/i18n.ts`, and in `_locales/{en,zh,ja}/messages.json` too if it is popup text.
+`npm run test` runs the gate that proves it (`src/app/i18n.test.ts`: named keys defined, no English
+`defaultValue` fallback, runtime-built prefixes covered); fill the gap before committing, not after.
+
 ## Linting & Formatting
 
 Biome (not ESLint/Prettier). Config: `biome.json`.
@@ -200,13 +206,24 @@ decisions are in the section above.
   dark hexes locally.
 - **Trash UI**: closed 2026-10-09, and exercised in a running window against a throwaway vault. The item detail has both a Move to trash and an Archive action, a Trash nav row carries the count, and its rows offer Restore and Delete; restore, the count and the empty state all update live. A trashed row is not selectable: the detail pane only ever edits live items, so `visibleItems` returns nothing for that view and the rows read from `vaultApi.trashed()`. `updated_at` doubles as the deletion timestamp because `trash_item` writes both, which is why `LoginItem` needs no `deleted_at` field.
 - **Tag filtering**: closed 2026-10-09. The Tags nav row expands to a per-tag list with counts, picking one filters the item list (`src/app/itemTags.ts`), and the item form edits tags as chips. Tags stay case-insensitive — the helpers mirror `normalized_tag_names` in `vault.rs`, so "Work" and "work" are one tag in the UI and in storage.
-- **Runtime verification outstanding**: tray, `⌘⇧Space`, the Quick Access window and autostart are written but have never been exercised in a running app. The CSP likewise has never been checked in a packaged build, and the browser extension popup has never been loaded in a browser. What *has* now been seen in a `tauri dev` window (2026-10-09, throwaway vault): the lock screen and unlock, the item list and sidebar counts, create + validation, the full Trash chain, the purge confirm panel, and the two field menus' Escape/outside dismissal. Everything else — every hover/pressed/disabled state, the settings window, the generator, TOTP, attachments — is still unconfirmed.
-- **Create-vault is a dead button**: that header action reads the vault name from `window.prompt`, which never appears (see the no-native-JS-dialogs convention), so clicking it silently does nothing. It needs the same in-app panel the purge confirm uses. `messages.createVault` renders as a raw `Error: …` string in the status banner too.
-- **UI strings are not all translated**: roughly 18 `t()` call sites in `App.tsx` pass a `defaultValue`
-  for a key that exists in no locale bundle (`vault.copyOtp`, `messages.createdVault`,
-  `lock.enterPasswordPlaceholder`, the generator labels, …), so those strings render in English in zh and
-  ja. `i18n.test.ts` only proves the three locales match *each other*. Add the key to all three bundles
-  and drop the `defaultValue` when you touch one of these sites.
+- **Runtime verification outstanding**: tray, `⌘⇧Space`, the Quick Access window and autostart are written but have never been exercised in a running app. The CSP likewise has never been checked in a packaged build, and the browser extension popup has never been loaded in a browser. What *has* now been seen in a `tauri dev` window (2026-10-09, throwaway vault): the lock screen and unlock, the item list and sidebar counts, create + validation, the full Trash chain, the purge confirm panel, the create-vault panel, the detail pane's empty state, and the two field menus' Escape/outside dismissal. Everything else — every hover/pressed/disabled state, the settings window, the generator, TOTP, attachments — is still unconfirmed.
+- **Create-vault closed 2026-10-09**: the header `+` opens the same in-app panel recipe as the purge
+  confirm (`vault.createVault` + one labelled name field + 取消/Create, disabled submit until the name is
+  non-empty), focused by an effect rather than `autoFocus`, dismissed by Escape, 取消, or the full-bleed
+  backdrop `<button>`. Verified in a running window against a throwaway vault: open → type → Return creates
+  the vault, switches the picker chip to it, opens a new-item draft, and banners `messages.createdVault`.
+  Note that `aria-modal="true"` prunes the backdrop out of the macOS accessibility tree, so synthetic AX
+  clicks cannot reach it — only the dialog's own buttons are addressable that way.
+- **Rust errors are not translated**: every `catch` in `App.tsx` does `setError(String(nextError))`, so a
+  backend failure renders as `Error: invalid master password` in zh and ja. The locale bundles are clean —
+  `i18n.test.ts` now fails on a `t()` that carries a `defaultValue` for a literal key, on a named key that
+  no locale defines, and on the runtime-built keys (`itemTypes.*`, `vault.customFieldDefaults.*`) the
+  literal sweep cannot see. Fixing the Rust side needs error *codes*, not more strings; do not paper over it
+  with per-message lookups in the frontend.
+- **UI strings are translated**: App.tsx carries zero `defaultValue` fallbacks as of 2026-10-09, and the
+  extension popup's 11 `chrome.i18n` keys (including the three `popup.js` builds at runtime) are present in
+  all of `_locales/{en,zh,ja}/messages.json`. **Before any commit, re-run this sweep** — the owner's standing
+  rule is that new user-facing text, including notices and errors, lands in all three locale bundles first.
 - **Leftovers from the 2026-10-09 sync/backup deletion**: `VaultService::import_login_items`, `set_encrypted_setting` and `get_encrypted_setting` are now `pub fn`s with no caller (`cargo` cannot warn about them); the `settings` row `github_sync_settings`, any `~/Library/Application Support/app.passless.desktop/sync-history/*.snapshot`, and the Keychain item `app.passless.desktop` / `github_pat` are all unreachable but were not cleaned up.
-- **Remaining at-rest audit items** (the 2026-10-08 audit's #2 file permissions and #4 CSP + constant-time pairing are fixed; #1 export encryption was mooted when export itself was deleted): #3 attachment temp-file cleanup, #5 no rate limiting on the bridge or master-password attempts, #6 default security preferences / master-password strength enforced in Rust / zeroize on lock / key rotation.
+- **Remaining at-rest audit items** (the 2026-10-08 audit's #1 export encryption, #2 file permissions and #4 CSP + constant-time pairing are fixed): #3 attachment temp-file cleanup, #5 no rate limiting on the bridge or master-password attempts, #6 default security preferences / master-password strength enforced in Rust / zeroize on lock / key rotation.
 
