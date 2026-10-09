@@ -1921,6 +1921,18 @@
     @apply m-0 w-full text-body-small;
   }
 
+  .attachment-dropzone {
+    color: var(--color-text-subtlest);
+    border-color: var(--color-border-input);
+    @apply flex items-center gap-100 rounded-large border border-dashed px-150 py-250 text-body-small;
+  }
+
+  .attachment-dropzone.is-active {
+    color: var(--color-text-brand);
+    background: var(--color-background-brand-subtlest);
+    border-color: var(--color-border-selected);
+  }
+
   .onepassword-field input,
   .onepassword-field textarea,
   .onepassword-field select,

@@ -1,4 +1,5 @@
 import { emit, listen } from '@tauri-apps/api/event'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import {
   AlertCircle,
@@ -548,6 +549,7 @@ function VaultWindow() {
   const [sectionMenuAnchor, setSectionMenuAnchor] = useState<MenuAnchor>()
   const [fieldTotpPreviews, setFieldTotpPreviews] = useState<Record<number, FieldTotpPreview>>({})
   const [revealedTotpSecrets, setRevealedTotpSecrets] = useState<Record<number, boolean>>({})
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   // What the current form was loaded from. A ref, not state: the switch effect below runs only
   // when the selected item changes, and it has to compare the outgoing form against the baseline
@@ -830,6 +832,33 @@ function VaultWindow() {
       if (secret) void previewFieldTotp(index, secret, true)
     }
   }, [fieldTotpPreviews, form.custom_fields, isEditing, otpFieldIndexes])
+
+  // Listening on the webview rather than on the dropzone, because the event's position is in physical
+  // pixels from the webview's corner — deciding which element was under the cursor would mean undoing
+  // that scaling by hand. The whole window is therefore the target while an item is open for editing.
+  useEffect(() => {
+    if (!isEditing) return
+    let unlisten: (() => void) | undefined
+    let unsubscribed = false
+    getCurrentWebview()
+      .onDragDropEvent((event) => {
+        if (event.payload.type === 'drop') {
+          setIsDraggingFiles(false)
+          void attachDroppedFiles(event.payload.paths)
+          return
+        }
+        setIsDraggingFiles(event.payload.type === 'enter' || event.payload.type === 'over')
+      })
+      .then((nextUnlisten) => {
+        if (unsubscribed) nextUnlisten()
+        else unlisten = nextUnlisten
+      })
+    return () => {
+      unsubscribed = true
+      unlisten?.()
+      setIsDraggingFiles(false)
+    }
+  }, [isEditing, selectedId])
 
   const databaseLabel = useMemo(() => {
     if (error && mode === 'loading') return t('vault.databaseOffline')
@@ -1197,6 +1226,39 @@ function VaultWindow() {
         customFieldsInput: customFieldsToInput(customFields),
       }
     })
+  }
+
+  // Tauri intercepts a native file drop before the webview sees it and delivers one window-wide event
+  // carrying real paths, so this is the only way a drop can reach the vault. It is accepted while editing
+  // only: a drop must not quietly change a saved item the user is reading.
+  async function attachDroppedFiles(paths: string[]) {
+    let attached = 0
+    for (const path of paths) {
+      try {
+        const attachedField = selectedItem ? await vaultApi.attachFileToItem(selectedItem.id, path) : null
+        setForm((current) => {
+          const customFields = [
+            ...current.custom_fields,
+            {
+              field_type: 'file',
+              label: attachedField?.label ?? fileNameFromPath(path),
+              value: attachedField?.value ?? path,
+            },
+          ]
+          return {
+            ...current,
+            custom_fields: customFields,
+            customFieldsInput: customFieldsToInput(customFields),
+          }
+        })
+        attached += 1
+      } catch (nextError) {
+        setError(String(nextError))
+        return
+      }
+    }
+    if (attached === 1) setOperationMessage(t('messages.attachmentAdded'))
+    else if (attached > 1) setOperationMessage(t('messages.attachmentsAdded', { files: attached }))
   }
 
   async function openAttachment(field: CustomField) {
@@ -2322,6 +2384,12 @@ function VaultWindow() {
                         </div>
                       ) : null}
                     </div>
+                    {isEditing ? (
+                      <div className={isDraggingFiles ? 'attachment-dropzone is-active' : 'attachment-dropzone'}>
+                        <Paperclip aria-hidden="true" size={15} />
+                        <span>{isDraggingFiles ? t('vault.dropToAttachHere') : t('vault.dropToAttach')}</span>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </fieldset>
