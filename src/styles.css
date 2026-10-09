@@ -1883,6 +1883,44 @@
     @apply m-0 text-body-small;
   }
 
+  .otp-card {
+    background: var(--color-surface);
+    border-color: var(--theme-border);
+    @apply mb-150 flex max-w-content shrink-0 flex-col gap-100 rounded-large border p-150;
+  }
+
+  .otp-card-row {
+    @apply flex flex-wrap items-center gap-100;
+  }
+
+  .otp-card-main {
+    @apply flex flex-1 items-center gap-150;
+  }
+
+  .otp-card-label {
+    @apply text-body font-medium;
+  }
+
+  .otp-card-pending {
+    color: var(--color-text-subtlest);
+    @apply text-body-small;
+  }
+
+  .otp-card-secret {
+    @apply flex w-full flex-wrap items-center gap-100;
+  }
+
+  .otp-card-secret-value {
+    color: var(--color-text);
+    background: var(--color-background-neutral-subtle);
+    @apply max-w-content break-all rounded-small px-100 py-050 text-code;
+  }
+
+  .otp-card-warning {
+    color: var(--color-text-subtle);
+    @apply m-0 w-full text-body-small;
+  }
+
   .onepassword-field input,
   .onepassword-field textarea,
   .onepassword-field select,

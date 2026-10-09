@@ -75,7 +75,13 @@ import {
   saveSecurityPreferences,
 } from './app/securityPreferences'
 import { getInitialTheme, type Theme } from './app/theme'
-import { formatOtpCode, getTotpProgress } from './app/totpDisplay'
+import {
+  buildOtpAuthUri,
+  formatOtpCode,
+  getTotpProgress,
+  normalizeTotpSecret,
+  otpSecretFieldIndexes,
+} from './app/totpDisplay'
 import {
   type AppStatus,
   type BreachCheckResult,
@@ -269,8 +275,14 @@ function stringifySectionFields(fields: SectionChildField[]): string {
 
 // email/url stay type="text" on purpose: the detail form has no noValidate, so the
 // browser's constraint validation on those types would block saving.
-function fieldValueInputProps(fieldType: string): { inputMode?: 'email' | 'tel' | 'url'; type: string } {
+function fieldValueInputProps(
+  fieldType: string,
+  secretMasked = false,
+): { inputMode?: 'email' | 'tel' | 'url'; type: string } {
   if (fieldType === 'password') return { type: 'password' }
+  // A saved seed is not a display value. The two-factor card reveals it on request, so the resting view
+  // shows dots instead of leaving the key on screen for a screenshot or a shoulder.
+  if (fieldType === 'otp') return { type: secretMasked ? 'password' : 'text' }
   if (fieldType === 'date') return { type: 'date' }
   if (fieldType === 'email') return { inputMode: 'email', type: 'text' }
   if (fieldType === 'phone') return { inputMode: 'tel', type: 'text' }
@@ -376,6 +388,30 @@ function ItemSearchField({
   )
 }
 
+function OtpCodeButton({ onCopy, preview }: { onCopy: () => void; preview: FieldTotpPreview }) {
+  const { t } = useTranslation()
+
+  return (
+    <button
+      className="otp-display-button"
+      onClick={onCopy}
+      style={{ '--otp-progress': getTotpProgress(preview.secondsRemaining).toString() } as CSSProperties}
+      title={t('vault.copyOtp')}
+      type="button"
+    >
+      <span className="otp-code">{formatOtpCode(preview.code)}</span>
+      <span
+        aria-label={t('vault.otpSecondsRemaining', { seconds: preview.secondsRemaining })}
+        className="otp-countdown"
+        role="timer"
+      >
+        <span aria-hidden="true" className="otp-countdown-ring" />
+        <span>{preview.secondsRemaining.toString().padStart(2, '0')}</span>
+      </span>
+    </button>
+  )
+}
+
 function OtpFieldActions({
   onCopy,
   onPreview,
@@ -394,28 +430,7 @@ function OtpFieldActions({
       <button className="secondary-button" disabled={!secret.trim()} onClick={onPreview} type="button">
         {t('vault.previewOtp')}
       </button>
-      {preview ? (
-        <button
-          className="otp-display-button"
-          onClick={onCopy}
-          style={{ '--otp-progress': getTotpProgress(preview.secondsRemaining).toString() } as CSSProperties}
-          title={t('vault.copyOtp', { defaultValue: 'Copy current OTP' })}
-          type="button"
-        >
-          <span className="otp-code">{formatOtpCode(preview.code)}</span>
-          <span
-            aria-label={t('vault.otpSecondsRemaining', {
-              defaultValue: '{{seconds}} seconds remaining',
-              seconds: preview.secondsRemaining,
-            })}
-            className="otp-countdown"
-            role="timer"
-          >
-            <span aria-hidden="true" className="otp-countdown-ring" />
-            <span>{preview.secondsRemaining.toString().padStart(2, '0')}</span>
-          </span>
-        </button>
-      ) : null}
+      {preview ? <OtpCodeButton onCopy={onCopy} preview={preview} /> : null}
     </div>
   )
 }
@@ -532,6 +547,7 @@ function VaultWindow() {
   const [addMoreMenuAnchor, setAddMoreMenuAnchor] = useState<MenuAnchor>()
   const [sectionMenuAnchor, setSectionMenuAnchor] = useState<MenuAnchor>()
   const [fieldTotpPreviews, setFieldTotpPreviews] = useState<Record<number, FieldTotpPreview>>({})
+  const [revealedTotpSecrets, setRevealedTotpSecrets] = useState<Record<number, boolean>>({})
   const [isEditing, setIsEditing] = useState(false)
   // What the current form was loaded from. A ref, not state: the switch effect below runs only
   // when the selected item changes, and it has to compare the outgoing form against the baseline
@@ -709,6 +725,9 @@ function VaultWindow() {
     () => customFieldEntries.filter(({ field }) => !inCredentialBlock(field)),
     [customFieldEntries, template.credentials],
   )
+  // Read straight off the field list rather than the credential block: a secret filed under
+  // "more fields" still protects a login, so the two-factor card has to find it there.
+  const otpFieldIndexes = useMemo(() => otpSecretFieldIndexes(form.custom_fields), [form.custom_fields])
 
   // The category the sidebar is showing is the category a new item belongs to, which is
   // what decides both the layout and the fields an empty item starts out with.
@@ -751,6 +770,7 @@ function VaultWindow() {
     draftKeyRef.current = draftKey
     setShowPassword(false)
     setFieldTotpPreviews({})
+    setRevealedTotpSecrets({})
   }, [draftKey])
 
   useEffect(() => {
@@ -797,6 +817,19 @@ function VaultWindow() {
       if (secret) void previewFieldTotp(index, secret)
     })
   }, [fieldTotpPreviews, form.custom_fields])
+
+  // In read-only mode nothing else asks for a code, so a saved secret generates its own as soon as the
+  // item is selected. While editing, the secret is half-typed and every keystroke would fail to decode,
+  // so the field row keeps its explicit preview button instead.
+  useEffect(() => {
+    if (isEditing) return
+    const pendingIndexes = otpFieldIndexes.filter((index) => !fieldTotpPreviews[index])
+    if (!pendingIndexes.length) return
+    for (const index of pendingIndexes) {
+      const secret = form.custom_fields[index]?.value
+      if (secret) void previewFieldTotp(index, secret, true)
+    }
+  }, [fieldTotpPreviews, form.custom_fields, isEditing, otpFieldIndexes])
 
   const databaseLabel = useMemo(() => {
     if (error && mode === 'loading') return t('vault.databaseOffline')
@@ -879,6 +912,7 @@ function VaultWindow() {
     setForm(baselineRef.current)
     setShowPassword(false)
     setFieldTotpPreviews({})
+    setRevealedTotpSecrets({})
     setIsEditing(!selectedItem)
   }
 
@@ -1099,9 +1133,9 @@ function VaultWindow() {
     })
   }
 
-  async function previewFieldTotp(index: number, secret: string) {
+  async function previewFieldTotp(index: number, secret: string, silent = false) {
     if (!secret.trim()) return
-    setError(null)
+    if (!silent) setError(null)
     try {
       const code = await vaultApi.generateTotp(secret)
       setFieldTotpPreviews((current) => ({
@@ -1112,7 +1146,9 @@ function VaultWindow() {
         },
       }))
     } catch (nextError) {
-      setError(String(nextError))
+      // A secret that no longer decodes should not stop the detail view from opening; the card has no
+      // code to show until it is fixed, and opening an item is not an error.
+      if (!silent) setError(String(nextError))
     }
   }
 
@@ -1120,7 +1156,25 @@ function VaultWindow() {
     const preview = fieldTotpPreviews[index]
     if (!preview) return
     await navigator.clipboard.writeText(preview.code)
-    setOperationMessage(t('messages.copiedOtp', { defaultValue: 'Copied one-time password' }))
+    setOperationMessage(t('messages.copiedOtp'))
+  }
+
+  function toggleTotpSecret(index: number) {
+    setRevealedTotpSecrets((current) => ({ ...current, [index]: !current[index] }))
+  }
+
+  async function copyTotpSecret(index: number) {
+    const secret = form.custom_fields[index]?.value
+    if (!secret) return
+    await navigator.clipboard.writeText(normalizeTotpSecret(secret))
+    setOperationMessage(t('messages.copiedSecret'))
+  }
+
+  async function copyTotpSetupLink(index: number) {
+    const secret = form.custom_fields[index]?.value
+    if (!secret) return
+    await navigator.clipboard.writeText(buildOtpAuthUri({ account: form.username, issuer: form.title, secret }))
+    setOperationMessage(t('messages.copiedSetupLink'))
   }
 
   async function chooseAttachmentForField(index: number) {
@@ -1796,6 +1850,58 @@ function VaultWindow() {
           </section>
         ) : (
           <>
+            {!isEditing && otpFieldIndexes.length ? (
+              <section aria-label={t('vault.twoFactorCode')} className="otp-card">
+                {otpFieldIndexes.map((index) => {
+                  const field = form.custom_fields[index]
+                  if (!field) return null
+                  const preview = fieldTotpPreviews[index]
+                  const revealed = Boolean(revealedTotpSecrets[index])
+                  const hasSecret = Boolean(field.value.trim())
+                  return (
+                    <div className="otp-card-row" key={`otp-card-${index}`}>
+                      <div className="otp-card-main">
+                        <span className="otp-card-label">
+                          {field.label.trim() || t('vault.customFieldDefaults.otp')}
+                        </span>
+                        {preview ? (
+                          <OtpCodeButton onCopy={() => copyFieldTotp(index)} preview={preview} />
+                        ) : (
+                          <span className="otp-card-pending">{t('vault.otpCodePending')}</span>
+                        )}
+                      </div>
+                      <button
+                        className="secondary-button"
+                        disabled={!hasSecret}
+                        onClick={() => toggleTotpSecret(index)}
+                        type="button"
+                      >
+                        {revealed ? <EyeOff size={15} /> : <Eye size={15} />}
+                        {revealed ? t('vault.hideSecret') : t('vault.revealSecret')}
+                      </button>
+                      {revealed && hasSecret ? (
+                        <div className="otp-card-secret">
+                          <code className="otp-card-secret-value">{normalizeTotpSecret(field.value)}</code>
+                          <button className="secondary-button" onClick={() => void copyTotpSecret(index)} type="button">
+                            <Copy size={15} />
+                            {t('vault.copySecret')}
+                          </button>
+                          <button
+                            className="secondary-button"
+                            onClick={() => void copyTotpSetupLink(index)}
+                            type="button"
+                          >
+                            <Copy size={15} />
+                            {t('vault.copySetupLink')}
+                          </button>
+                          <p className="otp-card-warning">{t('vault.secretWarning')}</p>
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </section>
+            ) : null}
             <form className="detail-form" onSubmit={handleSave}>
               <fieldset className="detail-fieldset" disabled={!isEditing} onScroll={closeFieldMenus}>
                 <div className="detail-header">
@@ -1919,7 +2025,7 @@ function VaultWindow() {
                                   onChange={(event) => updateCustomField(index, { value: event.target.value })}
                                   placeholder={t(fieldValuePlaceholderKey(field.field_type))}
                                   value={field.value}
-                                  {...fieldValueInputProps(field.field_type)}
+                                  {...fieldValueInputProps(field.field_type, !isEditing)}
                                 />
                               )}
                               {field.field_type === 'otp' ? (
@@ -2052,7 +2158,7 @@ function VaultWindow() {
                                           }
                                           placeholder={t(fieldValuePlaceholderKey(child.field_type))}
                                           value={child.value}
-                                          {...fieldValueInputProps(child.field_type)}
+                                          {...fieldValueInputProps(child.field_type, !isEditing)}
                                         />
                                       </div>
                                       <button
@@ -2135,7 +2241,7 @@ function VaultWindow() {
                                         ? fileNameFromPath(field.value)
                                         : field.value
                                     }
-                                    {...fieldValueInputProps(field.field_type)}
+                                    {...fieldValueInputProps(field.field_type, !isEditing)}
                                   />
                                 )}
                                 {field.field_type === 'file' ? (
