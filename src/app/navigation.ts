@@ -1,5 +1,5 @@
 export type NavigationItem = {
-  id: 'vaults' | 'favorites' | 'tags' | 'generator' | 'watchtower' | 'trash'
+  id: 'vaults' | 'favorites' | 'trash'
   label: string
   route: string
 }
@@ -7,8 +7,5 @@ export type NavigationItem = {
 export const navigationItems: NavigationItem[] = [
   { id: 'vaults', label: 'Personal', route: '#vaults' },
   { id: 'favorites', label: 'Favorites', route: '#favorites' },
-  { id: 'tags', label: 'Tags', route: '#tags' },
-  { id: 'generator', label: 'Generator', route: '#generator' },
-  { id: 'watchtower', label: 'Watchtower', route: '#watchtower' },
   { id: 'trash', label: 'Trash', route: '#trash' },
 ]

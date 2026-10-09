@@ -4,23 +4,20 @@ import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewW
 import {
   AlertCircle,
   Archive,
-  BadgeCheck,
   Calendar,
   CalendarRange,
   ChevronDown,
+  ChevronRight,
   CircleMinus,
   Cog,
   Copy,
-  CreditCard,
   Database,
-  DollarSign,
   Edit3,
   Eye,
   EyeOff,
   Fingerprint,
   GripVertical,
   Group,
-  IdCard,
   Inbox,
   KeyRound,
   Link,
@@ -29,7 +26,6 @@ import {
   LogIn,
   Mail,
   MapPin,
-  NotebookTabs,
   Paperclip,
   Phone,
   Plus,
@@ -41,8 +37,6 @@ import {
   ShieldCheck,
   ShieldQuestion,
   Star,
-  Tags,
-  Terminal,
   Timer,
   Trash2,
   Type,
@@ -52,7 +46,6 @@ import {
 import {
   type CSSProperties,
   type FormEvent,
-  Fragment,
   type ClipboardEvent as ReactClipboardEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -123,7 +116,7 @@ import {
 } from './app/vaultApi'
 
 type VaultMode = 'loading' | 'setup' | 'locked' | 'unlocked'
-type CategoryNavigation = `category:${(typeof categoryItems)[number]['itemType']}`
+type CategoryNavigation = `category:${(typeof categoryItemTypes)[number]}`
 type ActiveNavigation = (typeof navigationItems)[number]['id'] | CategoryNavigation | TagNavigation
 
 type LoginFormState = LoginItemInput & {
@@ -247,19 +240,19 @@ const loginSectionFieldTypes = ['otp', 'sign_in_with', 'passkey']
 // Ordered weakest to strongest; the meter fills one segment per step.
 const strengthLevels = ['weak', 'fair', 'strong', 'excellent'] as const
 
-const categoryItems = [
-  { colorClass: 'text-accent-icon-teal', icon: KeyRound, itemType: 'login' },
-  { colorClass: 'text-accent-icon-yellow', icon: NotebookTabs, itemType: 'secure_note' },
-  { colorClass: 'text-accent-icon-blue', icon: CreditCard, itemType: 'credit_card' },
-  { colorClass: 'text-accent-icon-green', icon: IdCard, itemType: 'identity' },
-  { colorClass: 'text-accent-icon-gray', icon: KeyRound, itemType: 'password' },
-  { colorClass: 'text-accent-icon-yellow', icon: Terminal, itemType: 'ssh_key' },
-  { colorClass: 'text-accent-icon-orange', icon: DollarSign, itemType: 'bank_account' },
-  { colorClass: 'text-accent-icon-lime', icon: Database, itemType: 'database' },
-  { colorClass: 'text-accent-icon-magenta', icon: Mail, itemType: 'email' },
-  { colorClass: 'text-accent-icon-blue', icon: Router, itemType: 'router' },
-  { colorClass: 'text-accent-icon-gray', icon: Server, itemType: 'server' },
-  { colorClass: 'text-accent-icon-blue', icon: BadgeCheck, itemType: 'software_license' },
+const categoryItemTypes = [
+  'login',
+  'secure_note',
+  'credit_card',
+  'identity',
+  'password',
+  'ssh_key',
+  'bank_account',
+  'database',
+  'email',
+  'router',
+  'server',
+  'software_license',
 ] as const
 
 function parseSectionFields(value: string): SectionChildField[] {
@@ -331,11 +324,8 @@ function fileNameFromPath(path: string) {
 
 const iconById = {
   favorites: Star,
-  generator: KeyRound,
-  tags: Tags,
   trash: Trash2,
   vaults: Vault,
-  watchtower: ShieldCheck,
 } as const
 
 function ItemSearchField({
@@ -525,6 +515,7 @@ const settingsTabLabels: Record<SettingsTab, string> = {
   appearance: 'settings.tabs.appearance',
   browser: 'settings.tabs.browser',
   general: 'settings.tabs.general',
+  generator: 'settings.tabs.generator',
   security: 'settings.tabs.security',
   shortcuts: 'settings.tabs.shortcuts',
   watchtower: 'settings.tabs.watchtower',
@@ -540,6 +531,28 @@ export function App() {
   }
 
   return <VaultWindow />
+}
+
+function SidebarSectionToggle({
+  collapsed,
+  label,
+  onToggle,
+}: {
+  collapsed: boolean
+  label: string
+  onToggle: () => void
+}) {
+  return (
+    <button
+      aria-expanded={!collapsed}
+      className="sidebar-section-title section-toggle"
+      onClick={onToggle}
+      type="button"
+    >
+      <span>{label}</span>
+      {collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+    </button>
+  )
 }
 
 function VaultWindow() {
@@ -571,15 +584,10 @@ function VaultWindow() {
   const [biometricsAvailable, setBiometricsAvailable] = useState(false)
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
   const [form, setForm] = useState<LoginFormState>(() => toFormState(emptyLoginItem()))
-  const [generatorOptions, setGeneratorOptions] = useState<PasswordGeneratorOptions>(() => ({
-    ...randomGeneratorOptions,
-  }))
-  const generatorLengthLimits = generatorOptions.mode === 'pin' ? pinLengthLimits : randomLengthLimits
-  // The backend answers "needs at least one character set" when all four are off, which the panel
-  // would otherwise show as a spinner that never stops.
-  const allCharacterSetsOff =
-    !generatorOptions.uppercase && !generatorOptions.lowercase && !generatorOptions.numbers && !generatorOptions.symbols
-  const [generatedPassword, setGeneratedPassword] = useState('')
+  // The two sidebar sections fold on their own: neither is a view you select, and a long tag or
+  // category list otherwise pushes the rest of the sidebar out of the window.
+  const [categoriesCollapsed, setCategoriesCollapsed] = useState(false)
+  const [tagsCollapsed, setTagsCollapsed] = useState(false)
   const [passwordStrength, setPasswordStrength] = useState<PasswordStrength | null>(null)
   const [showAddMore, setShowAddMore] = useState(false)
   const [sectionMenuIndex, setSectionMenuIndex] = useState<number | null>(null)
@@ -741,11 +749,9 @@ function VaultWindow() {
   const activeTagKey = tagKeyFromNavigation(activeNavigation)
 
   const visibleItems = useMemo(() => {
-    if (activeNavigation === 'generator' || activeNavigation === 'watchtower') return []
     // Trash has its own list and its own rows, so it never reads from the live items.
     if (activeNavigation === 'trash') return []
     if (activeNavigation === 'favorites') return items.filter((item) => item.favorite)
-    if (activeNavigation === 'tags') return items.filter((item) => item.tags.length > 0)
     if (activeTagKey) return filterItemsByTag(items, activeTagKey)
     if (activeNavigation.startsWith('category:')) {
       const itemType = activeNavigation.replace('category:', '')
@@ -760,7 +766,6 @@ function VaultWindow() {
   const navigationCounts = useMemo(() => {
     const counts: Record<string, number> = {
       favorites: items.filter((item) => item.favorite).length,
-      tags: items.filter((item) => item.tags.length > 0).length,
       // The trash list is a separate read, so its count comes from that rather than from `items`.
       trash: trashedItems.length,
       vaults: items.length,
@@ -818,10 +823,7 @@ function VaultWindow() {
 
   const listTitle = useMemo(() => {
     if (activeNavigation === 'favorites') return t('listTitle.favorites')
-    if (activeNavigation === 'tags') return t('listTitle.tags')
     if (activeTagKey) return activeTagName ?? t('listTitle.tags')
-    if (activeNavigation === 'generator') return t('listTitle.generator')
-    if (activeNavigation === 'watchtower') return t('listTitle.watchtower')
     if (activeNavigation === 'trash') return t('listTitle.trash')
     if (activeNavigation.startsWith('category:')) {
       const itemType = activeNavigation.replace('category:', '')
@@ -1570,39 +1572,6 @@ function VaultWindow() {
     setShowPassword(true)
   }
 
-  function handleGeneratorModeChange(mode: PasswordGeneratorMode) {
-    setGeneratorOptions((current) => {
-      if (mode === 'passphrase') return { ...current, mode }
-      const limits = mode === 'pin' ? pinLengthLimits : randomLengthLimits
-      return { ...current, length: clampNumber(current.length, limits), mode }
-    })
-  }
-
-  async function handleStandaloneGeneratePassword() {
-    setError(null)
-    try {
-      const password = await vaultApi.generatePassword(generatorOptions)
-      setGeneratedPassword(password)
-    } catch (nextError) {
-      setError(String(nextError))
-    }
-  }
-
-  async function copyGeneratedPassword() {
-    if (generatedPassword) {
-      await navigator.clipboard.writeText(generatedPassword)
-    }
-  }
-
-  function useGeneratedPassword() {
-    if (!generatedPassword) return
-    setActiveNavigation('vaults')
-    setForm((current) => ({ ...current, password: generatedPassword }))
-    setShowPassword(true)
-    setComposing(true)
-    setIsEditing(true)
-  }
-
   async function copyPassword() {
     if (form.password) {
       await navigator.clipboard.writeText(form.password)
@@ -1801,70 +1770,71 @@ function VaultWindow() {
         <nav className="nav-list">
           {navigationItems.map((item) => {
             const Icon = iconById[item.id]
-            // The two tools are not lists, so they get no count rather than a zero that implies an
-            // empty one.
-            const count = item.id === 'generator' || item.id === 'watchtower' ? null : navigationCounts[item.id]
-            // Tags narrow the tagged list, so the individual tags only appear while that list is the
-            // one on screen. A separate sidebar section would put a second "Tags" label next to this one.
-            const showTagRows = item.id === 'tags' && (activeNavigation === 'tags' || activeTagKey !== null)
             return (
-              <Fragment key={item.id}>
-                <button
-                  className={item.id === activeNavigation ? 'nav-item active' : 'nav-item'}
-                  onClick={() => setActiveNavigation(item.id)}
-                  type="button"
-                >
-                  <Icon size={16} />
-                  <span>{t(`nav.${item.id}`)}</span>
-                  {count === null ? null : <span className="nav-count">{count}</span>}
-                </button>
-                {showTagRows ? (
-                  <div className="nav-sublist">
-                    {tagCounts.map((entry) => (
-                      <button
-                        className={
-                          activeNavigation === tagNavigationId(entry.key)
-                            ? 'nav-item tag-item active'
-                            : 'nav-item tag-item'
-                        }
-                        key={entry.key}
-                        onClick={() => setActiveNavigation(tagNavigationId(entry.key))}
-                        type="button"
-                      >
-                        <span>{entry.name}</span>
-                        <span className="nav-count">{entry.count}</span>
-                      </button>
-                    ))}
-                    {tagCounts.length === 0 ? <p className="nav-sublist-empty">{t('vault.noTags')}</p> : null}
-                  </div>
-                ) : null}
-              </Fragment>
+              <button
+                className={item.id === activeNavigation ? 'nav-item active' : 'nav-item'}
+                key={item.id}
+                onClick={() => setActiveNavigation(item.id)}
+                type="button"
+              >
+                <Icon size={16} />
+                <span>{t(`nav.${item.id}`)}</span>
+                <span className="nav-count">{navigationCounts[item.id]}</span>
+              </button>
             )
           })}
         </nav>
 
-        <nav aria-label={t('common.categories')} className="category-nav">
-          <div className="sidebar-section-title">
-            <span>{t('common.categories')}</span>
-          </div>
-          <div className="nav-list">
-            {categoryItems.map((category) => {
-              const Icon = category.icon
-              const id = `category:${category.itemType}` as const
-              return (
+        <nav aria-label={t('common.tags')} className="section-nav">
+          <SidebarSectionToggle
+            collapsed={tagsCollapsed}
+            label={t('common.tags')}
+            onToggle={() => setTagsCollapsed((next) => !next)}
+          />
+          {tagsCollapsed ? null : (
+            <div className="nav-sublist">
+              {tagCounts.map((entry) => (
                 <button
-                  className={activeNavigation === id ? 'nav-item category-item active' : 'nav-item category-item'}
-                  key={category.itemType}
-                  onClick={() => setActiveNavigation(id)}
+                  className={
+                    activeNavigation === tagNavigationId(entry.key) ? 'nav-item tag-item active' : 'nav-item tag-item'
+                  }
+                  key={entry.key}
+                  onClick={() => setActiveNavigation(tagNavigationId(entry.key))}
                   type="button"
                 >
-                  <Icon className={category.colorClass} size={16} />
-                  <span>{t(`itemTypes.${category.itemType}`)}</span>
-                  <span className="nav-count">{navigationCounts[id] ?? 0}</span>
+                  <span>{entry.name}</span>
+                  <span className="nav-count">{entry.count}</span>
                 </button>
-              )
-            })}
-          </div>
+              ))}
+              {tagCounts.length === 0 ? <p className="nav-sublist-empty">{t('vault.noTags')}</p> : null}
+            </div>
+          )}
+        </nav>
+
+        <nav aria-label={t('common.categories')} className="section-nav">
+          <SidebarSectionToggle
+            collapsed={categoriesCollapsed}
+            label={t('common.categories')}
+            onToggle={() => setCategoriesCollapsed((next) => !next)}
+          />
+          {categoriesCollapsed ? null : (
+            <div className="nav-list">
+              {categoryItemTypes.map((itemType) => {
+                const id = `category:${itemType}` as const
+                return (
+                  <button
+                    className={activeNavigation === id ? 'nav-item category-item active' : 'nav-item category-item'}
+                    key={itemType}
+                    onClick={() => setActiveNavigation(id)}
+                    type="button"
+                  >
+                    <span>{t(`itemTypes.${itemType}`)}</span>
+                    <span className="nav-count">{navigationCounts[id] ?? 0}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </nav>
 
         <div className="sidebar-footer">
@@ -1941,25 +1911,6 @@ function VaultWindow() {
           <span>{error ?? databaseLabel}</span>
         </div>
 
-        {activeNavigation === 'generator' ? (
-          <div className="sidebar-tool-panel">
-            <KeyRound size={16} />
-            <strong>{t('vault.passwordGenerator')}</strong>
-            <p>{t('vault.generatorHint')}</p>
-          </div>
-        ) : null}
-
-        {activeNavigation === 'watchtower' ? (
-          <div className="sidebar-tool-panel">
-            <ShieldCheck size={16} />
-            <strong>{t('integrations.watchtower')}</strong>
-            <p>{t('vault.watchtowerHint')}</p>
-            <button className="secondary-button" onClick={openSettingsWindow} type="button">
-              {t('common.openSettings')}
-            </button>
-          </div>
-        ) : null}
-
         <div className="rows">
           {activeNavigation === 'trash'
             ? trashedItems.map((item) => (
@@ -2014,9 +1965,7 @@ function VaultWindow() {
                   {item.favorite ? <Star className="row-star" size={14} /> : null}
                 </button>
               ))}
-          {(activeNavigation === 'trash' ? trashedItems.length === 0 : visibleItems.length === 0) &&
-          activeNavigation !== 'generator' &&
-          activeNavigation !== 'watchtower' ? (
+          {(activeNavigation === 'trash' ? trashedItems.length === 0 : visibleItems.length === 0) ? (
             <p className="empty-state">{t('vault.noItems', { target: listTitle })}</p>
           ) : null}
         </div>
@@ -2079,136 +2028,7 @@ function VaultWindow() {
             ) : null}
           </div>
         </div>
-        {activeNavigation === 'generator' ? (
-          <section className="generator-pane">
-            <div className="detail-header">
-              <div className="large-icon">
-                <KeyRound size={16} />
-              </div>
-              <div>
-                <h2>{t('vault.passwordGenerator')}</h2>
-                <p>{t('vault.generatorHint')}</p>
-              </div>
-            </div>
-
-            <div className="generator-output">
-              <input
-                aria-label={t('vault.generatedPassword')}
-                placeholder={t('vault.generatePassword')}
-                readOnly
-                value={generatedPassword}
-              />
-              <button
-                className="secondary-button"
-                disabled={!generatedPassword}
-                onClick={copyGeneratedPassword}
-                type="button"
-              >
-                <Copy size={16} />
-                {t('vault.copyPassword')}
-              </button>
-            </div>
-
-            <div className="generator-controls">
-              <div className="generator-mode-tabs">
-                {generatorModes.map((mode) => (
-                  <button
-                    aria-pressed={generatorOptions.mode === mode}
-                    className="generator-mode-tab"
-                    key={mode}
-                    onClick={() => handleGeneratorModeChange(mode)}
-                    type="button"
-                  >
-                    {t(`vault.generatorModes.${mode}`)}
-                  </button>
-                ))}
-              </div>
-              {generatorOptions.mode === 'passphrase' ? (
-                <label className="generator-length-control">
-                  <span>{t('vault.generatorWords')}</span>
-                  <input
-                    max={passphraseWordLimits.max}
-                    min={passphraseWordLimits.min}
-                    onChange={(event) =>
-                      setGeneratorOptions((current) => ({ ...current, words: Number(event.target.value) }))
-                    }
-                    step={passphraseWordLimits.step}
-                    type="range"
-                    value={generatorOptions.words}
-                  />
-                  <input readOnly step={passphraseWordLimits.step} type="number" value={generatorOptions.words} />
-                </label>
-              ) : (
-                <label className="generator-length-control">
-                  <span>{t('vault.passwordLength')}</span>
-                  <input
-                    max={generatorLengthLimits.max}
-                    min={generatorLengthLimits.min}
-                    onChange={(event) =>
-                      setGeneratorOptions((current) => ({ ...current, length: Number(event.target.value) }))
-                    }
-                    readOnly={generatorOptions.mode === 'pin'}
-                    step={generatorLengthLimits.step}
-                    type="range"
-                    value={generatorOptions.length}
-                  />
-                  <input
-                    max={generatorLengthLimits.max}
-                    min={generatorLengthLimits.min}
-                    onChange={(event) =>
-                      setGeneratorOptions((current) => ({ ...current, length: Number(event.target.value) }))
-                    }
-                    readOnly={generatorOptions.mode === 'pin'}
-                    step={generatorLengthLimits.step}
-                    type="number"
-                    value={generatorOptions.length}
-                  />
-                </label>
-              )}
-              {generatorOptions.mode === 'random' ? (
-                <>
-                  {randomGeneratorChecks.map((option) => (
-                    <label className="generator-check-row" key={option}>
-                      <input
-                        checked={generatorOptions[option]}
-                        onChange={(event) =>
-                          setGeneratorOptions((current) => ({ ...current, [option]: event.target.checked }))
-                        }
-                        type="checkbox"
-                      />
-                      {t(`vault.generatorOptions.${option}`)}
-                    </label>
-                  ))}
-                  {!allCharacterSetsOff ? (
-                    <p className="generator-preview">
-                      {t('vault.generatorPreview', { length: generatorOptions.length })}
-                    </p>
-                  ) : null}
-                </>
-              ) : null}
-            </div>
-
-            <div className="detail-actions generator-actions">
-              <button
-                className="secondary-button"
-                disabled={!generatedPassword}
-                onClick={useGeneratedPassword}
-                type="button"
-              >
-                {t('vault.useGeneratedPassword')}
-              </button>
-              <button
-                className="primary-button"
-                disabled={allCharacterSetsOff}
-                onClick={handleStandaloneGeneratePassword}
-                type="button"
-              >
-                <KeyRound size={16} />
-                {t('vault.generatePassword')}
-              </button>
-            </div>
-          </section>
-        ) : selectedItem || composing ? (
+        {selectedItem || composing ? (
           <>
             {!isEditing && otpFieldIndexes.length ? (
               <section aria-label={t('vault.twoFactorCode')} className="otp-card">
@@ -2855,9 +2675,17 @@ function VaultWindow() {
   )
 }
 
-type SettingsTab = 'general' | 'appearance' | 'browser' | 'watchtower' | 'security' | 'shortcuts'
+type SettingsTab = 'general' | 'appearance' | 'browser' | 'generator' | 'watchtower' | 'security' | 'shortcuts'
 
-const settingsTabs: SettingsTab[] = ['general', 'appearance', 'browser', 'watchtower', 'security', 'shortcuts']
+const settingsTabs: SettingsTab[] = [
+  'general',
+  'appearance',
+  'browser',
+  'generator',
+  'watchtower',
+  'security',
+  'shortcuts',
+]
 
 function SettingsWindow() {
   const { t } = useTranslation()
@@ -2870,6 +2698,15 @@ function SettingsWindow() {
   const [browserToken, setBrowserToken] = useState('')
   const [totpSecret, setTotpSecret] = useState('')
   const [totpCode, setTotpCode] = useState('')
+  const [generatorOptions, setGeneratorOptions] = useState<PasswordGeneratorOptions>(() => ({
+    ...randomGeneratorOptions,
+  }))
+  const generatorLengthLimits = generatorOptions.mode === 'pin' ? pinLengthLimits : randomLengthLimits
+  // The backend answers "needs at least one character set" when all four are off, which the panel
+  // would otherwise show as a spinner that never stops.
+  const allCharacterSetsOff =
+    !generatorOptions.uppercase && !generatorOptions.lowercase && !generatorOptions.numbers && !generatorOptions.symbols
+  const [generatedPassword, setGeneratedPassword] = useState('')
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
   const [autostartEnabled, setAutostartEnabled] = useState(false)
   const [theme, setTheme] = useState<Theme>(() =>
@@ -2959,6 +2796,29 @@ function SettingsWindow() {
 
   async function generatePairingToken() {
     setBrowserToken(await vaultApi.generateBrowserPairingToken())
+  }
+
+  function handleGeneratorModeChange(mode: PasswordGeneratorMode) {
+    setGeneratorOptions((current) => {
+      if (mode === 'passphrase') return { ...current, mode }
+      const limits = mode === 'pin' ? pinLengthLimits : randomLengthLimits
+      return { ...current, length: clampNumber(current.length, limits), mode }
+    })
+  }
+
+  async function generateStandalonePassword() {
+    setError(null)
+    try {
+      setGeneratedPassword(await vaultApi.generatePassword(generatorOptions))
+    } catch (nextError) {
+      setError(String(nextError))
+    }
+  }
+
+  async function copyGeneratedPassword() {
+    if (generatedPassword) {
+      await navigator.clipboard.writeText(generatedPassword)
+    }
   }
 
   async function generateTotp() {
@@ -3120,6 +2980,121 @@ function SettingsWindow() {
                 {t('integrations.generatePairingToken')}
               </button>
               {browserToken ? <code>{browserToken}</code> : null}
+            </div>
+          </div>
+        ) : null}
+
+        {activeTab === 'generator' ? (
+          <div className="settings-section">
+            <div className="integration-card">
+              <h2>{t('vault.passwordGenerator')}</h2>
+              <p>{t('settings.generatorDescription')}</p>
+              <div className="generator-output">
+                <input
+                  aria-label={t('vault.generatedPassword')}
+                  placeholder={t('vault.generatePassword')}
+                  readOnly
+                  value={generatedPassword}
+                />
+                <button
+                  className="secondary-button"
+                  disabled={!generatedPassword}
+                  onClick={copyGeneratedPassword}
+                  type="button"
+                >
+                  <Copy size={16} />
+                  {t('vault.copyPassword')}
+                </button>
+              </div>
+              <div className="generator-controls">
+                <div className="generator-mode-tabs">
+                  {generatorModes.map((mode) => (
+                    <button
+                      aria-pressed={generatorOptions.mode === mode}
+                      className="generator-mode-tab"
+                      key={mode}
+                      onClick={() => handleGeneratorModeChange(mode)}
+                      type="button"
+                    >
+                      {t(`vault.generatorModes.${mode}`)}
+                    </button>
+                  ))}
+                </div>
+                {generatorOptions.mode === 'passphrase' ? (
+                  <label className="generator-length-control">
+                    <span>{t('vault.generatorWords')}</span>
+                    <input
+                      max={passphraseWordLimits.max}
+                      min={passphraseWordLimits.min}
+                      onChange={(event) =>
+                        setGeneratorOptions((current) => ({ ...current, words: Number(event.target.value) }))
+                      }
+                      step={passphraseWordLimits.step}
+                      type="range"
+                      value={generatorOptions.words}
+                    />
+                    <input readOnly step={passphraseWordLimits.step} type="number" value={generatorOptions.words} />
+                  </label>
+                ) : (
+                  <label className="generator-length-control">
+                    <span>{t('vault.passwordLength')}</span>
+                    <input
+                      max={generatorLengthLimits.max}
+                      min={generatorLengthLimits.min}
+                      onChange={(event) =>
+                        setGeneratorOptions((current) => ({ ...current, length: Number(event.target.value) }))
+                      }
+                      readOnly={generatorOptions.mode === 'pin'}
+                      step={generatorLengthLimits.step}
+                      type="range"
+                      value={generatorOptions.length}
+                    />
+                    <input
+                      max={generatorLengthLimits.max}
+                      min={generatorLengthLimits.min}
+                      onChange={(event) =>
+                        setGeneratorOptions((current) => ({ ...current, length: Number(event.target.value) }))
+                      }
+                      readOnly={generatorOptions.mode === 'pin'}
+                      step={generatorLengthLimits.step}
+                      type="number"
+                      value={generatorOptions.length}
+                    />
+                  </label>
+                )}
+                {generatorOptions.mode === 'random' ? (
+                  <>
+                    {randomGeneratorChecks.map((option) => (
+                      <label className="generator-check-row" key={option}>
+                        <input
+                          checked={generatorOptions[option]}
+                          onChange={(event) =>
+                            setGeneratorOptions((current) => ({ ...current, [option]: event.target.checked }))
+                          }
+                          type="checkbox"
+                        />
+                        {t(`vault.generatorOptions.${option}`)}
+                      </label>
+                    ))}
+                    {!allCharacterSetsOff ? (
+                      <p className="generator-preview">
+                        {t('vault.generatorPreview', { length: generatorOptions.length })}
+                      </p>
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
+              <div className="integration-actions">
+                <button
+                  className="primary-button"
+                  disabled={allCharacterSetsOff}
+                  onClick={generateStandalonePassword}
+                  type="button"
+                >
+                  <KeyRound size={16} />
+                  {t('vault.generatePassword')}
+                </button>
+              </div>
             </div>
           </div>
         ) : null}

@@ -625,16 +625,12 @@
     background: var(--color-background-selected);
   }
 
-  .category-nav {
+  .section-nav {
     @apply grid gap-100;
   }
 
   .category-item {
     @apply min-h-400;
-  }
-
-  .category-item.active svg {
-    @apply text-inherit;
   }
 
   .sidebar-footer {
@@ -733,20 +729,6 @@
     @apply my-150 flex min-h-400 items-center gap-100 rounded-medium px-100 text-body font-medium text-text-subtle;
   }
 
-  .sidebar-tool-panel {
-    background: var(--passless-surface);
-    border-color: var(--passless-border);
-    @apply mb-150 grid gap-100 rounded-large border p-100 text-body text-text-subtle;
-  }
-
-  .sidebar-tool-panel strong {
-    @apply text-body font-medium text-text;
-  }
-
-  .sidebar-tool-panel p {
-    @apply m-0 text-body;
-  }
-
   .rows {
     @apply grid gap-050;
   }
@@ -840,14 +822,6 @@
     @apply max-w-content;
   }
 
-  .generator-pane {
-    @apply grid max-w-content gap-250;
-  }
-
-  .generator-pane h2 {
-    @apply m-0 text-heading-small font-bold text-text;
-  }
-
   .generator-output {
     background: var(--passless-surface-raised);
     border-color: var(--passless-border);
@@ -892,10 +866,6 @@
   .generator-check-row input {
     accent-color: var(--color-background-brand-bold);
     @apply h-200 w-200 rounded-small;
-  }
-
-  .generator-actions {
-    @apply mt-0;
   }
 
   .detail-fieldset {
@@ -1495,7 +1465,6 @@
 
   .lock-panel h1,
   .settings-header h1,
-  .generator-pane h2,
   .integration-card h2,
   .security-group h2 {
     color: var(--color-text);
@@ -1545,7 +1514,7 @@
   }
 
   .nav-list,
-  .category-nav {
+  .section-nav {
     @apply gap-050;
   }
 
@@ -1597,6 +1566,15 @@
 
   .sidebar-section-title button:hover {
     background: var(--theme-hover);
+  }
+
+  .section-toggle {
+    @apply min-h-300 w-full rounded-medium border-0 bg-transparent text-left transition-colors;
+  }
+
+  .section-toggle:hover {
+    color: var(--theme-text-70);
+    background: var(--passless-control-hover);
   }
 
   .theme-toggle,
@@ -1709,18 +1687,6 @@
     color: var(--color-text-subtle);
     background: var(--color-background-brand-subtlest);
     @apply my-050 min-h-400 gap-075 rounded-medium px-100 text-body-small font-medium;
-  }
-
-  .sidebar-tool-panel {
-    color: var(--color-text-subtle);
-    background: var(--color-surface);
-    border-color: var(--theme-border);
-    @apply mb-050 gap-075 rounded-large border p-100 text-body-small shadow-none;
-  }
-
-  .sidebar-tool-panel strong {
-    color: var(--theme-text-70);
-    @apply text-body font-medium;
   }
 
   .rows {
@@ -1904,17 +1870,8 @@
     border-color: var(--color-border-danger);
   }
 
-  .detail-form,
-  .generator-pane {
-    @apply max-w-none;
-  }
-
   .detail-form {
-    @apply grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto];
-  }
-
-  .generator-pane {
-    @apply min-h-0 flex-1 overflow-auto py-150;
+    @apply grid min-h-0 max-w-none flex-1 grid-rows-[minmax(0,1fr)_auto];
   }
 
   .detail-fieldset {
