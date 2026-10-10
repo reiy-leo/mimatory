@@ -39,6 +39,8 @@ import {
   NotebookTabs,
   Paperclip,
   Phone,
+  Pin,
+  PinOff,
   Plane,
   Plus,
   QrCode,
@@ -102,6 +104,15 @@ import {
   type SecurityPreferences,
   saveSecurityPreferences,
 } from './app/securityPreferences'
+import {
+  clearHighlightKeys,
+  type HighlightKind,
+  isHighlighted,
+  readHighlightKeys,
+  renameHighlightKeys,
+  saveHighlightKeys,
+  toggleHighlightKeys,
+} from './app/sidebarHighlights'
 import {
   defaultTagColor,
   tagColorClass,
@@ -260,7 +271,10 @@ const sectionChildOptions = addMoreOptions.filter((option) => sectionChildFieldT
 const menuRowHeight = 36
 const addMoreMenuHeight = addMoreOptions.length * menuRowHeight + 40
 const sectionMenuHeight = Math.ceil(sectionChildOptions.length / 2) * menuRowHeight + 24
-const tagMenuHeight = 2 * menuRowHeight + 24
+// Edit, highlight, delete — the highlight row reads 取消突出显示 once the row already carries one.
+const tagMenuHeight = 3 * menuRowHeight + 24
+// A category row has the one action, and so does a section title once it has anything to clear.
+const highlightMenuHeight = menuRowHeight + 24
 // Edit, archive or restore, and dissolve — the last only when the row can be emptied somewhere.
 const vaultMenuHeight = 3 * menuRowHeight + 24
 // The item panel is wider than the button it hangs from, and its two sections are the same height
@@ -571,10 +585,12 @@ export function App() {
 function SidebarSectionToggle({
   collapsed,
   label,
+  onContextMenu,
   onToggle,
 }: {
   collapsed: boolean
   label: string
+  onContextMenu?: (event: ReactMouseEvent<HTMLButtonElement>) => void
   onToggle: () => void
 }) {
   return (
@@ -582,6 +598,7 @@ function SidebarSectionToggle({
       aria-expanded={!collapsed}
       className="sidebar-section-title section-toggle"
       onClick={onToggle}
+      onContextMenu={onContextMenu}
       type="button"
     >
       <span>{label}</span>
@@ -720,6 +737,10 @@ function VaultWindow() {
   // appears at all once a vault has been put away.
   const [vaultsCollapsed, setVaultsCollapsed] = useState(false)
   const [archivedVaultsCollapsed, setArchivedVaultsCollapsed] = useState(true)
+  // A highlighted row is the one exception to a fold: it stays on screen while the rest of its section is
+  // put away. The keys name the kind and the row (`tag:work`, `category:login`) and live in localStorage
+  // beside the theme, because which rows you want kept is how the window reads, not what the vault holds.
+  const [highlights, setHighlights] = useState<string[]>(() => readHighlightKeys())
   // A new item asks for its type before anything is written, and the category the pick lands in is
   // focused in the sidebar — so the row you just committed to is the row you can see.
   const [itemTypePickerOpen, setItemTypePickerOpen] = useState(false)
@@ -740,6 +761,12 @@ function VaultWindow() {
   const [tagRecords, setTagRecords] = useState<Tag[]>([])
   const [tagMenu, setTagMenu] = useState<TagRow | null>(null)
   const [tagMenuAnchor, setTagMenuAnchor] = useState<MenuAnchor>()
+  // A category row carries no storage of its own, so its right-click has the one row to offer. The
+  // section title is the only place every highlight in that section can be dropped at once.
+  const [categoryMenu, setCategoryMenu] = useState<CategoryItemType | null>(null)
+  const [categoryMenuAnchor, setCategoryMenuAnchor] = useState<MenuAnchor>()
+  const [sectionHighlightMenu, setSectionHighlightMenu] = useState<HighlightKind | null>(null)
+  const [sectionHighlightMenuAnchor, setSectionHighlightMenuAnchor] = useState<MenuAnchor>()
   const [tagEditor, setTagEditor] = useState<{ color: string; from: string; icon: string; name: string } | null>(null)
   const [tagDeleteTarget, setTagDeleteTarget] = useState<TagRow | null>(null)
   // A vault row is now addressed the same way a tag row is: the menu the right-click opens names the
@@ -971,6 +998,14 @@ function VaultWindow() {
   }, [items, mode])
 
   const sidebarTags = useMemo(() => tagRows(tagCounts, tagRecords), [tagCounts, tagRecords])
+  // A folded section still shows the rows the user asked to keep, so a highlight is what survives the
+  // collapse rather than a second list that can drift away from the section it belongs to.
+  const visibleTags = tagsCollapsed
+    ? sidebarTags.filter((tag) => isHighlighted(highlights, 'tag', tag.key))
+    : sidebarTags
+  const visibleCategories = categoriesCollapsed
+    ? categoryItems.filter((category) => isHighlighted(highlights, 'category', category.itemType))
+    : categoryItems
 
   const topSearchResults = useMemo(() => {
     const normalizedQuery = topSearch.trim().toLowerCase()
@@ -1604,10 +1639,14 @@ function VaultWindow() {
 
   function closeFieldMenus() {
     setAddMoreMenuAnchor(undefined)
+    setCategoryMenu(null)
+    setCategoryMenuAnchor(undefined)
     setItemMenu(null)
     setItemMenuAnchor(undefined)
     setSectionMenuAnchor(undefined)
     setSectionMenuIndex(null)
+    setSectionHighlightMenu(null)
+    setSectionHighlightMenuAnchor(undefined)
     setShowAddMore(false)
     setTagMenu(null)
     setTagMenuAnchor(undefined)
@@ -1618,8 +1657,9 @@ function VaultWindow() {
   // The panel hangs off the cursor's height and the row's width, so it reads as belonging to that tag
   // without covering the row it came from. The native menu is already prevented at the window.
   function openTagMenu(event: ReactMouseEvent<HTMLButtonElement>, tag: TagRow) {
-    const rect = event.currentTarget.getBoundingClientRect()
+    closeFieldMenus()
     setTagMenu(tag)
+    const rect = event.currentTarget.getBoundingClientRect()
     setTagMenuAnchor(
       getMenuAnchorStyle({
         menuHeight: tagMenuHeight,
@@ -1627,6 +1667,60 @@ function VaultWindow() {
         viewportHeight: window.innerHeight,
       }),
     )
+  }
+
+  // A highlight is a display preference rather than vault data, so the only work is the key set and the
+  // write that carries it to the next launch.
+  function applyHighlights(nextKeys: string[]) {
+    setHighlights(nextKeys)
+    saveHighlightKeys(nextKeys)
+  }
+
+  function toggleRowHighlight(kind: HighlightKind, id: string) {
+    applyHighlights(toggleHighlightKeys(highlights, kind, id))
+    closeFieldMenus()
+  }
+
+  // A category row has no storage of its own to edit, so its right-click opens the same anchored panel
+  // a tag row does with the one row it has to offer.
+  function openCategoryMenu(event: ReactMouseEvent<HTMLButtonElement>, itemType: CategoryItemType) {
+    closeFieldMenus()
+    setCategoryMenu(itemType)
+    const rect = event.currentTarget.getBoundingClientRect()
+    setCategoryMenuAnchor(
+      getMenuAnchorStyle({
+        menuHeight: highlightMenuHeight,
+        rect: { bottom: event.clientY, left: rect.left, top: event.clientY, width: rect.width },
+        viewportHeight: window.innerHeight,
+      }),
+    )
+  }
+
+  // The title folds its own section, so its right-click clears only that section's highlights — and a
+  // section with none has nothing left for the panel to say, so it does not open at all.
+  function openSectionHighlightMenu(event: ReactMouseEvent<HTMLButtonElement>, kind: HighlightKind) {
+    // A stored key that names no row would clear nothing, so only rows actually drawn can open this.
+    const highlighted =
+      kind === 'tag'
+        ? sidebarTags.some((tag) => isHighlighted(highlights, 'tag', tag.key))
+        : categoryItems.some((category) => isHighlighted(highlights, 'category', category.itemType))
+    if (!highlighted) return
+    closeFieldMenus()
+    setSectionHighlightMenu(kind)
+    const rect = event.currentTarget.getBoundingClientRect()
+    setSectionHighlightMenuAnchor(
+      getMenuAnchorStyle({
+        menuHeight: highlightMenuHeight,
+        rect: { bottom: rect.bottom, left: rect.left, top: rect.top, width: rect.width },
+        viewportHeight: window.innerHeight,
+      }),
+    )
+  }
+
+  function clearSectionHighlights() {
+    if (!sectionHighlightMenu) return
+    applyHighlights(clearHighlightKeys(highlights, sectionHighlightMenu))
+    closeFieldMenus()
   }
 
   function openTagEditor() {
@@ -1658,6 +1752,11 @@ function VaultWindow() {
       // A rename changes the key the view is addressed by, so the filter follows the tag rather than
       // falling back to the whole vault mid-edit.
       if (wasFilteredOn) setActiveNavigation(tagNavigationId(tagKey(name)))
+      // The highlight is addressed by that same key, so a rename carries it to the new spelling instead
+      // of quietly unpinning the row the user just kept.
+      if (tagKey(tagEditor.from) !== tagKey(name)) {
+        applyHighlights(renameHighlightKeys(highlights, 'tag', tagKey(tagEditor.from), tagKey(name)))
+      }
       // The dialog saves the styling and the name together, so a run of icon clicks is not a rename.
       setOperationMessage(t(name === tagEditor.from ? 'messages.updatedTag' : 'messages.renamedTag', { name }))
     } catch (nextError) {
@@ -1692,7 +1791,13 @@ function VaultWindow() {
   // the viewport — which lets one cover the very button that opened it.
   useEffect(() => {
     const menuOpen =
-      showAddMore || sectionMenuIndex !== null || tagMenu !== null || itemMenu !== null || vaultMenu !== null
+      categoryMenu !== null ||
+      itemMenu !== null ||
+      sectionHighlightMenu !== null ||
+      sectionMenuIndex !== null ||
+      showAddMore ||
+      tagMenu !== null ||
+      vaultMenu !== null
     if (
       !menuOpen &&
       !purgeTarget &&
@@ -1727,10 +1832,12 @@ function VaultWindow() {
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [
+    categoryMenu,
     isCreatingVault,
     itemMenu,
     itemTypePickerOpen,
     purgeTarget,
+    sectionHighlightMenu,
     sectionMenuIndex,
     showAddMore,
     tagDeleteTarget,
@@ -2384,11 +2491,14 @@ function VaultWindow() {
             <SidebarSectionToggle
               collapsed={tagsCollapsed}
               label={t('common.tags')}
+              onContextMenu={(event) => openSectionHighlightMenu(event, 'tag')}
               onToggle={() => setTagsCollapsed((next) => !next)}
             />
-            {tagsCollapsed ? null : (
+            {/* A fold hides the list but never a row the user asked to keep, so a highlighted tag is
+                still there to click and still wears the marker that says why it stayed. */}
+            {tagsCollapsed && visibleTags.length === 0 ? null : (
               <div className="nav-sublist">
-                {sidebarTags.map((tag) => {
+                {visibleTags.map((tag) => {
                   const Icon = tagIconComponent(tag.icon)
                   return (
                     <button
@@ -2400,6 +2510,9 @@ function VaultWindow() {
                     >
                       <Icon className={tagColorClass(tag.color)} size={16} />
                       <span>{tag.name}</span>
+                      {isHighlighted(highlights, 'tag', tag.key) ? (
+                        <Pin aria-hidden="true" className="text-text-subtlest" size={16} />
+                      ) : null}
                       <span className="nav-count">{tag.count}</span>
                     </button>
                   )
@@ -2413,11 +2526,12 @@ function VaultWindow() {
             <SidebarSectionToggle
               collapsed={categoriesCollapsed}
               label={t('common.categories')}
+              onContextMenu={(event) => openSectionHighlightMenu(event, 'category')}
               onToggle={() => setCategoriesCollapsed((next) => !next)}
             />
-            {categoriesCollapsed ? null : (
+            {categoriesCollapsed && visibleCategories.length === 0 ? null : (
               <div className="nav-list" ref={categoryListRef}>
-                {categoryItems.map((category) => {
+                {visibleCategories.map((category) => {
                   const id = `category:${category.itemType}` as const
                   const Icon = category.icon
                   return (
@@ -2426,10 +2540,14 @@ function VaultWindow() {
                       data-item-type={category.itemType}
                       key={category.itemType}
                       onClick={() => setActiveNavigation(id)}
+                      onContextMenu={(event) => openCategoryMenu(event, category.itemType)}
                       type="button"
                     >
                       <Icon className={category.colorClass} size={16} />
                       <span>{t(`itemTypes.${category.itemType}`)}</span>
+                      {isHighlighted(highlights, 'category', category.itemType) ? (
+                        <Pin aria-hidden="true" className="text-text-subtlest" size={16} />
+                      ) : null}
                       <span className="nav-count">{navigationCounts[id] ?? 0}</span>
                     </button>
                   )
@@ -3309,10 +3427,50 @@ function VaultWindow() {
               <span>{t('vault.editTag')}</span>
             </span>
           </button>
+          <button
+            className="menu-option with-icon"
+            onClick={() => toggleRowHighlight('tag', tagMenu.key)}
+            type="button"
+          >
+            <Pin aria-hidden="true" size={15} />
+            <span className="menu-option-label">
+              <span>{t(isHighlighted(highlights, 'tag', tagMenu.key) ? 'vault.unhighlight' : 'vault.highlight')}</span>
+            </span>
+          </button>
           <button className="menu-option with-icon is-danger" onClick={askTagDelete} type="button">
             <Trash2 aria-hidden="true" size={15} />
             <span className="menu-option-label">
               <span>{t('vault.deleteTag')}</span>
+            </span>
+          </button>
+        </div>
+      ) : null}
+      {/* A category is a fixed type rather than a stored row, so keeping it on screen is the only thing a
+          right-click can do to it — and the row names which way the toggle will go. */}
+      {categoryMenu ? (
+        <div className="add-more-menu" data-field-menu="" style={categoryMenuAnchor?.style}>
+          <button
+            className="menu-option with-icon"
+            onClick={() => toggleRowHighlight('category', categoryMenu)}
+            type="button"
+          >
+            <Pin aria-hidden="true" size={15} />
+            <span className="menu-option-label">
+              <span>
+                {t(isHighlighted(highlights, 'category', categoryMenu) ? 'vault.unhighlight' : 'vault.highlight')}
+              </span>
+            </span>
+          </button>
+        </div>
+      ) : null}
+      {/* The title speaks for its own section only, because folding is a per-section act too — and it only
+          opens when that section has a row to take back. */}
+      {sectionHighlightMenu ? (
+        <div className="add-more-menu" data-field-menu="" style={sectionHighlightMenuAnchor?.style}>
+          <button className="menu-option with-icon" onClick={clearSectionHighlights} type="button">
+            <PinOff aria-hidden="true" size={15} />
+            <span className="menu-option-label">
+              <span>{t('vault.clearHighlights')}</span>
             </span>
           </button>
         </div>
