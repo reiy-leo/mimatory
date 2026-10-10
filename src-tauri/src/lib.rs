@@ -181,6 +181,47 @@ fn switch_vault(id: String, state: State<AppState>) -> Result<Vec<LoginItem>, St
 }
 
 #[tauri::command]
+fn update_vault(
+    color: String,
+    icon: String,
+    id: String,
+    name: String,
+    state: State<AppState>,
+) -> Result<(), String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service
+        .update_vault(&session, &id, &name, &icon, &color)
+        .map_err(String::from)
+}
+
+/// A vault parks what is in it as well, so the archive view is where its items go to be read. The
+/// session stays put: archiving the open vault leaves the app looking at an empty one, and the
+/// sidebar decides which vault to open instead.
+#[tauri::command]
+fn set_vault_archived(archived: bool, id: String, state: State<AppState>) -> Result<(), String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service
+        .set_vault_archived(&session, &id, archived)
+        .map_err(String::from)
+}
+
+/// Empties a vault into `into_id` and drops the row. `into_id` may be null when the vault holds
+/// nothing; the last vault in the file cannot be dissolved at all.
+#[tauri::command]
+fn dissolve_vault(id: String, into_id: Option<String>, state: State<AppState>) -> Result<(), String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service
+        .dissolve_vault(&session, &id, into_id.as_deref())
+        .map_err(String::from)
+}
+
+#[tauri::command]
 fn create_login_item(input: LoginItemInput, state: State<AppState>) -> Result<LoginItem, String> {
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let mut service = VaultService::new(connection);
@@ -500,6 +541,9 @@ pub fn run() {
             list_vaults,
             create_vault,
             switch_vault,
+            update_vault,
+            set_vault_archived,
+            dissolve_vault,
             create_login_item,
             update_login_item,
             duplicate_login_item,

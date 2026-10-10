@@ -95,6 +95,13 @@ pub struct VaultSummary {
     pub name: String,
     pub created_at: String,
     pub updated_at: String,
+    /// The row's own styling, picked the same way a tag's is. A name alone is hard to tell apart in a
+    /// sidebar that now lists every vault side by side.
+    pub icon: String,
+    pub color: String,
+    pub archived: bool,
+    /// Live items only — archived and trashed ones are not what clicking the row reveals.
+    pub item_count: usize,
 }
 
 /// One row of the `tags` table, as the sidebar needs it. A tag is addressed by its name because that
@@ -209,6 +216,12 @@ pub enum VaultError {
     TagNameEmpty,
     #[error("tag not found")]
     TagNotFound,
+    #[error("vault name cannot be empty")]
+    VaultNameEmpty,
+    #[error("vault still holds items, so a destination is needed")]
+    VaultDestinationRequired,
+    #[error("the last vault cannot be dissolved")]
+    VaultLastOne,
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
     #[error("crypto error: {0}")]
@@ -431,9 +444,15 @@ impl VaultService {
         self.list_login_items(session, None)
     }
 
+    /// Every vault, archived ones included — the sidebar splits the two into their own groups, and it
+    /// needs the archived rows in hand to know that group is not empty. The count is SQL's rather than
+    /// the item list's because, unlike a tag's, a vault's items are not in memory.
     pub fn list_vaults(&self, session: &Session) -> Result<Vec<VaultSummary>, VaultError> {
         let mut statement = self.connection.prepare(
-            "SELECT id, name_ciphertext, created_at, updated_at FROM vaults ORDER BY created_at ASC",
+            "SELECT id, name_ciphertext, created_at, updated_at, icon, color, archived,
+                    (SELECT count(*) FROM items i
+                      WHERE i.vault_id = vaults.id AND i.archived = 0 AND i.trashed = 0)
+             FROM vaults ORDER BY created_at ASC",
         )?;
         let rows = statement
             .query_map([], |row| {
@@ -442,19 +461,38 @@ impl VaultService {
                     row.get::<_, Vec<u8>>(1)?,
                     row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, i64>(6)?,
+                    row.get::<_, i64>(7)?,
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
         rows.into_iter()
-            .map(|(id, name_ciphertext, created_at, updated_at)| {
-                Ok(VaultSummary {
+            .map(
+                |(
                     id,
-                    name: decrypt_string_from_blob(&session.key, &name_ciphertext)?,
+                    name_ciphertext,
                     created_at,
                     updated_at,
-                })
-            })
+                    icon,
+                    color,
+                    archived,
+                    item_count,
+                )| {
+                    Ok(VaultSummary {
+                        id,
+                        name: decrypt_string_from_blob(&session.key, &name_ciphertext)?,
+                        created_at,
+                        updated_at,
+                        icon,
+                        color,
+                        archived: archived != 0,
+                        item_count: item_count as usize,
+                    })
+                },
+            )
             .collect()
     }
 
@@ -477,7 +515,141 @@ impl VaultService {
             name: name.to_string(),
             created_at: now.clone(),
             updated_at: now,
+            icon: "vault".to_string(),
+            color: String::new(),
+            archived: false,
+            item_count: 0,
         })
+    }
+
+    /// Renames a vault and sets its styling. The name is the only thing shown about a vault that is
+    /// encrypted at rest, so this re-encrypts; the icon and colour are plain columns like a tag's.
+    pub fn update_vault(
+        &mut self,
+        session: &Session,
+        vault_id: &str,
+        name: &str,
+        icon: &str,
+        color: &str,
+    ) -> Result<(), VaultError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(VaultError::VaultNameEmpty);
+        }
+        let exists = self
+            .connection
+            .query_row("SELECT 1 FROM vaults WHERE id = ?1", [vault_id], |_| Ok(()))
+            .optional()?
+            .is_some();
+        if !exists {
+            return Err(VaultError::VaultNotFound);
+        }
+
+        self.connection.execute(
+            "UPDATE vaults SET name_ciphertext = ?1, icon = ?2, color = ?3, updated_at = ?4
+             WHERE id = ?5",
+            params![
+                encrypt_string_to_blob(&session.key, name)?,
+                icon,
+                color,
+                Utc::now().to_rfc3339(),
+                vault_id
+            ],
+        )?;
+        self.record_event("update_vault", &format!("Updated vault {vault_id}"))
+    }
+
+    /// Archiving a vault archives what is in it as well, so the items reach the existing 已归档 view
+    /// rather than hiding behind a vault the sidebar no longer lists. Only the rows this call flips are
+    /// marked, so restoring the vault cannot resurrect an item the user had archived on its own.
+    pub fn set_vault_archived(
+        &mut self,
+        session: &Session,
+        vault_id: &str,
+        archived: bool,
+    ) -> Result<(), VaultError> {
+        let target = self.session_for_vault(session, vault_id)?;
+
+        let now = Utc::now().to_rfc3339();
+        if archived {
+            self.connection.execute(
+                "UPDATE items SET archived = 1, archived_by_vault = 1, updated_at = ?1
+                 WHERE vault_id = ?2 AND archived = 0 AND trashed = 0",
+                params![now, &target.vault_id],
+            )?;
+        } else {
+            self.connection.execute(
+                "UPDATE items SET archived = 0, archived_by_vault = 0, updated_at = ?1
+                 WHERE vault_id = ?2 AND archived_by_vault = 1",
+                params![now, &target.vault_id],
+            )?;
+        }
+        self.connection.execute(
+            "UPDATE vaults SET archived = ?1, updated_at = ?2 WHERE id = ?3",
+            params![bool_to_i64(archived), now, vault_id],
+        )?;
+        self.record_event(
+            if archived { "archive_vault" } else { "restore_vault" },
+            &format!("Archived: {archived} vault {vault_id}"),
+        )
+    }
+
+    /// Empties a vault into another one and deletes the row. There is no undo and no export, so this is
+    /// the one sidebar action that ends with data gone — which is why every item, archived or trashed
+    /// included, is moved rather than left to `ON DELETE CASCADE`. An empty vault needs no destination,
+    /// but a vault with items does, and the last vault in the file stays whether it is empty or not.
+    pub fn dissolve_vault(
+        &mut self,
+        session: &Session,
+        vault_id: &str,
+        into_vault_id: Option<&str>,
+    ) -> Result<(), VaultError> {
+        let source = self.session_for_vault(session, vault_id)?;
+
+        let others = self
+            .connection
+            .query_row(
+                "SELECT count(*) FROM vaults WHERE id <> ?1",
+                [vault_id],
+                |row| row.get::<_, i64>(0),
+            )?;
+        if others == 0 {
+            return Err(VaultError::VaultLastOne);
+        }
+
+        let mut statement = self
+            .connection
+            .prepare("SELECT id FROM items WHERE vault_id = ?1 ORDER BY created_at ASC")?;
+        let item_ids = statement
+            .query_map([source.vault_id.clone()], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        drop(statement);
+
+        if !item_ids.is_empty() {
+            let destination = into_vault_id.ok_or(VaultError::VaultDestinationRequired)?;
+            let target = self.session_for_vault(session, destination)?;
+            if target.vault_id == source.vault_id {
+                return Err(VaultError::VaultDestinationRequired);
+            }
+            for item_id in &item_ids {
+                self.rehome_item_tags(&target, item_id)?;
+                self.connection.execute(
+                    "UPDATE items SET vault_id = ?1, updated_at = ?2 WHERE id = ?3",
+                    params![&target.vault_id, Utc::now().to_rfc3339(), item_id],
+                )?;
+            }
+            self.prune_unused_tags(&source)?;
+        }
+
+        self.connection
+            .execute("DELETE FROM vaults WHERE id = ?1", [vault_id])?;
+        self.record_event(
+            "dissolve_vault",
+            &match into_vault_id {
+                Some(destination) => format!("Dissolved vault {vault_id} into {destination}"),
+                None => format!("Dissolved empty vault {vault_id}"),
+            },
+        )
     }
 
     pub fn session_for_vault(
@@ -525,6 +697,16 @@ impl VaultService {
             return Err(VaultError::VaultNotFound);
         }
 
+        self.rehome_item_tags(&target, item_id)?;
+        self.prune_unused_tags(session)?;
+        self.record_event("move_item", &format!("Moved item {item_id} to vault {vault_id}"))?;
+        Ok(())
+    }
+
+    /// Re-points one item's tag links at the target vault's rows for the same names, creating those
+    /// rows where the target does not have one yet. Called before the item's own `vault_id` changes,
+    /// while its links still resolve through the source.
+    fn rehome_item_tags(&self, target: &Session, item_id: &str) -> Result<(), VaultError> {
         let mut statement = self.connection.prepare(
             "SELECT item_tags.tag_id, tags.name_ciphertext, tags.name_hash, tags.icon, tags.color
              FROM item_tags JOIN tags ON tags.id = item_tags.tag_id
@@ -583,9 +765,6 @@ impl VaultService {
                 params![target_tag_id, item_id, source_tag_id],
             )?;
         }
-
-        self.prune_unused_tags(session)?;
-        self.record_event("move_item", &format!("Moved item {item_id} to vault {vault_id}"))?;
         Ok(())
     }
 
@@ -2641,6 +2820,271 @@ mod tests {
         assert_eq!(in_work.len(), 2);
         assert!(in_work.iter().all(|item| item.tags == vec!["shared"]));
         assert!(service.list_tags(&personal).expect("personal tags").is_empty());
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn updating_a_vault_renames_it_and_carries_its_icon_and_colour() {
+        let path = test_database_path("vault-update");
+        initialize_database(&path).expect("database should initialize");
+        let connection = open_database(&path).expect("database should open");
+        let mut service = VaultService::new(connection);
+        let personal = service
+            .setup_master_password("master-password")
+            .expect("master password should setup");
+        let work_vault = service
+            .create_vault(&personal, "Work")
+            .expect("work vault should create");
+        service
+            .create_login_item(&personal, login_input("Personal Mail", vec![]))
+            .expect("personal item should create");
+
+        service
+            .update_vault(&personal, &work_vault.id, "  Team  ", "briefcase", "teal")
+            .expect("vault should update");
+
+        let vaults = service.list_vaults(&personal).expect("vaults should list");
+        let team = vaults
+            .iter()
+            .find(|vault| vault.id == work_vault.id)
+            .expect("the renamed vault is still the same row");
+        assert_eq!(team.name, "Team");
+        assert_eq!(team.icon, "briefcase");
+        assert_eq!(team.color, "teal");
+
+        // The name is the only encrypted column here, so re-encrypting it must not disturb what the
+        // vault points at: the session still resolves and the other vault still reads.
+        let team_session = service
+            .session_for_vault(&personal, &work_vault.id)
+            .expect("the renamed vault should still open");
+        assert!(service
+            .list_login_items(&team_session, None)
+            .expect("team items should list")
+            .is_empty());
+        assert_eq!(
+            service
+                .list_login_items(&personal, None)
+                .expect("personal items should list")
+                .len(),
+            1
+        );
+
+        assert!(matches!(
+            service.update_vault(&personal, &work_vault.id, "   ", "tag", ""),
+            Err(VaultError::VaultNameEmpty)
+        ));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn archiving_a_vault_archives_its_items_without_claiming_the_ones_it_did_not_move() {
+        let path = test_database_path("vault-archive");
+        initialize_database(&path).expect("database should initialize");
+        let connection = open_database(&path).expect("database should open");
+        let mut service = VaultService::new(connection);
+        let personal = service
+            .setup_master_password("master-password")
+            .expect("master password should setup");
+        let work_vault = service
+            .create_vault(&personal, "Work")
+            .expect("work vault should create");
+        let work = service
+            .session_for_vault(&personal, &work_vault.id)
+            .expect("work session should switch");
+
+        let kept = service
+            .create_login_item(&work, login_input("Work SSO", vec![]))
+            .expect("live item should create");
+        let private = service
+            .create_login_item(&work, login_input("Old Router", vec![]))
+            .expect("second item should create");
+        service
+            .archive_item(&work, &private.id)
+            .expect("item should archive on its own");
+
+        service
+            .set_vault_archived(&personal, &work_vault.id, true)
+            .expect("vault should archive");
+
+        assert!(service
+            .list_login_items(&work, None)
+            .expect("work live items should list")
+            .is_empty());
+        assert_eq!(
+            service
+                .list_archived_login_items(&work)
+                .expect("work archived items should list")
+                .len(),
+            2
+        );
+        let vaults = service.list_vaults(&personal).expect("vaults should list");
+        assert!(vaults
+            .iter()
+            .find(|vault| vault.id == work_vault.id)
+            .expect("archived vault still lists")
+            .archived);
+        // A count of live items is what the sidebar row shows, so an archived vault reads as empty
+        // rather than keeping the number it had before it was put away.
+        assert_eq!(
+            vaults
+                .iter()
+                .find(|vault| vault.id == work_vault.id)
+                .map(|vault| vault.item_count)
+                .expect("archived vault still counts"),
+            0
+        );
+
+        service
+            .set_vault_archived(&personal, &work_vault.id, false)
+            .expect("vault should restore");
+
+        assert_eq!(
+            service
+                .list_login_items(&work, None)
+                .expect("work live items should list")
+                .into_iter()
+                .map(|item| item.id)
+                .collect::<Vec<_>>(),
+            vec![kept.id]
+        );
+        assert_eq!(
+            service
+                .list_archived_login_items(&work)
+                .expect("work archived items should list")
+                .into_iter()
+                .map(|item| item.id)
+                .collect::<Vec<_>>(),
+            vec![private.id]
+        );
+        assert!(!service
+            .list_vaults(&personal)
+            .expect("vaults should list")
+            .into_iter()
+            .find(|vault| vault.id == work_vault.id)
+            .expect("restored vault still lists")
+            .archived);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn dissolving_a_vault_moves_every_item_and_takes_the_tag_styling_with_them() {
+        let path = test_database_path("vault-dissolve");
+        initialize_database(&path).expect("database should initialize");
+        let connection = open_database(&path).expect("database should open");
+        let mut service = VaultService::new(connection);
+        let personal = service
+            .setup_master_password("master-password")
+            .expect("master password should setup");
+        let work_vault = service
+            .create_vault(&personal, "Work")
+            .expect("work vault should create");
+        let work = service
+            .session_for_vault(&personal, &work_vault.id)
+            .expect("work session should switch");
+
+        service
+            .create_login_item(&work, login_input("Work SSO", vec!["shared".into()]))
+            .expect("live item should create");
+        let gone = service
+            .create_login_item(&work, login_input("Old VPN", vec!["shared".into()]))
+            .expect("trashed item should create");
+        service
+            .trash_item(&work, &gone.id)
+            .expect("item should reach the trash");
+        service
+            .update_tag(&work, "shared", "shared", "key", "amber")
+            .expect("tag should restyle");
+
+        service
+            .dissolve_vault(&personal, &work_vault.id, Some("personal"))
+            .expect("vault should dissolve");
+
+        assert_eq!(
+            service
+                .list_vaults(&personal)
+                .expect("vaults should list")
+                .into_iter()
+                .map(|vault| vault.name)
+                .collect::<Vec<_>>(),
+            vec!["Personal"]
+        );
+        // Nothing is left behind, not even a row the user had thrown away: those would otherwise
+        // disappear with the vault and nobody would ever see them again.
+        assert_eq!(
+            service
+                .list_trashed_login_items(&personal)
+                .expect("personal trash should list")
+                .len(),
+            1
+        );
+        let live = service
+            .list_login_items(&personal, None)
+            .expect("personal items should list");
+        assert_eq!(live.len(), 1);
+        assert_eq!(live[0].tags, vec!["shared"]);
+        let shared = service
+            .list_tags(&personal)
+            .expect("personal tags should list")
+            .into_iter()
+            .find(|tag| tag.name == "shared")
+            .expect("the tag followed its items");
+        assert_eq!(shared.icon, "key");
+        assert_eq!(shared.color, "amber");
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn dissolving_a_vault_needs_a_destination_only_when_it_holds_something() {
+        let path = test_database_path("vault-dissolve-rules");
+        initialize_database(&path).expect("database should initialize");
+        let connection = open_database(&path).expect("database should open");
+        let mut service = VaultService::new(connection);
+        let personal = service
+            .setup_master_password("master-password")
+            .expect("master password should setup");
+
+        assert!(matches!(
+            service.dissolve_vault(&personal, "personal", None),
+            Err(VaultError::VaultLastOne)
+        ));
+
+        let empty_vault = service
+            .create_vault(&personal, "Empty")
+            .expect("empty vault should create");
+        service
+            .dissolve_vault(&personal, &empty_vault.id, None)
+            .expect("an empty vault needs nowhere to send its items");
+        assert_eq!(service.list_vaults(&personal).expect("vaults should list").len(), 1);
+
+        let work_vault = service
+            .create_vault(&personal, "Work")
+            .expect("work vault should create");
+        let work = service
+            .session_for_vault(&personal, &work_vault.id)
+            .expect("work session should switch");
+        service
+            .create_login_item(&work, login_input("Work SSO", vec![]))
+            .expect("work item should create");
+
+        assert!(matches!(
+            service.dissolve_vault(&personal, &work_vault.id, None),
+            Err(VaultError::VaultDestinationRequired)
+        ));
+        assert!(matches!(
+            service.dissolve_vault(&personal, &work_vault.id, Some(&work_vault.id)),
+            Err(VaultError::VaultDestinationRequired)
+        ));
+        assert_eq!(
+            service
+                .list_vaults(&personal)
+                .expect("a refused dissolve leaves the vault alone")
+                .len(),
+            2
+        );
 
         let _ = std::fs::remove_file(path);
     }

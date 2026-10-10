@@ -4,6 +4,7 @@ import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewW
 import {
   AlertCircle,
   Archive,
+  ArchiveRestore,
   BadgeCheck,
   Braces,
   Calendar,
@@ -260,6 +261,8 @@ const menuRowHeight = 36
 const addMoreMenuHeight = addMoreOptions.length * menuRowHeight + 40
 const sectionMenuHeight = Math.ceil(sectionChildOptions.length / 2) * menuRowHeight + 24
 const tagMenuHeight = 2 * menuRowHeight + 24
+// Edit, archive or restore, and dissolve — the last only when the row can be emptied somewhere.
+const vaultMenuHeight = 3 * menuRowHeight + 24
 // The item panel is wider than the button it hangs from, and its two sections are the same height
 // because only the taller one can ever be the one that has to flip above the trigger.
 const itemMenuWidth = 220
@@ -587,6 +590,99 @@ function SidebarSectionToggle({
   )
 }
 
+type StyleDraft = { color: string; icon: string; name: string }
+
+// A tag and a vault are styled by the same three choices — a name, one of the shared glyph set, one of
+// the accent hues — so the dialog offering them is one component rather than two grids that can drift apart.
+function StyleEditorDialog({
+  draft,
+  nameLabel,
+  onCancel,
+  onDraftChange,
+  onSubmit,
+  title,
+  titleId,
+}: {
+  draft: StyleDraft
+  nameLabel: string
+  onCancel: () => void
+  onDraftChange: (patch: Partial<StyleDraft>) => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  title: string
+  titleId: string
+}) {
+  const { t } = useTranslation()
+  const nameInputRef = useRef<HTMLInputElement>(null)
+
+  // The dialog mounts when the row is opened, so this runs once per edit: typing in the name — or
+  // picking an icon — must not drag the caret back to the field every keystroke.
+  useEffect(() => {
+    nameInputRef.current?.focus()
+  }, [])
+
+  return (
+    <div className="confirm-layer">
+      <button aria-label={t('common.close')} className="confirm-backdrop" onClick={onCancel} type="button" />
+      <div aria-labelledby={titleId} aria-modal="true" className="confirm-dialog" role="dialog">
+        <h2 id={titleId}>{title}</h2>
+        <form onSubmit={onSubmit}>
+          <label>
+            {nameLabel}
+            <input
+              onChange={(event) => onDraftChange({ name: event.target.value })}
+              ref={nameInputRef}
+              type="text"
+              value={draft.name}
+            />
+          </label>
+          <fieldset className="tag-icon-picker">
+            <legend>{t('vault.tagIcon')}</legend>
+            <div className="tag-icon-grid">
+              {tagIconOptions.map((option) => (
+                <button
+                  aria-label={t(`tagIcons.${option.name}`)}
+                  aria-pressed={draft.icon === option.name}
+                  className="tag-icon-option"
+                  key={option.name}
+                  onClick={() => onDraftChange({ icon: option.name })}
+                  type="button"
+                >
+                  <option.icon aria-hidden="true" size={16} />
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          {/* One of the two places DESIGN.md lets an accent hue stand for itself rather than for a
+              status, so the picker offers the whole ramp and "none" alongside it. */}
+          <fieldset className="tag-color-picker">
+            <legend>{t('vault.tagColor')}</legend>
+            <div className="tag-color-row">
+              {tagColorOptions.map((option) => (
+                <button
+                  aria-label={t(tagColorLabelKey(option.name))}
+                  aria-pressed={draft.color === option.name}
+                  className={`tag-color-option ${option.swatchClass}`}
+                  key={option.name === defaultTagColor ? 'none' : option.name}
+                  onClick={() => onDraftChange({ color: option.name })}
+                  type="button"
+                />
+              ))}
+            </div>
+          </fieldset>
+          <div className="confirm-actions">
+            <button className="secondary-button" onClick={onCancel} type="button">
+              {t('vault.cancelEditing')}
+            </button>
+            <button className="primary-button" disabled={!draft.name.trim()} type="submit">
+              {t('common.save')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function VaultWindow() {
   const { t } = useTranslation()
   const [status, setStatus] = useState<AppStatus | null>(null)
@@ -620,6 +716,10 @@ function VaultWindow() {
   // category list otherwise pushes the rest of the sidebar out of the window.
   const [categoriesCollapsed, setCategoriesCollapsed] = useState(false)
   const [tagsCollapsed, setTagsCollapsed] = useState(false)
+  // Archived vaults are the exception rather than the list, so that group starts folded and only
+  // appears at all once a vault has been put away.
+  const [vaultsCollapsed, setVaultsCollapsed] = useState(false)
+  const [archivedVaultsCollapsed, setArchivedVaultsCollapsed] = useState(true)
   // A new item asks for its type before anything is written, and the category the pick lands in is
   // focused in the sidebar — so the row you just committed to is the row you can see.
   const [itemTypePickerOpen, setItemTypePickerOpen] = useState(false)
@@ -638,7 +738,13 @@ function VaultWindow() {
   const [tagMenuAnchor, setTagMenuAnchor] = useState<MenuAnchor>()
   const [tagEditor, setTagEditor] = useState<{ color: string; from: string; icon: string; name: string } | null>(null)
   const [tagDeleteTarget, setTagDeleteTarget] = useState<TagRow | null>(null)
-  const tagNameInputRef = useRef<HTMLInputElement>(null)
+  // A vault row is now addressed the same way a tag row is: the menu the right-click opens names the
+  // row, the editor restyles it, and the dissolve panel asks where its items should go first.
+  const [vaultMenu, setVaultMenu] = useState<VaultSummary | null>(null)
+  const [vaultMenuAnchor, setVaultMenuAnchor] = useState<MenuAnchor>()
+  const [vaultEditor, setVaultEditor] = useState<{ color: string; icon: string; id: string; name: string } | null>(null)
+  const [vaultDissolveTarget, setVaultDissolveTarget] = useState<VaultSummary | null>(null)
+  const [vaultDissolveInto, setVaultDissolveInto] = useState('')
   const [passwordStrength, setPasswordStrength] = useState<PasswordStrength | null>(null)
   const [showAddMore, setShowAddMore] = useState(false)
   const [sectionMenuIndex, setSectionMenuIndex] = useState<number | null>(null)
@@ -792,13 +898,17 @@ function VaultWindow() {
 
   const selectedItem = useMemo(() => items.find((item) => item.id === selectedId) ?? null, [items, selectedId])
 
-  const activeVaultName = useMemo(
-    () => vaults.find((vault) => vault.id === activeVaultId)?.name ?? t('vault.personalVault'),
-    [activeVaultId, t, vaults],
-  )
+  // The sidebar lists the two kinds of vault separately: what is in use, and what has been put away
+  // with everything inside it.
+  const openVaults = useMemo(() => vaults.filter((vault) => !vault.archived), [vaults])
+  const archivedVaults = useMemo(() => vaults.filter((vault) => vault.archived), [vaults])
 
-  // The move list is the picker minus the vault already open: an item cannot move to where it is.
-  const otherVaults = useMemo(() => vaults.filter((vault) => vault.id !== activeVaultId), [activeVaultId, vaults])
+  // The move list is the picker minus the vault already open: an item cannot move to where it is. An
+  // archived vault is out too — a live item parked inside one would be reachable from neither row.
+  const otherVaults = useMemo(
+    () => vaults.filter((vault) => !vault.archived && vault.id !== activeVaultId),
+    [activeVaultId, vaults],
+  )
 
   const activeTagKey = tagKeyFromNavigation(activeNavigation)
 
@@ -962,13 +1072,6 @@ function VaultWindow() {
     // The scroll above already chose where the row lands; focus would otherwise scroll it again.
     row.focus({ preventScroll: true })
   }, [categoryToFocus])
-
-  // Keyed on which tag is open rather than on the draft, so typing in the name — or picking an icon —
-  // does not drag the caret back to the field every keystroke.
-  const editingTagName = tagEditor?.from ?? ''
-  useEffect(() => {
-    if (editingTagName) tagNameInputRef.current?.focus()
-  }, [editingTagName])
 
   useEffect(() => {
     if (!form.password) {
@@ -1278,12 +1381,131 @@ function VaultWindow() {
     }
   }
 
+  // The same anchored panel a tag row opens: it hangs off the cursor's height and the row's width so it
+  // reads as belonging to that vault without covering it.
+  function openVaultMenu(event: ReactMouseEvent<HTMLButtonElement>, vault: VaultSummary) {
+    const rect = event.currentTarget.getBoundingClientRect()
+    setVaultMenu(vault)
+    setVaultMenuAnchor(
+      getMenuAnchorStyle({
+        menuHeight: vaultMenuHeight,
+        rect: { bottom: event.clientY, left: rect.left, top: event.clientY, width: rect.width },
+        viewportHeight: window.innerHeight,
+      }),
+    )
+  }
+
+  function openVaultEditor() {
+    if (!vaultMenu) return
+    setVaultEditor({ color: vaultMenu.color, icon: vaultMenu.icon, id: vaultMenu.id, name: vaultMenu.name })
+    closeFieldMenus()
+  }
+
+  function closeVaultEditor() {
+    setVaultEditor(null)
+  }
+
+  async function handleVaultSave(event: FormEvent<HTMLFormElement>) {
+    if (!vaultEditor) return
+    event.preventDefault()
+    const name = vaultEditor.name.trim()
+    if (!name) return
+    setError(null)
+    try {
+      await vaultApi.updateVault({ color: vaultEditor.color, icon: vaultEditor.icon, id: vaultEditor.id, name })
+      await loadVaults()
+      closeVaultEditor()
+      // A vault is addressed by id, so renaming it moves nothing — the row is the same row.
+      setOperationMessage(t('messages.updatedVault', { name }))
+    } catch (nextError) {
+      setError(String(nextError))
+    }
+  }
+
+  // Archiving a vault archives what is in it as well, so its items reach the 已归档 view rather than
+  // hiding behind a row the sidebar folded away. Restoring gives back only what the vault took.
+  async function handleVaultArchive() {
+    if (!vaultMenu) return
+    const vault = vaultMenu
+    const archived = !vault.archived
+    setError(null)
+    try {
+      await vaultApi.setVaultArchived(archived, vault.id)
+      closeFieldMenus()
+      const nextVaults = await vaultApi.listVaults()
+      setVaults(nextVaults)
+      // Putting away the vault being read leaves the app on a row that is no longer in the list, so it
+      // moves to the next one still open — unless none is, which is the one case left parked.
+      if (archived && vault.id === activeVaultId) {
+        const nextId = nextVaults.find((next) => !next.archived)?.id
+        if (nextId) {
+          await handleSwitchVault(nextId)
+        } else {
+          await refreshItems()
+          await loadArchivedItems()
+          await loadTrashedItems()
+        }
+      }
+      setOperationMessage(t(archived ? 'messages.archivedVault' : 'messages.restoredVault', { name: vault.name }))
+    } catch (nextError) {
+      setError(String(nextError))
+    }
+  }
+
+  // Where a dissolved vault's items can go: another vault still in use.
+  function dissolveDestinationsFor(vault: VaultSummary) {
+    return vaults.filter((other) => !other.archived && other.id !== vault.id)
+  }
+
+  // The last vault in the file cannot be dissolved and a full one needs somewhere to send its items, so
+  // the row that meets neither offers no destructive option at all.
+  function canDissolveVault(vault: VaultSummary) {
+    return vaults.length > 1 && (vault.item_count === 0 || dissolveDestinationsFor(vault).length > 0)
+  }
+
+  function askVaultDissolve() {
+    if (!vaultMenu) return
+    // A vault with nothing in it has nowhere to send anything, so it is opened with no destination
+    // chosen and the command is given none — only a full one has to say where its items go.
+    setVaultDissolveInto(vaultMenu.item_count > 0 ? (dissolveDestinationsFor(vaultMenu)[0]?.id ?? '') : '')
+    setVaultDissolveTarget(vaultMenu)
+    closeFieldMenus()
+  }
+
+  async function handleVaultDissolve() {
+    if (!vaultDissolveTarget) return
+    const vault = vaultDissolveTarget
+    // An empty vault has nothing to send anywhere, which is the only case the command takes no
+    // destination for. With items, a destination is the whole point of the panel.
+    const intoId = vaultDissolveInto || null
+    if (vault.item_count > 0 && !intoId) return
+    setError(null)
+    try {
+      await vaultApi.dissolveVault(vault.id, intoId)
+      setVaultDissolveTarget(null)
+      setVaultDissolveInto('')
+      const nextVaults = await vaultApi.listVaults()
+      setVaults(nextVaults)
+      setOperationMessage(t('messages.dissolvedVault', { name: vault.name }))
+      // The backend session may have been reading the row just deleted, so the app re-points it by
+      // switching — to the vault the items went to, or to whatever is left.
+      if (vault.id === activeVaultId) {
+        await handleSwitchVault(intoId ?? nextVaults[0]?.id ?? 'personal')
+      } else {
+        await refreshItems()
+        await loadArchivedItems()
+        await loadTrashedItems()
+      }
+    } catch (nextError) {
+      setError(String(nextError))
+    }
+  }
+
   function jumpToSearchResult(itemId: string) {
     setActiveNavigation('vaults')
     setSelectedId(itemId)
     setTopSearch('')
   }
-
   function beginItemListResize(event: ReactMouseEvent<HTMLButtonElement>) {
     event.preventDefault()
     const startX = event.clientX
@@ -1385,6 +1607,8 @@ function VaultWindow() {
     setShowAddMore(false)
     setTagMenu(null)
     setTagMenuAnchor(undefined)
+    setVaultMenu(null)
+    setVaultMenuAnchor(undefined)
   }
 
   // The panel hangs off the cursor's height and the row's width, so it reads as belonging to that tag
@@ -1463,8 +1687,19 @@ function VaultWindow() {
   // dialog methods, so there is no native sheet to lean on, and all three menus are anchored to
   // the viewport — which lets one cover the very button that opened it.
   useEffect(() => {
-    const menuOpen = showAddMore || sectionMenuIndex !== null || tagMenu !== null || itemMenu !== null
-    if (!menuOpen && !purgeTarget && !isCreatingVault && !tagEditor && !tagDeleteTarget && !itemTypePickerOpen) return
+    const menuOpen =
+      showAddMore || sectionMenuIndex !== null || tagMenu !== null || itemMenu !== null || vaultMenu !== null
+    if (
+      !menuOpen &&
+      !purgeTarget &&
+      !isCreatingVault &&
+      !tagEditor &&
+      !tagDeleteTarget &&
+      !itemTypePickerOpen &&
+      !vaultEditor &&
+      !vaultDissolveTarget
+    )
+      return
     const handleClick = (event: MouseEvent) => {
       if (!menuOpen) return
       if ((event.target as HTMLElement | null)?.closest('[data-field-menu]')) return
@@ -1478,6 +1713,8 @@ function VaultWindow() {
       closeTagEditor()
       setTagDeleteTarget(null)
       setItemTypePickerOpen(false)
+      closeVaultEditor()
+      setVaultDissolveTarget(null)
     }
     window.addEventListener('click', handleClick)
     window.addEventListener('keydown', handleKeyDown)
@@ -1495,6 +1732,9 @@ function VaultWindow() {
     tagDeleteTarget,
     tagEditor,
     tagMenu,
+    vaultDissolveTarget,
+    vaultEditor,
+    vaultMenu,
   ])
 
   async function addCustomField(fieldType: (typeof addMoreOptions)[number]['type']) {
@@ -2037,6 +2277,27 @@ function VaultWindow() {
       })
   }
 
+  // A vault row is the same row a tag or a category is, and clicking it changes which vault the whole
+  // window reads. The right-click carries the rest: styling, parking, and the one way to lose a vault.
+  function sidebarVaultRows(list: VaultSummary[]) {
+    return list.map((vault) => {
+      const Icon = tagIconComponent(vault.icon)
+      return (
+        <button
+          className={vault.id === activeVaultId ? 'nav-item active' : 'nav-item'}
+          key={vault.id}
+          onClick={() => handleSwitchVault(vault.id)}
+          onContextMenu={(event) => openVaultMenu(event, vault)}
+          type="button"
+        >
+          <Icon className={tagColorClass(vault.color)} size={16} />
+          <span>{vault.name}</span>
+          <span className="nav-count">{vault.item_count}</span>
+        </button>
+      )
+    })
+  }
+
   return (
     <main className="app-shell" style={{ '--item-list-width': `${itemListWidth}px` } as CSSProperties}>
       <h1 className="sr-only">{t('landmarks.vaultItems')}</h1>
@@ -2045,27 +2306,10 @@ function VaultWindow() {
           <div className="brand-mark">
             <Lock size={16} />
           </div>
-          {/* Which vault is open is a property of the whole sidebar, not of the item being edited, so it
-              is named here — the detail header is left to the item alone. */}
+          {/* Which vault is open is a row in the list below now, not a control in the brand block — the
+              brand is left to name the app and offer the way to make another vault. */}
           <div className="brand-vault">
             <strong>{t('lock.appName')}</strong>
-            <label className="vault-picker" data-tauri-drag-region="false">
-              <select
-                aria-label={t('vault.vaultName')}
-                onChange={(event) => handleSwitchVault(event.target.value)}
-                value={activeVaultId}
-              >
-                {vaults.length ? (
-                  vaults.map((vault) => (
-                    <option key={vault.id} value={vault.id}>
-                      {vault.name}
-                    </option>
-                  ))
-                ) : (
-                  <option value="personal">{activeVaultName}</option>
-                )}
-              </select>
-            </label>
           </div>
           <button
             aria-label={t('vault.createVault')}
@@ -2083,6 +2327,34 @@ function VaultWindow() {
             the sidebar, reachable without hunting past a long category list. */}
         <div className="sidebar-scroll">
           <nav className="nav-list">{sidebarViewRows('vault')}</nav>
+
+          {/* Every vault is a row here, so switching is a click on the one you want rather than a control
+              that hides the list. Archived vaults fold into their own section because they are parked
+              with everything inside them and cannot be read until one row is restored. */}
+          <nav aria-label={t('common.vaults')} className="section-nav">
+            <SidebarSectionToggle
+              collapsed={vaultsCollapsed}
+              label={t('common.vaults')}
+              onToggle={() => setVaultsCollapsed((next) => !next)}
+            />
+            {vaultsCollapsed ? null : (
+              <div className="nav-list">
+                {sidebarVaultRows(openVaults)}
+                {openVaults.length === 0 ? <p className="nav-sublist-empty">{t('vault.noOpenVaults')}</p> : null}
+              </div>
+            )}
+          </nav>
+
+          {archivedVaults.length ? (
+            <nav aria-label={t('common.archivedVaults')} className="section-nav">
+              <SidebarSectionToggle
+                collapsed={archivedVaultsCollapsed}
+                label={t('common.archivedVaults')}
+                onToggle={() => setArchivedVaultsCollapsed((next) => !next)}
+              />
+              {archivedVaultsCollapsed ? null : <div className="nav-list">{sidebarVaultRows(archivedVaults)}</div>}
+            </nav>
+          ) : null}
 
           <nav aria-label={t('common.tags')} className="section-nav">
             <SidebarSectionToggle
@@ -3003,65 +3275,15 @@ function VaultWindow() {
       {/* Renaming a tag is one row, not every item that names it, so this panel changes the row and the
           items read the new spelling on their own. */}
       {tagEditor ? (
-        <div className="confirm-layer">
-          <button aria-label={t('common.close')} className="confirm-backdrop" onClick={closeTagEditor} type="button" />
-          <div aria-labelledby="tag-editor-title" aria-modal="true" className="confirm-dialog" role="dialog">
-            <h2 id="tag-editor-title">{t('vault.editTag')}</h2>
-            <form onSubmit={handleTagSave}>
-              <label>
-                {t('vault.tagName')}
-                <input
-                  onChange={(event) => setTagEditor({ ...tagEditor, name: event.target.value })}
-                  ref={tagNameInputRef}
-                  type="text"
-                  value={tagEditor.name}
-                />
-              </label>
-              <fieldset className="tag-icon-picker">
-                <legend>{t('vault.tagIcon')}</legend>
-                <div className="tag-icon-grid">
-                  {tagIconOptions.map((option) => (
-                    <button
-                      aria-label={t(`tagIcons.${option.name}`)}
-                      aria-pressed={tagEditor.icon === option.name}
-                      className="tag-icon-option"
-                      key={option.name}
-                      onClick={() => setTagEditor({ ...tagEditor, icon: option.name })}
-                      type="button"
-                    >
-                      <option.icon aria-hidden="true" size={16} />
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-              {/* A tag is one of the two places DESIGN.md lets an accent hue stand for itself rather than
-                  for a status, so the picker offers the whole ramp and "none" alongside it. */}
-              <fieldset className="tag-color-picker">
-                <legend>{t('vault.tagColor')}</legend>
-                <div className="tag-color-row">
-                  {tagColorOptions.map((option) => (
-                    <button
-                      aria-label={t(tagColorLabelKey(option.name))}
-                      aria-pressed={tagEditor.color === option.name}
-                      className={`tag-color-option ${option.swatchClass}`}
-                      key={option.name === defaultTagColor ? 'none' : option.name}
-                      onClick={() => setTagEditor({ ...tagEditor, color: option.name })}
-                      type="button"
-                    />
-                  ))}
-                </div>
-              </fieldset>
-              <div className="confirm-actions">
-                <button className="secondary-button" onClick={closeTagEditor} type="button">
-                  {t('vault.cancelEditing')}
-                </button>
-                <button className="primary-button" disabled={!tagEditor.name.trim()} type="submit">
-                  {t('common.save')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <StyleEditorDialog
+          draft={tagEditor}
+          nameLabel={t('vault.tagName')}
+          onCancel={closeTagEditor}
+          onDraftChange={(patch) => setTagEditor((current) => (current ? { ...current, ...patch } : current))}
+          onSubmit={handleTagSave}
+          title={t('vault.editTag')}
+          titleId="tag-editor-title"
+        />
       ) : null}
       {/* Deleting a label is not deleting what it labels, and the panel has to say that in the same
           breath it asks — the count is how many items lose their way to this tag. */}
@@ -3082,6 +3304,97 @@ function VaultWindow() {
               </button>
               <button className="danger-button" onClick={handleTagDelete} type="button">
                 {t('common.delete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {/* A vault row governs the whole window, so its right-click is the only place it can be renamed,
+          put away, or taken apart. Dissolve is the one option that destroys something, so it is the
+          separated danger row — and it does not appear at all on a row that has nowhere to send its items. */}
+      {vaultMenu ? (
+        <div className="add-more-menu" data-field-menu="" style={vaultMenuAnchor?.style}>
+          <button className="menu-option with-icon" onClick={openVaultEditor} type="button">
+            <Edit3 aria-hidden="true" size={15} />
+            <span className="menu-option-label">
+              <span>{t('vault.editVault')}</span>
+            </span>
+          </button>
+          <button className="menu-option with-icon" onClick={handleVaultArchive} type="button">
+            {vaultMenu.archived ? (
+              <ArchiveRestore aria-hidden="true" size={15} />
+            ) : (
+              <Archive aria-hidden="true" size={15} />
+            )}
+            <span className="menu-option-label">
+              <span>{t(vaultMenu.archived ? 'vault.restoreVault' : 'vault.archiveVault')}</span>
+            </span>
+          </button>
+          {canDissolveVault(vaultMenu) ? (
+            <button className="menu-option with-icon is-danger separated" onClick={askVaultDissolve} type="button">
+              <Trash2 aria-hidden="true" size={15} />
+              <span className="menu-option-label">
+                <span>{t('vault.dissolveVault')}</span>
+              </span>
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {vaultEditor ? (
+        <StyleEditorDialog
+          draft={vaultEditor}
+          nameLabel={t('vault.vaultName')}
+          onCancel={closeVaultEditor}
+          onDraftChange={(patch) => setVaultEditor((current) => (current ? { ...current, ...patch } : current))}
+          onSubmit={handleVaultSave}
+          title={t('vault.editVault')}
+          titleId="vault-editor-title"
+        />
+      ) : null}
+      {/* Dissolving moves everything out — archived and trashed rows included, since there is no export
+          and no undo — and then deletes the row. An empty vault is asked differently, because the count
+          that makes a destination necessary is zero there. */}
+      {vaultDissolveTarget ? (
+        <div className="confirm-layer">
+          <button
+            aria-label={t('common.close')}
+            className="confirm-backdrop"
+            onClick={() => setVaultDissolveTarget(null)}
+            type="button"
+          />
+          <div aria-labelledby="vault-dissolve-title" aria-modal="true" className="confirm-dialog" role="alertdialog">
+            <h2 id="vault-dissolve-title">{t('vault.dissolveVault')}</h2>
+            <p>
+              {vaultDissolveTarget.item_count > 0
+                ? t('vault.confirmDissolveVault', {
+                    count: vaultDissolveTarget.item_count,
+                    name: vaultDissolveTarget.name,
+                  })
+                : t('vault.confirmDissolveEmpty', { name: vaultDissolveTarget.name })}
+            </p>
+            {vaultDissolveTarget.item_count > 0 ? (
+              <label>
+                {t('vault.dissolveInto')}
+                <select onChange={(event) => setVaultDissolveInto(event.target.value)} value={vaultDissolveInto}>
+                  {dissolveDestinationsFor(vaultDissolveTarget).map((other) => (
+                    <option key={other.id} value={other.id}>
+                      {other.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <div className="confirm-actions">
+              <button className="secondary-button" onClick={() => setVaultDissolveTarget(null)} type="button">
+                {t('vault.cancelEditing')}
+              </button>
+              <button
+                className="danger-button"
+                disabled={vaultDissolveTarget.item_count > 0 && !vaultDissolveInto}
+                onClick={handleVaultDissolve}
+                type="button"
+              >
+                {t('vault.dissolveVault')}
               </button>
             </div>
           </div>

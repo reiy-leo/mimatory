@@ -39,6 +39,7 @@ import {
   Tag,
   Terminal,
   Users,
+  Vault,
   Wifi,
   Wrench,
   Zap,
@@ -92,6 +93,8 @@ export const tagIconOptions: readonly TagIconOption[] = [
   { icon: Palette, name: 'palette' },
   { icon: Sparkles, name: 'sparkles' },
   { icon: Wrench, name: 'wrench' },
+  // Also what a vault row shows: the `vaults.icon` column defaults to this name.
+  { icon: Vault, name: 'vault' },
 ]
 
 export function tagIconComponent(name: string): LucideIcon {

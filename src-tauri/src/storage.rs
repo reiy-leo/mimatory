@@ -110,7 +110,11 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
             id TEXT PRIMARY KEY NOT NULL,
             name_ciphertext BLOB NOT NULL,
             created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
+            updated_at TEXT NOT NULL,
+            /* Last, because ALTER TABLE on an existing vault appends them here. */
+            icon TEXT NOT NULL DEFAULT 'vault',
+            color TEXT NOT NULL DEFAULT '',
+            archived INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS items (
@@ -123,7 +127,10 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
             trashed INTEGER NOT NULL DEFAULT 0,
             deleted_at TEXT,
             created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
+            updated_at TEXT NOT NULL,
+            /* Set on the rows a *vault* archiving flipped, so restoring the vault does not also
+               restore an item the user had already archived on its own. */
+            archived_by_vault INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS tags (
@@ -219,6 +226,34 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
     if !has_column(connection, "tags", "color")? {
         connection.execute(
             "ALTER TABLE tags ADD COLUMN color TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+    }
+
+    if !has_column(connection, "vaults", "icon")? {
+        connection.execute(
+            "ALTER TABLE vaults ADD COLUMN icon TEXT NOT NULL DEFAULT 'vault'",
+            [],
+        )?;
+    }
+
+    if !has_column(connection, "vaults", "color")? {
+        connection.execute(
+            "ALTER TABLE vaults ADD COLUMN color TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+    }
+
+    if !has_column(connection, "vaults", "archived")? {
+        connection.execute(
+            "ALTER TABLE vaults ADD COLUMN archived INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
+
+    if !has_column(connection, "items", "archived_by_vault")? {
+        connection.execute(
+            "ALTER TABLE items ADD COLUMN archived_by_vault INTEGER NOT NULL DEFAULT 0",
             [],
         )?;
     }
@@ -433,6 +468,83 @@ mod tests {
         assert_eq!(icon, "tag");
         assert_eq!(color, "");
         assert_eq!(name_ciphertext, vec![1]);
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn initialize_database_adds_vault_styling_to_vaults_that_already_exist() {
+        let (temp_dir, database_path) = temp_database("vault-icon");
+        fs::create_dir_all(&temp_dir).expect("temp dir should exist");
+
+        {
+            let connection = Connection::open(&database_path).expect("database should open");
+            connection.execute_batch("
+                CREATE TABLE meta (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+                CREATE TABLE vaults (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name_ciphertext BLOB NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE items (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    vault_id TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+                    item_type TEXT NOT NULL,
+                    title_ciphertext BLOB NOT NULL,
+                    favorite INTEGER NOT NULL DEFAULT 0,
+                    archived INTEGER NOT NULL DEFAULT 0,
+                    trashed INTEGER NOT NULL DEFAULT 0,
+                    deleted_at TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                INSERT INTO vaults (id, name_ciphertext, created_at, updated_at)
+                VALUES ('personal', x'03', '2026-01-01', '2026-01-01');
+                INSERT INTO items (
+                    id, vault_id, item_type, title_ciphertext, favorite, archived, trashed,
+                    created_at, updated_at
+                ) VALUES ('plain-item', 'personal', 'login', x'04', 0, 0, 0, '2026-01-01', '2026-01-02');
+                INSERT INTO meta (key, value) VALUES ('schema_version', '2');
+            ").expect("styling-less vaults table should build");
+        }
+
+        initialize_database(&database_path).expect("database should upgrade");
+        initialize_database(&database_path).expect("upgrading twice should be harmless");
+
+        let connection = Connection::open(&database_path).expect("database should reopen");
+        for column in ["icon", "color", "archived"] {
+            assert!(
+                has_column(&connection, "vaults", column).expect("column check should run"),
+                "vaults.{column} should be added"
+            );
+        }
+        assert!(
+            has_column(&connection, "items", "archived_by_vault").expect("column check should run")
+        );
+
+        let (icon, color, archived, name_ciphertext): (String, String, i64, Vec<u8>) = connection
+            .query_row(
+                "SELECT icon, color, archived, name_ciphertext FROM vaults WHERE id = 'personal'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .expect("the existing vault should survive the upgrade");
+
+        assert_eq!(icon, "vault");
+        assert_eq!(color, "");
+        assert_eq!(archived, 0);
+        assert_eq!(name_ciphertext, vec![3]);
+
+        let archived_by_vault: i64 = connection
+            .query_row(
+                "SELECT archived_by_vault FROM items WHERE id = 'plain-item'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("the existing item should survive the upgrade");
+
+        assert_eq!(archived_by_vault, 0);
 
         let _ = fs::remove_dir_all(temp_dir);
     }

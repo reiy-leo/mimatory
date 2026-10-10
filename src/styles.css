@@ -746,16 +746,6 @@
     @apply mb-150 flex max-w-content flex-wrap items-center justify-between gap-100 border-b pb-150;
   }
 
-  .vault-picker {
-    @apply block min-w-0;
-  }
-
-  .vault-picker select {
-    background-color: var(--passless-surface-muted);
-    border-color: var(--passless-border);
-    @apply h-400 w-full rounded-medium px-100 text-body font-medium shadow-none;
-  }
-
   .brand-vault {
     @apply min-w-0 flex-1;
   }
@@ -1763,7 +1753,6 @@
     @apply mb-0 max-w-none flex-none border-b px-0 py-100;
   }
 
-  .vault-picker select,
   .type-display {
     color: var(--theme-text-70);
     /* background-color, never the `background` shorthand: the shorthand resets the chevron's
