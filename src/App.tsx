@@ -33,7 +33,6 @@ import {
   KeyRound,
   Link,
   Link2,
-  Lock,
   LogIn,
   Mail,
   MapPin,
@@ -70,6 +69,7 @@ import {
   useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import appIcon from './assets/app-icon.png'
 import i18n, { getInitialLanguage, languageOptions, type SupportedLanguage } from './app/i18n'
 import { isFormDirty } from './app/itemDrafts'
 import {
@@ -2172,8 +2172,8 @@ function VaultWindow() {
         <main className="lock-screen compact-lock-screen" data-tauri-drag-region>
           <form className="compact-unlock-form" onSubmit={handleUnlock}>
             <h1 className="compact-lock-brand">
-              <span aria-hidden="true" className="brand-mark">
-                <Lock size={16} />
+              <span aria-hidden="true" className="brand-mark is-artwork">
+                <img alt="" src={appIcon} />
               </span>
               <span>{t('lock.appName')}</span>
             </h1>
@@ -2218,8 +2218,8 @@ function VaultWindow() {
       <main className="lock-screen" data-tauri-drag-region>
         <section className="lock-panel">
           <div className="brand large">
-            <div className="brand-mark">
-              <Lock size={16} />
+            <div className="brand-mark is-artwork">
+              <img alt="" src={appIcon} />
             </div>
             <div>
               <strong>{t('lock.appName')}</strong>
@@ -2303,8 +2303,8 @@ function VaultWindow() {
       <h1 className="sr-only">{t('landmarks.vaultItems')}</h1>
       <aside aria-label={t('landmarks.primaryNavigation')} className="sidebar" data-tauri-drag-region="deep">
         <div className="brand">
-          <div className="brand-mark">
-            <Lock size={16} />
+          <div className="brand-mark is-artwork">
+            <img alt="" src={appIcon} />
           </div>
           {/* Which vault is open is a row in the list below now, not a control in the brand block — the
               brand is left to name the app and offer the way to make another vault. */}

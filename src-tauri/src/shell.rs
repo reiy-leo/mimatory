@@ -31,13 +31,13 @@ fn build_tray(app: &AppHandle<Wry>) -> Result<(), Box<dyn Error>> {
         &quit,
     ])?;
 
-    let icon = app
-        .default_window_icon()
-        .ok_or("the bundle has no default window icon")?
-        .clone();
+    // A template image, not the app icon: the bar tints it for light and dark chrome, and a
+    // 18pt colour tile is unreadable there. Drawn to the shipped icon's proportions.
+    let icon = tauri::include_image!("icons/tray-icon-template.png");
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
+        .icon_as_template(true)
         .menu(&menu)
         .show_menu_on_left_click(false)
         .tooltip("Passless")

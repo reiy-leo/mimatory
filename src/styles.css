@@ -1462,6 +1462,16 @@
     @apply h-400 w-400 rounded-medium;
   }
 
+  /* The app icon brings its own tile, colour and corner radius, so the shared selected-background
+     treatment has to come off and the image has to reach the edges of the box. */
+  .brand-mark.is-artwork {
+    background-color: transparent;
+  }
+
+  .brand-mark.is-artwork img {
+    @apply h-full w-full;
+  }
+
   .brand.large .brand-mark {
     @apply h-400 w-400;
   }
