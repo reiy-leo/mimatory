@@ -9,7 +9,10 @@ Tauri v2 desktop password manager. React 18 + TypeScript frontend, Rust backend 
 ```bash
 npm run dev          # Vite dev server on :1430 (Tauri launches this automatically)
 npm run build        # Runs: tailwindcss (extension CSS) → tsc → vite build
-npm run test         # Vitest (jsdom environment, @testing-library/react)
+npm run build:css    # Tailwind-compiles src/styles.css only, to /tmp — proves a token resolves
+npm run typecheck    # tsc --noEmit only, without the bundle
+npm run test         # Vitest, all 16 files (node environment; forks capped at 2)
+npm run test:design  # Only src/app/designContract.test.ts — the CSS/className/token guard
 npm run lint:fix     # biome check --write (JS/TS, CSS, JSON)
 npm run tauri dev    # Full Tauri desktop app (builds frontend + Rust backend)
 npm run tauri build  # Production .app bundle — the only build where the CSP takes effect
@@ -17,15 +20,43 @@ cd src-tauri && cargo test   # Rust unit tests (vault, storage, crypto, bridge)
 ```
 
 No CI workflows. No pre-commit hooks. Run the gates manually before claiming work is done, but run only the
-ones the turn's diff needs: this is a 6-core/12-thread Intel machine and a full `cargo test` plus `vite build`
-together saturate every core, so the whole computer stops responding for minutes. `.cargo/config.toml` caps
-cargo at 3 jobs — do not raise it, and prefix long builds with `nice -n 10`.
+ones the turn's diff needs: this is a 6-core/12-thread Intel machine with ~0.9GB of free RAM, a 6GB memory
+compressor already resident and 13GB left on the volume, so an all-core pass does not just run slow — it
+pushes macOS into compression (CPU work on the same cores) and the window server and the input methods queue
+behind it, which is what "the computer cannot be clicked or typed for minutes" actually is. `.cargo/config.toml`
+caps cargo at 3 jobs — do not raise it. Prefix every gate with `/usr/sbin/taskpolicy -b nice -n 10` (plain
+`nice` does not stop the UI from queueing; the background QoS class does), and **issue one gate per Bash
+call** — batching independent gates into one parallel response is how a turn reaches load average 30 on 12
+CPUs.
 
-- `src/**` touched: `npm run build` + `npm run test` + `npm run lint:fix`.
-- `src-tauri/**` touched: `cd src-tauri && cargo test`. Use `cargo check` while chasing a type error, and
-  `cargo test --no-run` once so later runs only relink the test binary.
+### Pick the gate tier from the diff, not from the directory
+
+A one-utility CSS change used to pay for a full toolchain pass: `npm run build` re-bundles 1636 modules,
+`tsc` re-checks the whole program and `vitest run` boots every file, none of which can tell you whether the
+style looks right. Tier it instead (costs measured on this machine, run serially):
+
+- **Tier A — style or `className` only** (`src/styles.css`, `popup.tailwind.css`, a class string):
+  `npx biome check <the touched file>` (~7s) + `npm run test:design` (~10s, it is the guard that reads
+  `styles.css` and the `className` slots) + `npm run build:css` (~22s, the only thing that proves a Tailwind
+  token resolves). Then the judgement: look at it. Skip `tsc`, `vite build`, the other 15 test files and
+  `cargo` — none of them reads CSS.
+- **Tier B — TS logic, no Rust** : `npm run typecheck` (~64s) + `npm run test:design` + the specific test
+  files covering the change (`npm run test -- src/app/lockScreen.test.ts`). Full `npm run test` only when
+  the change crosses modules.
+- **Tier C — once, before the commit**: `npm run build` (~2m22) + `npm run test` (~63s, 16 files/88 tests)
+  + `npm run lint:fix`. This is the bundle evidence, and it belongs at the end of the turn, not after every
+  edit inside it.
+- **`src-tauri/**` touched**: `cd src-tauri && cargo test`. Use `cargo check` while chasing a type error, and
+  `cargo test --no-run` once so later runs only relink the test binary. A small Rust edit does *not* rebuild
+  the 545-crate graph — measured: 13 files rewritten against 879 untouched rlibs — what it pays is two ~39MB
+  links, so never overlap it with `npm run build`.
 - `npm run tauri build` only when the packaged build itself is under test (CSP, bundling): it is a release
   build of all 545 dependency crates and costs minutes of all-core CPU.
+
+**Use the running `tauri dev`/Vite server as the inner loop.** It already compiles Tailwind and hot-reloads a
+class change, so the expensive bundle belongs once at Tier C, not per edit. One exception is documented under
+Design tokens: `tailwind.config.js` is not hot-reloaded, so a new token key needs `npm run dev` restarted
+before its first `@apply` stops failing.
 
 ## Workflow
 
@@ -40,6 +71,12 @@ added or changed in that turn — labels, notices, *and* error and success messa
 bundles in `src/app/i18n.ts`, and in `_locales/{en,zh,ja}/messages.json` too if it is popup text.
 `npm run test` runs the gate that proves it (`src/app/i18n.test.ts`: named keys defined, no English
 `defaultValue` fallback, runtime-built prefixes covered); fill the gap before committing, not after.
+
+**This file records decisions, not diffs** (owner ruling, 2026-10-10). Add a paragraph here only for an
+irreversible decision, a new trap, or a rule the next turn would otherwise re-derive. A hover state, a
+deleted border, or one utility class added to a rule is a commit message, not documentation — the last two
+of those cost more prose than code (`f9d487b`: one `@apply` utility plus 4 lines of AGENTS.md), and writing
+them is the slowest part of a turn that changed nothing structural.
 
 ## Linting & Formatting
 
@@ -123,7 +160,7 @@ browser-extension/    # Manifest V3 extension (not built by Vite)
 - **Env vars**: Vite exposes `VITE_*` and `TAURI_*` prefixed env vars only.
 - **macOS-first**: Touch ID uses `objc2-local-authentication`. There is no OS Keychain access — the `keyring` crate and `secure_store.rs` went with the GitHub PAT on 2026-10-09.
 - **Database**: Each command opens a fresh `storage::open_default_database()` connection — no connection pooling.
-- **Testing**: Co-located `*.test.ts` files next to source. Vitest globals available (`describe`/`it`/`expect` without imports). Setup file loads `@testing-library/jest-dom/vitest`. Rust tests live in each module's `#[cfg(test)] mod tests`; `src-tauri/tests/` does not exist.
+- **Testing**: Co-located `*.test.ts` files next to source. Vitest globals available (`describe`/`it`/`expect` without imports). The environment is **node**, not jsdom: no test renders a component or touches a DOM global, and booting jsdom per file was 405s against 4.7s of assertions. `src/test/setup.ts` (jest-dom) is still on disk but **not wired** via `setupFiles` because no test uses one of its matchers — re-point it, and add `// @vitest-environment jsdom` to the file, the first time a real DOM test lands. `vite.config.ts` caps the fork pool at 2 (`maxForks`) so a full run cannot fan out to 12 workers. Rust tests live in each module's `#[cfg(test)] mod tests`; `src-tauri/tests/` does not exist.
 - **The design contract is tested, not just documented**: `src/app/designContract.test.ts` reads `src/styles.css`,
   `src/App.tsx`, `browser-extension/popup.tailwind.css` and `popup.html` and fails the suite on a hex in a component
   rule (values belong in `:root`), a Tailwind default palette class, an arbitrary `px`/`rem` bracket, a self-hosted
