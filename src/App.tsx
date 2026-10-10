@@ -151,6 +151,7 @@ import {
   vaultApi,
   type WatchtowerReport,
 } from './app/vaultApi'
+import { getTopLeftCenteredOver } from './app/windowPlacement'
 import appIcon from './assets/app-icon.png'
 
 type VaultMode = 'loading' | 'setup' | 'locked' | 'unlocked'
@@ -188,6 +189,7 @@ const pinLengthLimits = { max: 12, min: 4, step: 1 }
 const randomLengthLimits = { max: 128, min: 8, step: 4 }
 const quickAccessMaxResults = 8
 const quickAccessCloseDelayMs = 400
+const settingsWindowSize = { height: 680, width: 920 }
 
 function createFormId() {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
@@ -2257,6 +2259,9 @@ function VaultWindow() {
     await loadArchivedItems()
   }
 
+  // A window created without a position is centred on tauri's *primary* monitor, so with a second display
+  // open the settings landed where the user was not looking. Main's own frame decides where it goes, and
+  // `parent` is what puts the two windows on the same macOS Space and keeps them travelling together.
   async function openSettingsWindow() {
     setError(null)
     try {
@@ -2267,21 +2272,37 @@ function VaultWindow() {
         return
       }
 
+      const mainWindow = await WebviewWindow.getByLabel('main')
+      const position = mainWindow
+        ? getTopLeftCenteredOver({
+            frame: {
+              position: await mainWindow.outerPosition(),
+              scaleFactor: await mainWindow.scaleFactor(),
+              size: await mainWindow.outerSize(),
+            },
+            ...settingsWindowSize,
+          })
+        : null
+
       const settingsWindow = new WebviewWindow('settings', {
         alwaysOnTop: true,
-        center: true,
+        // `center` is applied last, so passing it with an explicit position would throw the position away.
+        center: position === null,
         decorations: true,
-        height: 680,
+        height: settingsWindowSize.height,
         hiddenTitle: true,
         minHeight: 560,
         minWidth: 760,
+        parent: mainWindow ?? undefined,
         resizable: false,
         shadow: true,
         skipTaskbar: true,
         title: 'Passless Settings',
         titleBarStyle: 'overlay',
         url: '/?view=settings',
-        width: 920,
+        width: settingsWindowSize.width,
+        x: position?.x,
+        y: position?.y,
       })
       settingsWindow.once('tauri://error', (event) =>
         setError(t('messages.settingsWindowFailed', { error: String(event.payload) })),
