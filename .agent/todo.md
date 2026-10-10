@@ -1,0 +1,84 @@
+# Task state
+
+Status only. The durable rules live in `AGENTS.md` (engineering) and `.agent/design-rules.md` (design);
+neither of them should be read as a to-do list, and nothing here is a constraint by itself.
+
+Dates are absolute. `needs-owner-decision` marks an item nobody should quietly implement.
+
+## Open
+
+- **needs-owner-decision — Dark palette is owed.** `:root[data-theme="dark"]` only re-points the tokens onto
+  the hexes the app shipped with before dark mode existed, because `DESIGN.md` is light-only. It renders, but
+  it is not a designed dark theme. Do not invent Atlassian dark hexes locally.
+- **needs-owner-decision — There is no recovery path for a forgotten master password.** No export, no import,
+  no sync, no Keychain copy of the key, so nothing can undo it. This is not theoretical: the owner lost their
+  own vault to it on 2026-10-08 and the vault was wiped. Any recovery design must keep the vault key
+  unpersisted (see AGENTS.md), which is why it is a decision and not a task.
+- **⌘K should become search / command palette.** It currently locks the vault; `⌘F` only focuses the list
+  search. Carried over from the pre-2026-10-08 rulings.
+- **Rust errors are not translated.** Every `catch` in `App.tsx` does `setError(String(nextError))`, so a
+  backend failure renders as `Error: invalid master password` in zh and ja. The locale bundles themselves are
+  clean. The fix is error **codes** across the bridge, not more strings — do not paper over it with
+  per-message lookups in the frontend.
+- **At-rest audit, remaining items** (the 2026-10-08 audit's #1 export encryption, #2 file permissions and
+  #4 CSP + constant-time pairing are done): #3 attachment temp-file cleanup, #5 no rate limiting on the bridge
+  or on master-password attempts, #6 default security preferences / master-password strength enforced in Rust /
+  `zeroize` on lock / key rotation.
+- **Cleanup of the 2026-10-09 sync/backup deletion.** The callerless `VaultService::import_login_items`,
+  `set_encrypted_setting`, `get_encrypted_setting` and their helpers (`item_exists`, `primary_website`,
+  `Session::key`) went, so the crate compiles warning-free. Still left behind and unreachable: the `settings`
+  table (now no reader or writer at all), the `github_sync_settings` row,
+  `~/Library/Application Support/app.passless.desktop/sync-history/*.snapshot`, and the Keychain item
+  `app.passless.desktop` / `github_pat`.
+- **Neither sidebar column's width persists across a restart**, and no real mouse drag in the Tauri window has
+  ever been exercised — only the clamps, through the browser harness.
+
+## Never yet seen in a running app
+
+Everything in this list is written and unit-proven or not proven at all; none of it has been observed.
+
+- Tray menu, `⌘⇧Space` Quick Access, autostart via the LaunchAgent, single-instance refocus.
+- The Dock/Finder bundle icon and the menu-bar template *in place*. `icon.icns` was regenerated and
+  round-tripped through `sips` (1024px out, transparent corners confirmed) and the tray template was
+  composited at 18pt on light and dark, but seeing them needs `npm run tauri build` — a minutes-long all-core
+  release build on this machine.
+- The CSP in a packaged build (`tauri dev` runs with no CSP at all), and the browser extension popup loaded in
+  a browser.
+- The settings window as real `NSWindow`s on a real second display. Only the *payload* has been proven through
+  the browser stub.
+- Every hover/pressed/disabled state; the settings tabs other than the generator; TOTP; attachments.
+
+## Completed
+
+Closed work, kept so nobody re-derives it. How each of these behaves today is described in `AGENTS.md`
+(constraints) and `.agent/design-rules.md` (design), not here.
+
+| Date | Landed | Where it is described |
+|---|---|---|
+| 2026-10-10 | Documentation split: engineering rules stay here in `AGENTS.md`, design constraints moved to `.agent/design-rules.md`, all task state to this file | The three files |
+| 2026-10-10 | Gate tiers by diff type; vitest moved off jsdom and fork-capped, so a style edit no longer pays for a full toolchain pass | `AGENTS.md` Commands |
+| 2026-10-10 | Sidebar gutter paints nothing at rest/hover/drag; sidebar gets its own resizable gutter, clamped 150–220 | `design-rules.md` exceptions; `AGENTS.md` sidebar |
+| 2026-10-10 | A folded sidebar section stays at one row at the top (`content-start`) | `AGENTS.md` sidebar |
+| 2026-10-10 | One unlock ring on the lock field, brand stacked above it | `design-rules.md` focus ring |
+| 2026-10-10 | Settings window placed against `main`, never screen-centred | `AGENTS.md` second window |
+| 2026-10-10 | Highlighted tag/category rows survive their section's fold; keys in localStorage | `AGENTS.md` sidebar highlights |
+| 2026-10-10 | Item actions behind one header ellipsis **and** a row right-click; move/duplicate in Rust | `AGENTS.md` item actions, moving and duplicating |
+| 2026-10-10 | New item asks its type from one `categoryItems` table | `AGENTS.md` new item |
+| 2026-10-10 | Vault rows in the sidebar: switch, edit styling, archive (cascading), dissolve (with destination) | `AGENTS.md` vault rows |
+| 2026-10-10 | Brand icon settled: one artwork in lock screen + sidebar + bundle, separate tray template glyph | `AGENTS.md` brand icon |
+| 2026-10-09 | Tag filtering as a sidebar section, tag chips in the item form, tag rename/delete, `tags.icon` + `tags.color` | `AGENTS.md` tags |
+| 2026-10-09 | Archive and Trash views at the foot of the sidebar, with live counts and restore | `AGENTS.md` soft delete |
+| 2026-10-09 | Create-vault panel in the sidebar brand `+` | `AGENTS.md` native dialogs |
+| 2026-10-09 | i18n completeness gate: named keys defined, no `defaultValue` fallback, runtime-built prefixes covered | `AGENTS.md` Workflow |
+| 2026-10-09 | All three UI string bundles complete; `App.tsx` carries zero `defaultValue` fallbacks | `AGENTS.md` Workflow |
+| 2026-10-09 | Sync, backup and import deleted (see "Decided against" below) | `AGENTS.md` no transport |
+| 2026-10-08 | Atlassian `DESIGN.md` installed as the contract; Cupertino spec deleted | `design-rules.md` header |
+| 2026-10-08 | Audit #1 export encryption, #2 file permissions (0600/0700, self-repairing), #4 CSP + constant-time pairing | `AGENTS.md` CSP, file permissions, bridge |
+
+## Decided against (not pending — do not re-propose)
+
+- **No sync of any kind.** The 2026-10-08 ruling dropped the iCloud Drive / Google Drive transport in favour of
+  GitHub sync plus local snapshots; the owner deleted that too on 2026-10-09. The vault is local-only.
+- **No import.** The 1Password importer (`import_1pux.rs`) went on 2026-10-08 and the encrypted Passless backup
+  reader (`json_transfer.rs`) on 2026-10-09, along with both settings tabs. The open question about `.1pux`
+  collections flattening to a list died with the feature.
