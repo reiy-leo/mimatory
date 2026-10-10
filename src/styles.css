@@ -439,12 +439,18 @@
   }
 
   .compact-unlock-form {
-    @apply grid w-full max-w-lock-panel gap-100;
+    @apply grid w-full max-w-lock-panel gap-300;
   }
 
+  /* The artwork is the only thing naming the app on this panel, so it leads from above the word
+     rather than sitting beside it at control size. */
   .compact-lock-brand {
     color: var(--color-text);
-    @apply m-0 flex items-center justify-center gap-100 text-heading-xsmall;
+    @apply m-0 flex flex-col items-center justify-center gap-100 text-heading-xsmall;
+  }
+
+  .compact-lock-brand .brand-mark {
+    @apply h-600 w-600;
   }
 
   .compact-password-control {
@@ -459,9 +465,11 @@
     border-color: var(--color-border-focused);
   }
 
+  /* The wrapper wears the ring for the whole composite control, so the input inside it contributes
+     none — `input:focus-visible` in @layer base would otherwise paint a third border. */
   .compact-password-control input {
     color: var(--color-text);
-    @apply min-w-0 flex-1 border-0 bg-transparent px-100 text-body shadow-none;
+    @apply min-w-0 flex-1 border-0 bg-transparent px-100 text-body shadow-none outline-none;
   }
 
   .compact-password-control input::placeholder {

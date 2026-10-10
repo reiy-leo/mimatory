@@ -158,7 +158,11 @@ Binding rules that the codebase has historically broken, so they are stated here
 - **Three shadow recipes only** (`shadow-raised`, `shadow-overlay`, `shadow-overflow`). Cards sitting on
   the default plane use borders, not shadows. Never hand-write a `box-shadow`.
 - **Focus ring is 2px `border-focused` offset 2px**, with the ring radius = the component radius + 2px.
-  `outline-none` is only allowed where this ring is applied in the same rule.
+  `outline-none` is only allowed where this ring is applied in the same rule — or on the inner field of a
+  composite control whose *wrapper* carries the `:focus-within` ring, which is what
+  `.compact-password-control` does: the base `input:focus-visible` ring otherwise paints a third border
+  inside the control. Say it as the `outline-none` **utility**, never `outline: none` — the guard sweeps
+  every literal `outline: …;` in the stylesheet and demands both focus tokens in it.
 - **Semantic roles, not accent ramps**, for brand/danger/warning/success/information/discovery. The
   10 accent hues are decoration only (item-type icons, tags); they never stand in for a status.
 - **Prose body text uses `text`, not `text-subtle`.** `text-subtle`/`text-subtlest` are for captions,
