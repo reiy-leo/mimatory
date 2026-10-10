@@ -201,6 +201,32 @@ fn update_login_item(input: LoginItemUpdate, state: State<AppState>) -> Result<L
 }
 
 #[tauri::command]
+fn duplicate_login_item(
+    id: String,
+    title: String,
+    state: State<AppState>,
+) -> Result<LoginItem, String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service
+        .duplicate_login_item(&session, &id, &title)
+        .map_err(String::from)
+}
+
+/// The item leaves the vault the session is reading, so the caller's list changes underneath it —
+/// this does not switch the app to the target vault.
+#[tauri::command]
+fn move_login_item(id: String, vault_id: String, state: State<AppState>) -> Result<(), String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service
+        .move_login_item(&session, &id, &vault_id)
+        .map_err(String::from)
+}
+
+#[tauri::command]
 fn trash_login_item(id: String, state: State<AppState>) -> Result<(), String> {
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let mut service = VaultService::new(connection);
@@ -476,6 +502,8 @@ pub fn run() {
             switch_vault,
             create_login_item,
             update_login_item,
+            duplicate_login_item,
+            move_login_item,
             trash_login_item,
             list_trashed_login_items,
             restore_trashed_login_item,

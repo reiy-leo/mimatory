@@ -156,6 +156,7 @@ export const vaultApi = {
   create: (input: LoginItemInput) => invoke<LoginItem>('create_login_item', { input }),
   createVault: (name: string) => invoke<VaultSummary>('create_vault', { name }),
   deleteTag: (name: string) => invoke<void>('delete_tag', { name }),
+  duplicate: (id: string, title: string) => invoke<LoginItem>('duplicate_login_item', { id, title }),
   exportAttachmentToTemp: (id: string) => invoke<string>('export_attachment_to_temp', { id }),
   favorite: (id: string, favorite: boolean) => invoke<void>('set_login_favorite', { favorite, id }),
   generateBrowserPairingToken: () => invoke<string>('generate_browser_pairing_token'),
@@ -167,6 +168,8 @@ export const vaultApi = {
   list: (query?: string) => invoke<LoginItem[]>('list_login_items', { query: query || null }),
   listVaults: () => invoke<VaultSummary[]>('list_vaults'),
   lock: () => invoke<void>('lock_vault'),
+  // The item leaves the vault the session is reading; this does not switch the app to the target.
+  move: (id: string, vaultId: string) => invoke<void>('move_login_item', { id, vaultId }),
   passwordStrength: (password: string) => invoke<PasswordStrength>('password_strength', { password }),
   pickAttachmentFile: () => invoke<string | null>('pick_attachment_file'),
   purge: (id: string) => invoke<void>('purge_login_item', { id }),

@@ -2276,6 +2276,13 @@
     @apply grid;
   }
 
+  /* A row that opens another menu marks it with a chevron on the far edge. It rides inside the label's
+     grid rather than the row's, because an option has exactly two tracks — icon and text — and a third
+     child would wrap under the row instead of sitting at its end. */
+  .menu-option-label.trailing {
+    @apply grid-cols-[minmax(0,1fr)_auto] items-center;
+  }
+
   .add-more-button.placement-top svg:last-child {
     transform: rotate(180deg);
   }

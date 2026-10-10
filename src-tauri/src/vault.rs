@@ -338,6 +338,95 @@ impl VaultService {
             .expect("created login item should be readable"))
     }
 
+    /// Copies an item under a title the caller supplies, because the word for a copy belongs to
+    /// the locale. Attachments are copied rather than shared: the copy gets its own rows and its
+    /// `attachment://` references are rewritten to name them, so purging either item leaves the
+    /// other one readable.
+    pub fn duplicate_login_item(
+        &mut self,
+        session: &Session,
+        item_id: &str,
+        title: &str,
+    ) -> Result<LoginItem, VaultError> {
+        let source = self
+            .get_login_item(session, item_id)?
+            .ok_or(VaultError::VaultNotFound)?;
+
+        let mut statement = self.connection.prepare(
+            "SELECT id, file_name_ciphertext, content_ciphertext, byte_count
+             FROM attachments WHERE item_id = ?1",
+        )?;
+        let attachments = statement
+            .query_map([item_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Vec<u8>>(1)?,
+                    row.get::<_, Vec<u8>>(2)?,
+                    row.get::<_, i64>(3)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        drop(statement);
+
+        let created = self.create_login_item(
+            session,
+            LoginItemInput {
+                item_type: source.item_type.clone(),
+                title: title.trim().to_string(),
+                username: source.username.clone(),
+                password: source.password.clone(),
+                website: source.website.clone(),
+                urls: source.urls.clone(),
+                notes: source.notes.clone(),
+                tags: source.tags.clone(),
+                custom_fields: source.custom_fields.clone(),
+                favorite: source.favorite,
+            },
+        )?;
+        if attachments.is_empty() {
+            self.record_event("duplicate_item", &format!("Duplicated item {item_id}"))?;
+            return Ok(created);
+        }
+
+        let mut custom_fields = source.custom_fields.clone();
+        for (source_id, file_name_ciphertext, content_ciphertext, byte_count) in attachments {
+            let id = Uuid::new_v4().to_string();
+            // The blobs are ciphertext under one key, so they are copied verbatim and never
+            // pass through memory in the clear.
+            self.connection.execute(
+                "INSERT INTO attachments
+                 (id, item_id, file_name_ciphertext, content_ciphertext, byte_count, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    id,
+                    created.id,
+                    file_name_ciphertext,
+                    content_ciphertext,
+                    byte_count,
+                    Utc::now().to_rfc3339()
+                ],
+            )?;
+            for field in &mut custom_fields {
+                if field.value == format!("attachment://{source_id}") {
+                    field.value = format!("attachment://{id}");
+                }
+            }
+        }
+        self.replace_login_fields(
+            session,
+            &created.id,
+            &source.username,
+            &source.password,
+            &source.notes,
+            &custom_fields,
+        )?;
+        self.record_event("duplicate_item", &format!("Duplicated item {item_id}"))?;
+
+        Ok(self
+            .get_login_item(session, &created.id)?
+            .expect("duplicated login item should be readable"))
+    }
+
     pub fn export_login_items(&self, session: &Session) -> Result<Vec<LoginItem>, VaultError> {
         self.list_login_items(session, None)
     }
@@ -411,6 +500,93 @@ impl VaultService {
         self.migrate_legacy_tags(&session)?;
         self.migrate_standalone_passkeys(&session)?;
         Ok(session)
+    }
+
+    /// Moves one item to another vault. Every vault is decrypted by the same key, so the rows that
+    /// hang off `item_id` — fields, urls, attachments — follow the item without being rewritten.
+    /// Tags are the exception: a tag belongs to a vault, so each link is re-pointed at the target's
+    /// row for that name (reusing it when the target already has one) before the item itself moves.
+    pub fn move_login_item(
+        &mut self,
+        session: &Session,
+        item_id: &str,
+        vault_id: &str,
+    ) -> Result<(), VaultError> {
+        let target = self.session_for_vault(session, vault_id)?;
+        if target.vault_id == session.vault_id {
+            return Ok(());
+        }
+
+        let moved = self.connection.execute(
+            "UPDATE items SET vault_id = ?1, updated_at = ?2 WHERE id = ?3 AND vault_id = ?4",
+            params![&target.vault_id, Utc::now().to_rfc3339(), item_id, session.vault_id],
+        )?;
+        if moved == 0 {
+            return Err(VaultError::VaultNotFound);
+        }
+
+        let mut statement = self.connection.prepare(
+            "SELECT item_tags.tag_id, tags.name_ciphertext, tags.name_hash, tags.icon, tags.color
+             FROM item_tags JOIN tags ON tags.id = item_tags.tag_id
+             WHERE item_tags.item_id = ?1",
+        )?;
+        let links = statement
+            .query_map([item_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Vec<u8>>(1)?,
+                    row.get::<_, Vec<u8>>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        drop(statement);
+
+        let now = Utc::now().to_rfc3339();
+        for (source_tag_id, name_ciphertext, name_hash, icon, color) in links {
+            let existing = self
+                .connection
+                .query_row(
+                    "SELECT id FROM tags WHERE vault_id = ?1 AND name_hash = ?2",
+                    params![&target.vault_id, &name_hash],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?;
+            let target_tag_id = match existing {
+                Some(id) => id,
+                None => {
+                    let id = Uuid::new_v4().to_string();
+                    // The name is already encrypted under the key both vaults share, so the blob
+                    // crosses as it is — and the styling crosses with it, because it belongs to
+                    // the label rather than to the vault it was first drawn in.
+                    self.connection.execute(
+                        "INSERT INTO tags
+                         (id, vault_id, name_ciphertext, name_hash,
+                          created_at, updated_at, icon, color)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6, ?7)",
+                        params![
+                            id,
+                            &target.vault_id,
+                            name_ciphertext,
+                            name_hash,
+                            now,
+                            icon,
+                            color
+                        ],
+                    )?;
+                    id
+                }
+            };
+            self.connection.execute(
+                "UPDATE item_tags SET tag_id = ?1 WHERE item_id = ?2 AND tag_id = ?3",
+                params![target_tag_id, item_id, source_tag_id],
+            )?;
+        }
+
+        self.prune_unused_tags(session)?;
+        self.record_event("move_item", &format!("Moved item {item_id} to vault {vault_id}"))?;
+        Ok(())
     }
 
     pub fn update_login_item(
@@ -2363,6 +2539,208 @@ mod tests {
         );
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn moving_an_item_takes_its_fields_tags_and_tag_styling_into_the_target_vault() {
+        let path = test_database_path("vault-move");
+        initialize_database(&path).expect("database should initialize");
+        let connection = open_database(&path).expect("database should open");
+        let mut service = VaultService::new(connection);
+        let personal = service
+            .setup_master_password("master-password")
+            .expect("master password should setup");
+        let work_vault = service
+            .create_vault(&personal, "Work")
+            .expect("work vault should create");
+        let work = service
+            .session_for_vault(&personal, &work_vault.id)
+            .expect("work session should switch");
+
+        let moved = service
+            .create_login_item(&personal, login_input("Personal Mail", vec!["code".into()]))
+            .expect("personal item should create");
+        // A tag's icon and colour belong to the label, so they have to cross with it rather
+        // than reset to the column defaults.
+        service
+            .update_tag(&personal, "code", "code", "key", "amber")
+            .expect("tag should restyle");
+
+        service
+            .move_login_item(&personal, &moved.id, &work_vault.id)
+            .expect("item should move");
+
+        assert!(service
+            .list_login_items(&personal, None)
+            .expect("personal items")
+            .is_empty());
+        let in_work = service.list_login_items(&work, None).expect("work items");
+        assert_eq!(in_work.len(), 1);
+        assert_eq!(in_work[0].id, moved.id);
+        assert_eq!(in_work[0].username, "user@example.com");
+        assert_eq!(in_work[0].password, "secret");
+        assert_eq!(in_work[0].website, "https://example.com");
+        assert_eq!(in_work[0].tags, vec!["code"]);
+
+        let work_tags = service.list_tags(&work).expect("work tags should list");
+        assert_eq!(work_tags.len(), 1);
+        assert_eq!(work_tags[0].name, "code");
+        assert_eq!(work_tags[0].icon, "key");
+        assert_eq!(work_tags[0].color, "amber");
+        // The label moved, it did not copy: the source vault keeps no row nothing links to.
+        assert!(service.list_tags(&personal).expect("personal tags").is_empty());
+
+        // A vault that is not there is refused before a single row is written.
+        let error = service.move_login_item(&work, &moved.id, "no-such-vault");
+        assert!(matches!(error, Err(VaultError::VaultNotFound)));
+        assert_eq!(
+            service.list_login_items(&work, None).expect("work items").len(),
+            1
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn moving_an_item_onto_a_tag_the_target_vault_already_has_reuses_that_row() {
+        let path = test_database_path("vault-move-merge");
+        initialize_database(&path).expect("database should initialize");
+        let connection = open_database(&path).expect("database should open");
+        let mut service = VaultService::new(connection);
+        let personal = service
+            .setup_master_password("master-password")
+            .expect("master password should setup");
+        let work_vault = service
+            .create_vault(&personal, "Work")
+            .expect("work vault should create");
+        let work = service
+            .session_for_vault(&personal, &work_vault.id)
+            .expect("work session should switch");
+
+        let moved = service
+            .create_login_item(&personal, login_input("Personal Mail", vec!["shared".into()]))
+            .expect("personal item should create");
+        service
+            .create_login_item(&work, login_input("Work Mail", vec!["shared".into()]))
+            .expect("work item should create");
+        service
+            .update_tag(&work, "shared", "shared", "star", "teal")
+            .expect("work tag should restyle");
+
+        service
+            .move_login_item(&personal, &moved.id, &work_vault.id)
+            .expect("item should move");
+
+        // One spelling is one label, so the target vault's row — styling and all — is the one both
+        // items now link to; the source's copy is pruned with the item gone.
+        let work_tags = service.list_tags(&work).expect("work tags should list");
+        assert_eq!(work_tags.len(), 1);
+        assert_eq!(work_tags[0].icon, "star");
+        assert_eq!(work_tags[0].color, "teal");
+        let in_work = service.list_login_items(&work, None).expect("work items");
+        assert_eq!(in_work.len(), 2);
+        assert!(in_work.iter().all(|item| item.tags == vec!["shared"]));
+        assert!(service.list_tags(&personal).expect("personal tags").is_empty());
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn duplicating_an_item_gives_the_copy_its_own_attachment_rows() {
+        let path = test_database_path("duplicate");
+        initialize_database(&path).expect("database should initialize");
+        let connection = open_database(&path).expect("database should open");
+        let mut service = VaultService::new(connection);
+        let session = service
+            .setup_master_password("master-password")
+            .expect("master password should setup");
+
+        let mut file = std::env::temp_dir();
+        file.push(format!(
+            "passless-duplicate-{}-{}.bin",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(&file, b"seed-bytes").expect("attachment file should write");
+
+        let created = service
+            .create_login_item(&session, login_input("GitHub", vec!["code".into()]))
+            .expect("login should create");
+        let attachment = service
+            .add_attachment(&session, &created.id, &file)
+            .expect("attachment should store");
+        let saved = service
+            .update_login_item(
+                &session,
+                LoginItemUpdate {
+                    id: created.id.clone(),
+                    item_type: created.item_type.clone(),
+                    title: created.title.clone(),
+                    username: created.username.clone(),
+                    password: created.password.clone(),
+                    website: created.website.clone(),
+                    urls: created.urls.clone(),
+                    notes: created.notes.clone(),
+                    tags: created.tags.clone(),
+                    custom_fields: vec![attachment],
+                    favorite: true,
+                },
+            )
+            .expect("attachment field should save");
+
+        let copy = service
+            .duplicate_login_item(&session, &saved.id, "GitHub copy")
+            .expect("login should duplicate");
+
+        assert_ne!(copy.id, saved.id);
+        assert_eq!(copy.title, "GitHub copy");
+        assert_eq!(copy.item_type, saved.item_type);
+        assert_eq!(copy.username, saved.username);
+        assert_eq!(copy.password, saved.password);
+        assert_eq!(copy.urls, saved.urls);
+        assert_eq!(copy.tags, saved.tags);
+        assert!(copy.favorite);
+        assert_eq!(
+            service
+                .list_login_items(&session, None)
+                .expect("items should list")
+                .len(),
+            2
+        );
+
+        // The copy's attachment field has to name an attachment that belongs to the copy, or
+        // purging the original would take the copy's file with it.
+        let original = saved.custom_fields[0].value.clone();
+        let copied = copy.custom_fields[0].value.clone();
+        assert!(copied.starts_with("attachment://"));
+        assert_ne!(copied, original);
+        assert_eq!(copy.custom_fields[0].label, saved.custom_fields[0].label);
+        let original_bytes = service
+            .export_attachment(&session, original.trim_start_matches("attachment://"))
+            .expect("original attachment should export");
+        let copied_bytes = service
+            .export_attachment(&session, copied.trim_start_matches("attachment://"))
+            .expect("copy attachment should export");
+        assert_eq!(original_bytes.bytes, copied_bytes.bytes);
+        assert_eq!(copied_bytes.file_name, original_bytes.file_name);
+        assert_eq!(
+            count_rows(&service, "SELECT count(*) FROM attachments"),
+            2
+        );
+
+        service
+            .purge_item(&session, &saved.id)
+            .expect("original should purge");
+        assert_eq!(
+            service
+                .export_attachment(&session, copied.trim_start_matches("attachment://"))
+                .expect("copy attachment should outlive the original")
+                .bytes,
+            b"seed-bytes".to_vec()
+        );
+
+        let _ = std::fs::remove_file(path);
+        let _ = std::fs::remove_file(file);
     }
 
     #[test]

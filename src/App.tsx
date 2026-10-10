@@ -10,6 +10,7 @@ import {
   CalendarRange,
   Car,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   CircleMinus,
   Cog,
@@ -19,9 +20,11 @@ import {
   Database,
   DollarSign,
   Edit3,
+  Ellipsis,
   Eye,
   EyeOff,
   Fingerprint,
+  FolderInput,
   GripVertical,
   Group,
   IdCard,
@@ -42,6 +45,7 @@ import {
   Router,
   Search,
   Server,
+  Share,
   ShieldCheck,
   ShieldQuestion,
   Star,
@@ -256,6 +260,10 @@ const menuRowHeight = 36
 const addMoreMenuHeight = addMoreOptions.length * menuRowHeight + 40
 const sectionMenuHeight = Math.ceil(sectionChildOptions.length / 2) * menuRowHeight + 24
 const tagMenuHeight = 2 * menuRowHeight + 24
+// The item panel is wider than the button it hangs from, and its two sections are the same height
+// because only the taller one can ever be the one that has to flip above the trigger.
+const itemMenuWidth = 220
+const itemMenuHeight = 6 * menuRowHeight + 40
 
 // These belong with the credentials they protect, so they render in the username /
 // password group instead of the custom field list.
@@ -618,6 +626,10 @@ function VaultWindow() {
   const [categoryToFocus, setCategoryToFocus] = useState<CategoryItemType | null>(null)
   const categoryListRef = useRef<HTMLDivElement>(null)
   const itemTypeFirstOptionRef = useRef<HTMLButtonElement>(null)
+  // One ellipsis in the header holds everything that can be done to a stored item. `move` is the
+  // vault list swapped into the same panel rather than a second anchor that could cover the trigger.
+  const [itemMenu, setItemMenu] = useState<'actions' | 'move' | null>(null)
+  const [itemMenuAnchor, setItemMenuAnchor] = useState<MenuAnchor>()
   // A tag's spelling and icon live on the storage row, while which rows the sidebar shows — and how many
   // items each names — is read off the live items, so the two are joined per render. All three panels
   // below address a tag by name, because a name is the only handle an item carries.
@@ -784,6 +796,9 @@ function VaultWindow() {
     () => vaults.find((vault) => vault.id === activeVaultId)?.name ?? t('vault.personalVault'),
     [activeVaultId, t, vaults],
   )
+
+  // The move list is the picker minus the vault already open: an item cannot move to where it is.
+  const otherVaults = useMemo(() => vaults.filter((vault) => vault.id !== activeVaultId), [activeVaultId, vaults])
 
   const activeTagKey = tagKeyFromNavigation(activeNavigation)
 
@@ -1363,6 +1378,8 @@ function VaultWindow() {
 
   function closeFieldMenus() {
     setAddMoreMenuAnchor(undefined)
+    setItemMenu(null)
+    setItemMenuAnchor(undefined)
     setSectionMenuAnchor(undefined)
     setSectionMenuIndex(null)
     setShowAddMore(false)
@@ -1446,7 +1463,7 @@ function VaultWindow() {
   // dialog methods, so there is no native sheet to lean on, and all three menus are anchored to
   // the viewport — which lets one cover the very button that opened it.
   useEffect(() => {
-    const menuOpen = showAddMore || sectionMenuIndex !== null || tagMenu !== null
+    const menuOpen = showAddMore || sectionMenuIndex !== null || tagMenu !== null || itemMenu !== null
     if (!menuOpen && !purgeTarget && !isCreatingVault && !tagEditor && !tagDeleteTarget && !itemTypePickerOpen) return
     const handleClick = (event: MouseEvent) => {
       if (!menuOpen) return
@@ -1470,6 +1487,7 @@ function VaultWindow() {
     }
   }, [
     isCreatingVault,
+    itemMenu,
     itemTypePickerOpen,
     purgeTarget,
     sectionMenuIndex,
@@ -1753,6 +1771,61 @@ function VaultWindow() {
     await vaultApi.favorite(selectedItem.id, !selectedItem.favorite)
     const nextItems = await vaultApi.list()
     setItems(nextItems)
+  }
+
+  // The panel is anchored to the button's right edge rather than its own width, so it lines up with
+  // the header's foot instead of hanging off a 32px control.
+  function toggleItemMenu(trigger: HTMLElement) {
+    if (itemMenu) {
+      closeFieldMenus()
+      return
+    }
+    const rect = trigger.getBoundingClientRect()
+    setItemMenu('actions')
+    setItemMenuAnchor(
+      getMenuAnchorStyle({
+        menuHeight: itemMenuHeight,
+        rect: { bottom: rect.bottom, left: rect.right - itemMenuWidth, top: rect.top, width: itemMenuWidth },
+        viewportHeight: window.innerHeight,
+      }),
+    )
+  }
+
+  async function handleMoveToVault(vaultId: string, vaultName: string) {
+    if (!selectedItem) return
+    closeFieldMenus()
+    try {
+      await vaultApi.move(selectedItem.id, vaultId)
+      // The item leaves the vault this session reads, so the pane goes back to its empty state —
+      // reading the target vault stays the picker's job, not a side effect of a move.
+      setItems(await vaultApi.list())
+      setSelectedId(null)
+      setComposing(false)
+      setOperationMessage(t('messages.movedItem', { vault: vaultName }))
+    } catch (nextError) {
+      setError(String(nextError))
+    }
+  }
+
+  async function handleDuplicate() {
+    if (!selectedItem) return
+    closeFieldMenus()
+    try {
+      const copy = await vaultApi.duplicate(selectedItem.id, t('vault.duplicateTitle', { title: selectedItem.title }))
+      setItems(await vaultApi.list())
+      setSelectedId(copy.id)
+      setOperationMessage(t('messages.duplicatedItem', { title: copy.title }))
+    } catch (nextError) {
+      setError(String(nextError))
+    }
+  }
+
+  // There is no transport to hand an item to, so sharing means the clipboard the password field
+  // already uses — same value, same 90-second clear preference, nothing written anywhere else.
+  async function handleShare() {
+    closeFieldMenus()
+    await copyPassword()
+    setOperationMessage(t('messages.sharedPassword'))
   }
 
   async function handleGeneratePassword() {
@@ -2190,18 +2263,6 @@ function VaultWindow() {
           {selectedItem || composing ? <span className="type-display">{t(`itemTypes.${form.item_type}`)}</span> : null}
           <div className="detail-topbar-actions">
             {isEditing && hasUnsavedChanges ? <span className="unsaved-hint">{t('vault.unsavedChanges')}</span> : null}
-            {selectedItem ? (
-              <>
-                <button className="secondary-button" onClick={handleArchive} type="button">
-                  <Archive size={15} />
-                  {t('vault.archiveAction')}
-                </button>
-                <button className="danger-button" onClick={handleTrash} type="button">
-                  <Trash2 size={15} />
-                  {t('vault.trashAction')}
-                </button>
-              </>
-            ) : null}
             {isEditing ? (
               <>
                 <button className="secondary-button" onClick={handleCancelEdit} type="button">
@@ -2213,10 +2274,22 @@ function VaultWindow() {
                 </button>
               </>
             ) : selectedItem ? (
-              <button className="top-edit-button" onClick={() => setIsEditing(true)} type="button">
-                <Edit3 size={15} />
-                {t('vault.edit')}
-              </button>
+              <>
+                <button className="top-edit-button" onClick={() => setIsEditing(true)} type="button">
+                  <Edit3 size={15} />
+                  {t('vault.edit')}
+                </button>
+                {/* Everything the pane can do to a stored item sits behind one ellipsis, and only in
+                    the read-only state: each row acts on what is already saved, not on unsaved typing. */}
+                <button
+                  aria-label={t('vault.itemActions')}
+                  className="icon-button"
+                  onClick={(event) => toggleItemMenu(event.currentTarget)}
+                  type="button"
+                >
+                  <Ellipsis size={16} />
+                </button>
+              </>
             ) : null}
           </div>
         </div>
@@ -2758,8 +2831,6 @@ function VaultWindow() {
                 </div>
               </fieldset>
             </form>
-
-            {operationMessage ? <div className="success-banner mt-300 max-w-content">{operationMessage}</div> : null}
           </>
         ) : (
           /* Nothing is open and no draft is being written, so the pane says so instead of showing a
@@ -2774,6 +2845,10 @@ function VaultWindow() {
             </button>
           </div>
         )}
+
+        {/* Outside the two branches, because the action that most needs to say it just moved the item
+            out of the pane — a banner only the detail form can carry would never be read. */}
+        {operationMessage ? <div className="success-banner mt-300 max-w-content">{operationMessage}</div> : null}
       </section>
       {/* Every item type is created from here, because the type decides which fields the draft opens
           with — the old flow defaulted to a login and let the dropdown convert it afterwards, and the
@@ -2811,6 +2886,99 @@ function VaultWindow() {
               </button>
             </div>
           </div>
+        </div>
+      ) : null}
+      {/* The header's ellipsis. Two sections share one anchor: the vault list swaps in place rather
+          than flying out beside a panel that already sits at the right edge of the window. */}
+      {itemMenu ? (
+        <div className="add-more-menu" data-field-menu="" style={itemMenuAnchor?.style}>
+          {itemMenu === 'move' ? (
+            <>
+              <button className="menu-option with-icon" onClick={() => setItemMenu('actions')} type="button">
+                <ChevronLeft aria-hidden="true" size={15} />
+                <span className="menu-option-label">
+                  <span>{t('vault.moveTo')}</span>
+                </span>
+              </button>
+              {otherVaults.map((vault) => (
+                <button
+                  className="menu-option with-icon"
+                  key={vault.id}
+                  onClick={() => void handleMoveToVault(vault.id, vault.name)}
+                  type="button"
+                >
+                  <Vault aria-hidden="true" size={15} />
+                  <span className="menu-option-label">
+                    <span>{vault.name}</span>
+                  </span>
+                </button>
+              ))}
+            </>
+          ) : (
+            <>
+              <button
+                className="menu-option with-icon"
+                onClick={() => {
+                  closeFieldMenus()
+                  void handleFavorite()
+                }}
+                type="button"
+              >
+                <Star aria-hidden="true" size={15} />
+                <span className="menu-option-label">
+                  <span>{selectedItem?.favorite ? t('vault.unfavorite') : t('vault.favorite')}</span>
+                </span>
+              </button>
+              {otherVaults.length ? (
+                <button className="menu-option with-icon" onClick={() => setItemMenu('move')} type="button">
+                  <FolderInput aria-hidden="true" size={15} />
+                  <span className="menu-option-label trailing">
+                    <span>{t('vault.moveTo')}</span>
+                    <ChevronRight aria-hidden="true" size={15} />
+                  </span>
+                </button>
+              ) : null}
+              <button className="menu-option with-icon" onClick={() => void handleDuplicate()} type="button">
+                <Copy aria-hidden="true" size={15} />
+                <span className="menu-option-label">
+                  <span>{t('vault.duplicateItem')}</span>
+                </span>
+              </button>
+              <button className="menu-option with-icon" onClick={() => void handleShare()} type="button">
+                <Share aria-hidden="true" size={15} />
+                <span className="menu-option-label">
+                  <span>{t('vault.shareAction')}</span>
+                  <small>{t('vault.shareHint')}</small>
+                </span>
+              </button>
+              <button
+                className="menu-option with-icon separated"
+                onClick={() => {
+                  closeFieldMenus()
+                  void handleArchive()
+                }}
+                type="button"
+              >
+                <Archive aria-hidden="true" size={15} />
+                <span className="menu-option-label">
+                  <span>{t('vault.archiveAction')}</span>
+                </span>
+              </button>
+              <button
+                className="menu-option with-icon is-danger"
+                onClick={() => {
+                  closeFieldMenus()
+                  void handleTrash()
+                }}
+                type="button"
+              >
+                <Trash2 aria-hidden="true" size={15} />
+                <span className="menu-option-label">
+                  <span>{t('common.delete')}</span>
+                </span>
+              </button>
+            </>
+          )}
         </div>
       ) : null}
       {/* A tag row is the only place its icon and name can be changed, and a right-click is how you get
