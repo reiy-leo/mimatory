@@ -1443,9 +1443,12 @@
     @apply row-span-2 flex h-screen min-h-0 flex-col gap-200 overflow-hidden border-r px-100 pb-100 pt-titlebar;
   }
 
-  /* Only the views above the foot scroll, because the two state rows are pinned to the bottom. */
+  /* Only the views above the foot scroll, because the two state rows are pinned to the bottom.
+     `content-start` is not decoration: a grid's default `align-content: normal` behaves as `stretch`,
+     so once a fold leaves free height every auto row absorbs a share of it and a single title reads as
+     a tall band spread down the sidebar. Anchoring the rows at the top keeps a fold to one row. */
   .sidebar-scroll {
-    @apply grid min-h-0 flex-1 gap-200 overflow-y-auto;
+    @apply grid min-h-0 flex-1 content-start gap-200 overflow-y-auto;
   }
 
   .brand,
