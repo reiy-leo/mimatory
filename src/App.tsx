@@ -69,7 +69,6 @@ import {
   useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import appIcon from './assets/app-icon.png'
 import i18n, { getInitialLanguage, languageOptions, type SupportedLanguage } from './app/i18n'
 import { isFormDirty } from './app/itemDrafts'
 import {
@@ -141,6 +140,7 @@ import {
   vaultApi,
   type WatchtowerReport,
 } from './app/vaultApi'
+import appIcon from './assets/app-icon.png'
 
 type VaultMode = 'loading' | 'setup' | 'locked' | 'unlocked'
 type CategoryItemType = (typeof categoryItems)[number]['itemType']
@@ -726,9 +726,13 @@ function VaultWindow() {
   const [categoryToFocus, setCategoryToFocus] = useState<CategoryItemType | null>(null)
   const categoryListRef = useRef<HTMLDivElement>(null)
   const itemTypeFirstOptionRef = useRef<HTMLButtonElement>(null)
-  // One ellipsis in the header holds everything that can be done to a stored item. `move` is the
-  // vault list swapped into the same panel rather than a second anchor that could cover the trigger.
+  // One panel holds everything that can be done to a stored item, opened either from the header's
+  // ellipsis or by right-clicking the row. `move` is the vault list swapped into the same panel rather
+  // than a second anchor that could cover the trigger, and the source decides which of the two rows
+  // that only make sense in one of the two places are offered — 编辑 where there is no 编辑 button,
+  // 分享 where the row is not already the whole subject.
   const [itemMenu, setItemMenu] = useState<'actions' | 'move' | null>(null)
+  const [itemMenuSource, setItemMenuSource] = useState<'header' | 'row'>('header')
   const [itemMenuAnchor, setItemMenuAnchor] = useState<MenuAnchor>()
   // A tag's spelling and icon live on the storage row, while which rows the sidebar shows — and how many
   // items each names — is read off the live items, so the two are joined per render. All three panels
@@ -2021,11 +2025,31 @@ function VaultWindow() {
       return
     }
     const rect = trigger.getBoundingClientRect()
+    setItemMenuSource('header')
     setItemMenu('actions')
     setItemMenuAnchor(
       getMenuAnchorStyle({
         menuHeight: itemMenuHeight,
         rect: { bottom: rect.bottom, left: rect.right - itemMenuWidth, top: rect.top, width: itemMenuWidth },
+        viewportHeight: window.innerHeight,
+      }),
+    )
+  }
+
+  // Right-clicking a row makes it the selected item first, so every row of the panel acts on the thing
+  // that was clicked rather than on whatever the pane happened to be showing. The panel then opens at
+  // the cursor the way the tag row's does, at the row's left edge. Unlike the header's trigger, this one
+  // is reachable while the form is open, so any field menu has to be cleared before the panel is placed.
+  function openItemRowMenu(event: ReactMouseEvent<HTMLButtonElement>, item: LoginItem) {
+    closeFieldMenus()
+    setSelectedId(item.id)
+    setItemMenuSource('row')
+    setItemMenu('actions')
+    const rect = event.currentTarget.getBoundingClientRect()
+    setItemMenuAnchor(
+      getMenuAnchorStyle({
+        menuHeight: itemMenuHeight,
+        rect: { bottom: event.clientY, left: rect.left, top: event.clientY, width: itemMenuWidth },
         viewportHeight: window.innerHeight,
       }),
     )
@@ -2502,6 +2526,7 @@ function VaultWindow() {
                   className={item.id === selectedId ? 'item-row active' : 'item-row'}
                   key={item.id}
                   onClick={() => setSelectedId(item.id)}
+                  onContextMenu={(event) => openItemRowMenu(event, item)}
                   type="button"
                 >
                   <span className="item-icon">{item.title.slice(0, 1).toUpperCase() || 'L'}</span>
@@ -3188,6 +3213,24 @@ function VaultWindow() {
             </>
           ) : (
             <>
+              {/* Where the panel opened decides what it offers: a row has no 编辑 button next to it, and
+                  the header has no need of one; 分享 copies the password, which is the header's business
+                  on the item already on screen. */}
+              {itemMenuSource === 'row' ? (
+                <button
+                  className="menu-option with-icon"
+                  onClick={() => {
+                    closeFieldMenus()
+                    setIsEditing(true)
+                  }}
+                  type="button"
+                >
+                  <Edit3 aria-hidden="true" size={15} />
+                  <span className="menu-option-label">
+                    <span>{t('vault.edit')}</span>
+                  </span>
+                </button>
+              ) : null}
               <button
                 className="menu-option with-icon"
                 onClick={() => {
@@ -3216,13 +3259,15 @@ function VaultWindow() {
                   <span>{t('vault.duplicateItem')}</span>
                 </span>
               </button>
-              <button className="menu-option with-icon" onClick={() => void handleShare()} type="button">
-                <Share aria-hidden="true" size={15} />
-                <span className="menu-option-label">
-                  <span>{t('vault.shareAction')}</span>
-                  <small>{t('vault.shareHint')}</small>
-                </span>
-              </button>
+              {itemMenuSource === 'header' ? (
+                <button className="menu-option with-icon" onClick={() => void handleShare()} type="button">
+                  <Share aria-hidden="true" size={15} />
+                  <span className="menu-option-label">
+                    <span>{t('vault.shareAction')}</span>
+                    <small>{t('vault.shareHint')}</small>
+                  </span>
+                </button>
+              ) : null}
               <button
                 className="menu-option with-icon separated"
                 onClick={() => {
