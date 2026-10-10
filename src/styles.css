@@ -225,7 +225,9 @@
     --measure-lock-panel: 390px;
     --measure-modal: 400px;
     --measure-detail-header: 720px;
-    --measure-sidebar: 244px;
+    /* The sidebar and the item list are both drag-resized, so these are their starting widths and
+       the clamp lives in App.tsx (sidebar 150-220, list 180-250). */
+    --measure-sidebar: 220px;
     --measure-item-list-min: 150px;
     --measure-window-min: 960px;
     --measure-settings-nav: 220px;
@@ -511,11 +513,11 @@
   }
 
   .item-list {
-    @apply col-start-2 row-start-2;
+    @apply col-start-3 row-start-2;
   }
 
   .detail-pane {
-    @apply col-start-4 row-start-2;
+    @apply col-start-5 row-start-2;
   }
 
   .sidebar {
@@ -528,12 +530,17 @@
   .top-search-bar {
     background: var(--passless-surface);
     border-color: var(--passless-border);
-    @apply col-start-2 col-span-3 grid min-h-0 grid-cols-[1fr_auto] items-center gap-200 border-b px-150;
+    @apply col-start-2 col-span-4 grid min-h-0 grid-cols-[1fr_auto] items-center gap-200 border-b px-150;
   }
 
   .column-resize-handle {
     background: var(--color-border-bold);
-    @apply col-start-3 row-start-2 h-full w-full cursor-col-resize border-0;
+    @apply col-start-4 row-start-2 h-full w-full cursor-col-resize border-0;
+  }
+
+  /* The sidebar's own gutter comes before the list column, not after it. */
+  .column-resize-handle.is-sidebar {
+    @apply col-start-2;
   }
 
   .column-resize-handle:hover,
@@ -1428,10 +1435,12 @@
   }
 
   .app-shell {
-    /* The list column is drag-resized: App.tsx sets --item-list-width, the geometry stays here. */
-    grid-template-columns: var(--measure-sidebar) var(--item-list-width, var(--measure-item-list-default)) var(
-        --measure-resizer
-      ) minmax(0, 1fr);
+    /* Five tracks: the sidebar, its gutter, the item list, its gutter, the detail pane. Both columns
+       are drag-resized — App.tsx sets --sidebar-width and --item-list-width — and the geometry stays here. */
+    grid-template-columns:
+      var(--sidebar-width, var(--measure-sidebar)) var(--measure-resizer)
+      var(--item-list-width, var(--measure-item-list-default)) var(--measure-resizer)
+      minmax(0, 1fr);
     background: var(--theme-bg-2);
     @apply grid h-screen min-h-0 min-w-window grid-rows-titlebar overflow-hidden;
   }
@@ -1569,7 +1578,7 @@
   .top-search-bar {
     background: var(--theme-bg-2);
     border-color: var(--theme-border);
-    @apply col-span-3 col-start-2 grid min-h-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-100 border-b px-100 py-050;
+    @apply col-span-4 col-start-2 grid min-h-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-100 border-b px-100 py-050;
   }
 
   .top-search-wrap {

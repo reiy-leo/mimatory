@@ -189,6 +189,10 @@ const pinLengthLimits = { max: 12, min: 4, step: 1 }
 const randomLengthLimits = { max: 128, min: 8, step: 4 }
 const quickAccessMaxResults = 8
 const quickAccessCloseDelayMs = 400
+// Each drag-resized column keeps its own clamp; `default` is what `--measure-*` in styles.css also
+// starts the column at, and the two gutter handles below are the only thing that changes it.
+const itemListWidthLimits = { default: 220, max: 250, min: 180 }
+const sidebarWidthLimits = { default: 220, max: 220, min: 150 }
 const settingsWindowSize = { height: 680, width: 920 }
 
 function createFormId() {
@@ -710,7 +714,8 @@ function VaultWindow() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [vaults, setVaults] = useState<VaultSummary[]>([])
   const [activeVaultId, setActiveVaultId] = useState('personal')
-  const [itemListWidth, setItemListWidth] = useState(220)
+  const [itemListWidth, setItemListWidth] = useState(itemListWidthLimits.default)
+  const [sidebarWidth, setSidebarWidth] = useState(sidebarWidthLimits.default)
   const [activeNavigation, setActiveNavigation] = useState<ActiveNavigation>('vaults')
   const [topSearch, setTopSearch] = useState('')
   const [masterPassword, setMasterPassword] = useState('')
@@ -1547,13 +1552,17 @@ function VaultWindow() {
     setSelectedId(itemId)
     setTopSearch('')
   }
-  function beginItemListResize(event: ReactMouseEvent<HTMLButtonElement>) {
+  // A gutter drag measures from where the drag began rather than accumulating, so a column stops at
+  // its own limits instead of drifting once the cursor has run past them.
+  function beginColumnResize(
+    event: ReactMouseEvent<HTMLButtonElement>,
+    input: { limits: { max: number; min: number }; onWidth: (width: number) => void; startWidth: number },
+  ) {
     event.preventDefault()
     const startX = event.clientX
-    const startWidth = itemListWidth
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      const nextWidth = Math.min(250, Math.max(180, startWidth + moveEvent.clientX - startX))
-      setItemListWidth(nextWidth)
+      const nextWidth = input.startWidth + (moveEvent.clientX - startX)
+      input.onWidth(Math.min(input.limits.max, Math.max(input.limits.min, nextWidth)))
     }
     const handleMouseUp = () => {
       window.removeEventListener('mousemove', handleMouseMove)
@@ -1561,6 +1570,14 @@ function VaultWindow() {
     }
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
+  }
+
+  function beginItemListResize(event: ReactMouseEvent<HTMLButtonElement>) {
+    beginColumnResize(event, { limits: itemListWidthLimits, onWidth: setItemListWidth, startWidth: itemListWidth })
+  }
+
+  function beginSidebarResize(event: ReactMouseEvent<HTMLButtonElement>) {
+    beginColumnResize(event, { limits: sidebarWidthLimits, onWidth: setSidebarWidth, startWidth: sidebarWidth })
   }
 
   function updateUrl(index: number, patch: Partial<ItemUrl>) {
@@ -2451,7 +2468,10 @@ function VaultWindow() {
   }
 
   return (
-    <main className="app-shell" style={{ '--item-list-width': `${itemListWidth}px` } as CSSProperties}>
+    <main
+      className="app-shell"
+      style={{ '--item-list-width': `${itemListWidth}px`, '--sidebar-width': `${sidebarWidth}px` } as CSSProperties}
+    >
       <h1 className="sr-only">{t('landmarks.vaultItems')}</h1>
       <aside aria-label={t('landmarks.primaryNavigation')} className="sidebar" data-tauri-drag-region="deep">
         <div className="brand">
@@ -2582,6 +2602,13 @@ function VaultWindow() {
           <nav className="nav-list">{sidebarViewRows('footer')}</nav>
         </div>
       </aside>
+
+      <button
+        aria-label={t('vault.resizeSidebar')}
+        className="column-resize-handle is-sidebar"
+        onMouseDown={beginSidebarResize}
+        type="button"
+      />
 
       <header className="top-search-bar" data-tauri-drag-region="deep">
         <div className="top-search-wrap">
