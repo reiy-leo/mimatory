@@ -1,6 +1,6 @@
 # Task state
 
-Status only. The durable rules live in `AGENTS.md` (engineering) and `.agent/design-rules.md` (design);
+Status only. The durable rules live in `AGENTS.md` (engineering) and `.agent/design.md` (design);
 neither of them should be read as a to-do list, and nothing here is a constraint by itself.
 
 Dates are absolute. `needs-owner-decision` marks an item nobody should quietly implement.
@@ -51,15 +51,16 @@ Everything in this list is written and unit-proven or not proven at all; none of
 ## Completed
 
 Closed work, kept so nobody re-derives it. How each of these behaves today is described in `AGENTS.md`
-(constraints) and `.agent/design-rules.md` (design), not here.
+(constraints) and `.agent/design.md` (design), not here.
 
 | Date | Landed | Where it is described |
 |---|---|---|
-| 2026-10-10 | Documentation split: engineering rules stay here in `AGENTS.md`, design constraints moved to `.agent/design-rules.md`, all task state to this file | The three files |
+| 2026-10-10 | Documentation split: engineering rules stay here in `AGENTS.md`, design constraints moved to `.agent/design.md`, all task state to this file | The three files |
+| 2026-10-10 | The vendored macOS HIG extract at `.agent/DESIGN.md` was deleted — the project carries one design document, `DESIGN.md` | `.agent/design.md` header |
 | 2026-10-10 | Gate tiers by diff type; vitest moved off jsdom and fork-capped, so a style edit no longer pays for a full toolchain pass | `AGENTS.md` Commands |
-| 2026-10-10 | Sidebar gutter paints nothing at rest/hover/drag; sidebar gets its own resizable gutter, clamped 150–220 | `design-rules.md` exceptions; `AGENTS.md` sidebar |
+| 2026-10-10 | Sidebar gutter paints nothing at rest/hover/drag; sidebar gets its own resizable gutter, clamped 150–220 | `design.md` exceptions; `AGENTS.md` sidebar |
 | 2026-10-10 | A folded sidebar section stays at one row at the top (`content-start`) | `AGENTS.md` sidebar |
-| 2026-10-10 | One unlock ring on the lock field, brand stacked above it | `design-rules.md` focus ring |
+| 2026-10-10 | One unlock ring on the lock field, brand stacked above it | `design.md` focus ring |
 | 2026-10-10 | Settings window placed against `main`, never screen-centred | `AGENTS.md` second window |
 | 2026-10-10 | Highlighted tag/category rows survive their section's fold; keys in localStorage | `AGENTS.md` sidebar highlights |
 | 2026-10-10 | Item actions behind one header ellipsis **and** a row right-click; move/duplicate in Rust | `AGENTS.md` item actions, moving and duplicating |
@@ -72,7 +73,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 | 2026-10-09 | i18n completeness gate: named keys defined, no `defaultValue` fallback, runtime-built prefixes covered | `AGENTS.md` Workflow |
 | 2026-10-09 | All three UI string bundles complete; `App.tsx` carries zero `defaultValue` fallbacks | `AGENTS.md` Workflow |
 | 2026-10-09 | Sync, backup and import deleted (see "Decided against" below) | `AGENTS.md` no transport |
-| 2026-10-08 | Atlassian `DESIGN.md` installed as the contract; Cupertino spec deleted | `design-rules.md` header |
+| 2026-10-08 | Atlassian `DESIGN.md` installed as the contract; Cupertino spec deleted | `design.md` header |
 | 2026-10-08 | Audit #1 export encryption, #2 file permissions (0600/0700, self-repairing), #4 CSP + constant-time pairing | `AGENTS.md` CSP, file permissions, bridge |
 
 ## Decided against (not pending — do not re-propose)

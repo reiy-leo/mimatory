@@ -1,20 +1,24 @@
 # Design rules and constraints
 
 This is the project's own design contract: what a UI change in this repo must obey, how the token layers
-work, and where the project deliberately deviates from the vendored spec. Build code from here plus the two
-vendored documents below — never by inventing a value in a component rule.
+work, and where the project deliberately deviates from the vendored spec. Build code from here plus the
+vendored contract below — never by inventing a value in a component rule.
 
-`DESIGN.md` is **not** this file. The three documents are:
+`DESIGN.md` is **not** this file. There are exactly two design documents:
 
 | File | What it is | Editable? |
 |---|---|---|
-| `DESIGN.md` (repo root) | The Atlassian design contract, revision 0.0.7, `theme: light`. Installed verbatim 2026-10-08. The UI source of truth. | **No.** Record a project deviation here in this file, not in it. |
-| `.agent/DESIGN.md` | A verbatim extract of Apple's macOS Human Interface Guidelines: traffic lights, window chrome, keyboard focus, drag regions. | **No.** Platform guidance, consulted alongside `DESIGN.md`. Never a source of tokens or hex values. |
-| `.agent/design-rules.md` | This file: binding rules, token layers, deviations, documented exceptions. | Yes — this is where a deviation or a new token rule lands. |
+| `DESIGN.md` (repo root) | The Atlassian design contract, revision 0.0.7, `theme: light`. Installed verbatim 2026-10-08. The UI source of truth for tokens and components. | **No.** Record a project deviation in this file, not in it. |
+| `.agent/design.md` | This file: binding rules, token layers, deviations, documented exceptions. | Yes — this is where a deviation or a new token rule lands. |
 
-It is named `design-rules.md` rather than `design.md` because this volume is case-insensitive
-(`core.ignorecase = true`): a second file called `.agent/design.md` *is* `.agent/DESIGN.md` and would
-overwrite the vendored HIG extract.
+There is no second vendored document. A verbatim extract of Apple's macOS Human Interface Guidelines lived
+here as `.agent/DESIGN.md` until 2026-10-10, when the owner ruled that the project carries one design
+document, not two whose names differ only by directory; what it was consulted for — native traffic lights,
+the overlay titlebar, drag regions, keyboard focus — is already recorded as conclusions in `AGENTS.md`
+("Runtime, windows and shell" and "UI structure and its traps"). It is recoverable from git history. That
+absence is not a licence to park another vendored document in `.agent/`: this volume is case-insensitive
+(`core.ignorecase = true`), so `.agent/DESIGN.md` and this file are the *same* file to git, and the two paths
+would fight over one slot on disk.
 
 The old "Cupertino Vault" spec and the `docs/superpowers/` task-page spec were deleted on 2026-10-08 along
 with their 9 owner rulings. `.write-technical-spec/2026_10_08_cupertino_vault_ui_000/` is the dated work

@@ -10,11 +10,13 @@ Also ships a Manifest V3 browser extension (autofill via a local HTTP bridge on 
 | File | Carries | Read it when |
 |---|---|---|
 | `AGENTS.md` (this file) | Commands, workflow, architecture, engineering constraints and traps | Always, first. |
-| `.agent/design-rules.md` | Design constraints, the three token layers, deviations from the contract, documented exceptions | Any UI/CSS/class change. |
+| `.agent/design.md` | Design constraints, the three token layers, deviations from the contract, documented exceptions | Any UI/CSS/class change. |
 | `.agent/todo.md` | Open work, what has never been seen in a running app, completed items, decided-against features | Picking up someone else's thread, or before proposing a feature. |
-| `DESIGN.md` | **Vendored** Atlassian design contract, revision 0.0.7. Never edited to describe a deviation. | Looking up what the contract actually says. |
-| `.agent/DESIGN.md` | **Vendored** extract of Apple's macOS HIG — platform behaviour, not tokens. | Window chrome, drag regions, keyboard focus. |
+| `DESIGN.md` | **Vendored** Atlassian design contract, revision 0.0.7 — the only vendored design document. Never edited to describe a deviation. | Looking up what the contract actually says. |
 | `.write-technical-spec/2026_10_08_cupertino_vault_ui_000/` | History of the previous restyle. Its source spec was deleted. | Only for *why* something is shaped oddly. Never what to build. |
+
+There is no second vendored design document: the macOS HIG extract that sat at `.agent/DESIGN.md` was deleted
+2026-10-10, and the platform conclusions it was consulted for live in "Runtime, windows and shell" below.
 
 ## Commands
 
@@ -56,7 +58,7 @@ how a turn reaches load average 30.
 | Packaged build itself (CSP, bundling) | `npm run tauri build` | Otherwise: release build of all 545 crates, minutes of all-core CPU. |
 
 **The running `tauri dev`/Vite server is the inner loop** — it compiles Tailwind and hot-reloads a class
-change, so the expensive bundle belongs once at the end. The one exception is in `.agent/design-rules.md`:
+change, so the expensive bundle belongs once at the end. The one exception is in `.agent/design.md`:
 `tailwind.config.js` is not hot-reloaded, so a new token key needs `npm run dev` restarted before its first
 `@apply` stops failing.
 
@@ -105,7 +107,7 @@ src/                  # React frontend
   app/tagIcons.ts     # 43 pickable lucide glyphs + the 11 colour options, written out as full class pairs
   app/itemTags.ts sidebarHighlights.ts securityPreferences.ts lockScreen.ts totpDisplay.ts
   app/relativeTime.ts menuPlacement.ts itemDrafts.ts itemTemplates.ts windowPlacement.ts otpQrImport.ts
-  app/designContract.test.ts  # executable DESIGN.md guard — see .agent/design-rules.md
+  app/designContract.test.ts  # executable DESIGN.md guard — see .agent/design.md
   test/setup.ts       # jest-dom matcher import; present but NOT wired (no test uses a matcher)
 
 src-tauri/src/        # Rust backend
@@ -240,11 +242,12 @@ browser-extension/    # Manifest V3 extension (not built by Vite)
   nothing renders.
 - **Sidebar scope**: `src/app/navigation.ts` is four rows in two groups — `group: 'vault'` (`vaults`,
   `favorites`) at the top, `group: 'footer'` (`archived`, `trash`) pinned to the foot so they are never pushed
-  off; only `.sidebar-scroll` above scrolls, and it carries `content-start` (see the design-rules exception for a
-  grid's `align-content: normal`). The column is drag-resized from its own 6px gutter track, clamped 150–220 by
-  `beginColumnResize` (shared with the list's gutter, which is why both carry a `*WidthLimits` const with a
-  `default`), reaching the grid as `--sidebar-width` on `.app-shell` — `--measure-sidebar` is only its starting
-  width. `.top-search-bar` spans `col-start-2 col-span-4` deliberately: the gutter is `row-start-2` only, and the
+  off; only `.sidebar-scroll` above scrolls, and it carries `content-start` (see the `.agent/design.md`
+  exception for a grid's `align-content: normal`). The column is drag-resized from its own 6px gutter track,
+  clamped 150–220 by `beginColumnResize` (shared with the list's gutter, which is why both carry a
+  `*WidthLimits` const with a `default`), reaching the grid as `--sidebar-width` on `.app-shell` —
+  `--measure-sidebar` is only its starting width. `.top-search-bar` spans `col-start-2 col-span-4` deliberately:
+  the gutter is `row-start-2` only, and the
   bar's `border-b` draws the hairline under the 44px titlebar strip, so starting it at the list would notch that
   line. The brand block carries the app name and its `+` only (the `<select>` vault picker was deleted 2026-10-10;
   the `+` needs `data-tauri-drag-region="false"` against `.sidebar`'s deep region). Tags, categories and vaults
