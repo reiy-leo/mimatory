@@ -1,6 +1,7 @@
 import { emit, listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { Effect, EffectState } from '@tauri-apps/api/window'
 import {
   AlertCircle,
   Archive,
@@ -2325,8 +2326,11 @@ function VaultWindow() {
         skipTaskbar: true,
         title: 'Passless Settings',
         titleBarStyle: 'overlay',
+        // Native sidebar material behind the settings sidebar; the content pane stays opaque in CSS.
+        transparent: true,
         url: '/?view=settings',
         width: settingsWindowSize.width,
+        windowEffects: { effects: [Effect.Sidebar], state: EffectState.FollowsWindowActiveState },
         x: position?.x,
         y: position?.y,
       })

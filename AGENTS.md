@@ -151,6 +151,13 @@ browser-extension/    # Manifest V3 extension (not built by Vite)
   the fallback stays `center: true` (Quick Access can be the only window up). Repositioning after creation would
   need `core:window:allow-set-position`, which is **not** in the capability file, so placement is a
   creation-time decision only.
+- **Native vibrancy (macOS)**: `app.macOSPrivateApi: true` + the `macos-private-api` tauri feature make windows
+  transparent. `main` wears `windowEffects: sidebar` (tauri.conf.json), `settings` gets `transparent` +
+  `Effect.Sidebar` at creation in `openSettingsWindow()`, Quick Access gets `Effect::Popover` (radius 12) in
+  `shell.rs`. `src/app/vibrancy.ts` sets `<html data-vibrancy="native">` only inside Tauri on macOS; the last
+  `@layer components` block in `styles.css` then re-points `--material-*` to `transparent` on the source lists
+  and Quick Access so the real material shows, while content panes stay opaque. In a browser the CSS materials
+  apply. Private API use means the build cannot go to the Mac App Store.
 - **Shell integration** (`shell.rs`): tray menu, `⌘⇧Space` Quick Access (global shortcut + positioner, anchored
   `TopCenter` from the keystroke and `TrayBottomCenter` from the tray), autostart via
   `MacosLauncher::LaunchAgent`, single-instance refocus. **Window creation must happen inside

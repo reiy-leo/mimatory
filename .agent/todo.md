@@ -13,10 +13,7 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
   removes a feature, so it is the owner's call. Existing installs keep whatever `passless-theme` value the old
   build wrote on first launch (it always persisted the resolved light/dark), so they will not see System until
   they pick it once — a migration to `system` is also the owner's call.
-- **needs-owner-decision — Native vibrancy.** The sidebar, toolbar, menus and sheets use CSS
-  `backdrop-filter` materials, which can only blur page content because the Tauri window is opaque. Real macOS
-  behind-window vibrancy needs `tauri.conf.json` window effects (`"windowEffects": { "effects": ["sidebar"] }`
-  plus a transparent window / `macOSPrivateApi`), which touches window config and was left alone.
+- **Native vibrancy — needs a look on a real Mac (2026-10-14).** Owner asked for it; wired as described in AGENTS.md "Native vibrancy (macOS)". Never seen in a running app yet: check the sidebar material under the traffic lights, settings sidebar, Quick Access corners, and that the Light/Dark override (kept for testing, owner 2026-10-14) still matches the material.
 - **HIG notes not acted on (owner layout).** `sidebars.md` › Desktop: "Avoid putting critical information or
   actions at the bottom of a sidebar" — Archive and Trash are pinned to the foot by design. `settings.md`:
   macOS settings windows use a fixed toolbar of panes; this one keeps its sidebar of panes (the System

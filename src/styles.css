@@ -2778,3 +2778,38 @@
     transform: translateX(var(--space-150));
   }
 }
+
+/* Native vibrancy (materials.md). Inside the macOS app the windows are transparent and wear an
+   NSVisualEffectView (tauri.conf.json `windowEffects`, the settings window's creation options, shell.rs for
+   Quick Access); `src/app/vibrancy.ts` sets `data-vibrancy="native"` only there. The page stops painting the
+   window background so the real sidebar material shows through the source lists, and the content panes stay
+   opaque, because glass belongs to the functional layer, never to content. macOS itself swaps the material for
+   a solid colour under Reduce Transparency, so no fallback is needed here. In a browser none of this applies
+   and the CSS materials above stay in charge. */
+@layer components {
+  :root[data-vibrancy="native"] body,
+  :root[data-vibrancy="native"] #root,
+  :root[data-vibrancy="native"] .app-shell,
+  :root[data-vibrancy="native"] .settings-shell {
+    background: transparent;
+  }
+
+  /* Re-pointing the material variables, not overriding backdrop-filter, keeps every blur reading
+     --material-filter (the rule the design guard checks). */
+  :root[data-vibrancy="native"] .sidebar,
+  :root[data-vibrancy="native"] .settings-sidebar {
+    --material-sidebar: transparent;
+    --material-filter: none;
+  }
+
+  :root[data-vibrancy="native"] .quick-access-shell {
+    --material-popover: transparent;
+    --material-filter: none;
+  }
+
+  /* Nothing sits under the toolbar to blur once the window is see-through, so it takes the content colour. */
+  :root[data-vibrancy="native"] .top-search-bar {
+    --material-toolbar: var(--color-surface);
+    --material-filter: none;
+  }
+}

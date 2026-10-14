@@ -3,6 +3,7 @@ use std::error::Error;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::webview::WebviewWindowBuilder;
+use tauri::window::{Effect, EffectState, EffectsBuilder};
 use tauri::{App, AppHandle, Emitter, Manager, WebviewUrl, Wry};
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
@@ -122,6 +123,15 @@ fn show_quick_access(app: &AppHandle<Wry>, position: Position) -> tauri::Result<
         // Borderless + rounded CSS corners only read as one panel if the window
         // itself stops painting an opaque rectangle behind the page.
         .transparent(true)
+        // Native popover material behind the panel (macOS NSVisualEffectView). The radius matches
+        // the shell's `rounded-xlarge`, so the blur stops at the CSS corners.
+        .effects(
+            EffectsBuilder::new()
+                .effect(Effect::Popover)
+                .state(EffectState::Active)
+                .radius(12.0)
+                .build(),
+        )
         .visible(false)
         .build()?,
     };

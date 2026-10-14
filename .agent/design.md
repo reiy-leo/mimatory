@@ -224,7 +224,7 @@ from a shadow token; a popup colour that drifts from the app's.
 | Accent text | systemBlue | linkColor `#0068da` / `#419cff` | systemBlue text on white is 4.0:1. |
 | Success text | `#248a3d` (increased-contrast green) | `#1e7b34` | 4.4:1 → 5.3:1 on white. |
 | Focus ring | translucent accent halo | opaque accent, 3pt | Keeps 3:1 non-text contrast against every surface. |
-| Materials | `NSVisualEffectView` behind-window vibrancy | CSS `backdrop-filter` within the webview | The window is not transparent, so the sidebar blurs page content only; real vibrancy needs a Tauri window-effects change (see todo). |
+| Materials | `NSVisualEffectView` behind-window vibrancy | Native in the macOS app (`data-vibrancy="native"`, see AGENTS.md); CSS `backdrop-filter` only in a browser preview | The CSS materials remain as the browser fallback and for in-page menus/sheets. |
 | Window chrome | native | native traffic lights (`titleBarStyle: "Overlay"`) + `data-tauri-drag-region` | Unchanged; never self-draw the titlebar. |
 | Responsive | layouts adapt to the space | `minWidth: 960` in `tauri.conf.json`, no width breakpoints | Desktop-first; revisit if the window may go below 960. |
 
