@@ -6,7 +6,7 @@
 		"message": "Passless Autofill"
 	},
 	"fillPage": {
-		"message": "Fill current page"
+		"message": "Fill Current Page"
 	},
 	"footerHint": {
 		"message": "Keep the Passless desktop app unlocked for autofill and save prompts."
@@ -15,7 +15,7 @@
 		"message": "Pairing token"
 	},
 	"saveToken": {
-		"message": "Save token"
+		"message": "Save Token"
 	},
 	"statusChecking": {
 		"message": "Checking app…"

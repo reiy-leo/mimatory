@@ -2,36 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Token values from DESIGN.md (Atlassian, revision 0.0.7, light theme). The extension is a
-   separate document from the desktop app, so it cannot read src/styles.css `:root` — this block
-   must stay in sync with it. Values are verbatim from the contract; never add a one-off hex. */
+/* Token values: the macOS semantic colours the desktop app uses (src/styles.css `:root`, see
+   .agent/design.md). The popup is a separate document and cannot read the app's stylesheet, so
+   this block mirrors the subset it needs, value for value, in light and dark. The popup follows the
+   browser's appearance, which follows the system. */
 @layer base {
   :root {
-    --color-text: #292a2e;
-    --color-text-subtle: #505258;
-    --color-text-subtlest: #6b6e76;
+    --color-text: #000000d9;
+    --color-text-subtle: #00000099;
+    --color-text-subtlest: #00000094;
     --color-text-inverse: #ffffff;
+    --color-accent: #007aff;
+    --color-window: #ececec;
     --color-surface: #ffffff;
-    --color-border: #0b120e24;
-    --color-border-input: #8c8f97;
-    --color-border-focused: #4688ec;
+    --color-border: #0000001a;
+    --color-border-input: #0000002e;
+    --color-border-focused: #007aff;
+    --color-focus-ring: #007aff;
     --color-background-input: #ffffff;
-    --color-background-input-hovered: #f8f8f8;
+    --color-background-input-hovered: #ffffff;
+    --color-background-control: #ffffff;
+    --color-background-control-pressed: #f0f0f0;
     --color-background-neutral-subtle: #00000000;
-    --color-background-neutral-subtle-hovered: #0515240f;
-    --color-background-neutral-subtle-pressed: #0b120e24;
-    --color-background-brand-bold: #1868db;
-    --color-background-brand-bold-hovered: #1558bc;
-    --color-background-brand-bold-pressed: #144794;
+    --color-background-neutral-subtle-hovered: #0000000d;
+    --color-background-neutral-subtle-pressed: #0000001a;
+    --color-background-brand-bold: #0063e1;
+    --color-background-brand-bold-hovered: #0058cc;
+    --color-background-brand-bold-pressed: #004db3;
+    --shadow-control: 0 0 0 0.5px #0000001f, 0 1px 1px #0000001a;
     --radius-medium: 0.375rem;
     --space-025: 0.125rem;
     --space-050: 0.25rem;
     --measure-popup: 280px;
     --border-width-default: 0.0625rem;
-    --border-width-focused: 0.125rem;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    --focus-ring-width: 0.1875rem;
+    --focus-ring-offset: 0rem;
+    --weight-regular: 400;
+    --duration-short: 150ms;
+    --easing-out-practical: cubic-bezier(0.25, 0.1, 0.25, 1);
+    font-family: -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", sans-serif;
     -webkit-font-smoothing: antialiased;
-    color-scheme: light;
+    color-scheme: light dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-text: #ffffffd9;
+      --color-text-subtle: #ffffff8c;
+      --color-text-subtlest: #ffffff87;
+      --color-text-inverse: #ffffff;
+      --color-accent: #0a84ff;
+      --color-window: #323232;
+      --color-surface: #1e1e1e;
+      --color-border: #ffffff1a;
+      --color-border-input: #ffffff26;
+      --color-border-focused: #0a84ff;
+      --color-focus-ring: #0a84ff;
+      --color-background-input: #ffffff0f;
+      --color-background-input-hovered: #ffffff14;
+      --color-background-control: #ffffff26;
+      --color-background-control-pressed: #ffffff38;
+      --color-background-neutral-subtle-hovered: #ffffff14;
+      --color-background-neutral-subtle-pressed: #ffffff24;
+      --color-background-brand-bold: #0059d1;
+      --color-background-brand-bold-hovered: #0a64de;
+      --color-background-brand-bold-pressed: #004bb0;
+      --shadow-control: 0 0 0 0.5px #ffffff1a, 0 1px 1px #00000040;
+    }
   }
 
   html {
@@ -41,7 +78,7 @@
 
   body {
     color: var(--color-text);
-    background: var(--color-surface);
+    background: var(--color-window);
     @apply m-0 text-body;
   }
 
@@ -54,12 +91,13 @@
     @apply cursor-pointer;
   }
 
+  /* Text field: white well, hairline bezel, control radius, 28pt tall. */
   input {
     color: var(--color-text);
     background: var(--color-background-input);
     border: var(--border-width-default) solid var(--color-border-input);
     border-radius: var(--radius-medium);
-    @apply px-075 py-075 text-body;
+    @apply h-350 px-100 text-body;
   }
 
   input::placeholder {
@@ -67,18 +105,50 @@
   }
 
   input:hover {
-    background: var(--color-background-input-hovered);
+    background-color: var(--color-background-input-hovered);
   }
 
-  input:focus,
-  button:focus {
+  input:focus {
     border-color: var(--color-border-focused);
   }
 
-  /* Focus ring contract: 2px border-focused, offset 2px. Never outline:none without this. */
+  /* Push buttons: the default one filled with the accent, the other bezeled. */
+  .push-button {
+    border-radius: var(--radius-medium);
+    box-shadow: var(--shadow-control);
+    @apply min-h-350 border-0 px-150 text-body font-regular transition-colors duration-short ease-out-practical;
+  }
+
+  .push-button.is-default {
+    color: var(--color-text-inverse);
+    background: var(--color-background-brand-bold);
+  }
+
+  .push-button.is-default:hover {
+    background: var(--color-background-brand-bold-hovered);
+  }
+
+  .push-button.is-default:active {
+    background: var(--color-background-brand-bold-pressed);
+  }
+
+  .push-button.is-bezeled {
+    color: var(--color-text);
+    background: var(--color-background-control);
+  }
+
+  .push-button.is-bezeled:hover {
+    background: var(--color-background-control-pressed);
+  }
+
+  .push-button.is-bezeled:active {
+    background: var(--color-background-neutral-subtle-pressed);
+  }
+
+  /* Keyboard focus ring: 3pt in the accent, on the control's own edge. */
   input:focus-visible,
   button:focus-visible {
-    outline: var(--border-width-focused) solid var(--color-border-focused);
-    outline-offset: var(--space-025);
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
   }
 }

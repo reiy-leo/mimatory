@@ -3,150 +3,181 @@
 @tailwind utilities;
 
 @layer base {
-  /* Token values from DESIGN.md (Atlassian, revision 0.0.7, light theme). Key names match the
-     YAML frontmatter 1:1 so any value here is verifiable against the contract. Component rules
-     read the alias layer below, never these directly. */
+  /* Token values: macOS semantic system colors (Apple Human Interface Guidelines, color.md ›
+     Desktop (macOS) and › Specifications), written once here with a light value in `:root` and a
+     dark value in `:root[data-theme="dark"]`. The reference lives in .claude/skills/apple-design;
+     the project rules are .agent/design.md. Component rules read `var(--color-*)` and never name a
+     hex. Where a value departs from Apple's published one it is to clear 4.5:1 for text, and the
+     comment says so. */
   :root {
-    /* Neutrals: text and icons */
-    --color-text: #292a2e;
-    --color-text-subtle: #505258;
-    --color-text-subtlest: #6b6e76;
-    --color-text-selected: #1868db;
-    --color-text-disabled: #080f214a;
+    /* Labels (labelColor / secondaryLabelColor / tertiaryLabelColor). Apple's secondary label is
+       black 50% (4.0:1 on white); 60% and 58% keep caption text at 4.5:1 on every surface here. */
+    --color-text: #000000d9;
+    --color-text-subtle: #00000099;
+    --color-text-subtlest: #00000094;
+    --color-text-selected: #ffffff;
+    --color-text-selected-subtle: #ffffffeb;
+    --color-text-disabled: #00000040;
     --color-text-inverse: #ffffff;
-    --color-text-brand: #1868db;
-    --color-icon: #292a2e;
-    --color-icon-subtle: #505258;
-    --color-icon-subtlest: #6b6e76;
-    --color-icon-selected: #1868db;
-    --color-icon-disabled: #080f214a;
+    --color-text-brand: #0068da;
+    --color-icon: #000000d9;
+    --color-icon-subtle: #00000099;
+    --color-icon-subtlest: #00000094;
+    --color-icon-selected: #007aff;
+    --color-icon-disabled: #00000040;
     --color-icon-inverse: #ffffff;
-    --color-icon-brand: #1868db;
+    --color-icon-brand: #007aff;
 
-    /* Neutrals: surfaces and the four elevation planes */
+    /* Accent: systemBlue. Fills, focus ring, switches and sidebar glyphs use it as is; text set in
+       the accent uses linkColor (#0068da, 5.3:1) because systemBlue on white is only 4.0:1, and a
+       filled push button or selected row uses selectedContentBackgroundColor (#0063e1, 5.4:1). */
+    --color-accent: #007aff;
+
+    /* Backgrounds: controlBackgroundColor for content, a grouped-form gray for the detail pane,
+       windowBackgroundColor for the window itself. */
     --color-surface: #ffffff;
-    --color-surface-sunken: #f8f8f8;
+    --color-surface-sunken: #f5f5f7;
     --color-surface-raised: #ffffff;
-    --color-surface-overlay: #ffffff;
+    --color-surface-overlay: #f6f6f6;
+    --color-window: #ececec;
+    --color-sidebar: #ebebef;
 
-    /* Neutrals: borders, links, interaction */
-    --color-border: #0b120e24;
-    --color-border-bold: #7d818a;
-    --color-border-input: #8c8f97;
-    --color-border-focused: #4688ec;
-    --color-border-selected: #1868db;
-    --color-border-disabled: #0515240f;
+    /* Separators and bezels */
+    --color-border: #0000001a;
+    --color-border-bold: #00000040;
+    --color-border-input: #0000002e;
+    --color-border-focused: #007aff;
+    --color-border-selected: #007aff;
+    --color-border-disabled: #0000000d;
     --color-border-inverse: #ffffff;
-    --color-link: #1868db;
-    --color-link-pressed: #1558bc;
-    --color-link-visited: #803fa5;
-    --color-link-visited-pressed: #48245d;
+    --color-focus-ring: #007aff;
+    --color-link: #0068da;
+    --color-link-pressed: #0050a8;
+    --color-link-visited: #8944ab;
+    --color-link-visited-pressed: #6b3587;
+
+    /* Fills (quaternary/tertiary system fill) and selection */
     --color-background-neutral-subtle: #00000000;
-    --color-background-neutral-subtle-hovered: #0515240f;
-    --color-background-neutral-subtle-pressed: #0b120e24;
-    --color-background-neutral-bold: #292a2e;
-    --color-background-neutral-bold-hovered: #3b3d42;
-    --color-background-neutral-bold-pressed: #505258;
+    --color-background-neutral-subtle-hovered: #0000000d;
+    --color-background-neutral-subtle-pressed: #0000001a;
+    --color-background-neutral-bold: #000000d9;
+    --color-background-neutral-bold-hovered: #000000b3;
+    --color-background-neutral-bold-pressed: #00000099;
     --color-background-input: #ffffff;
-    --color-background-input-hovered: #f8f8f8;
+    --color-background-input-hovered: #ffffff;
     --color-background-input-pressed: #ffffff;
-    --color-background-disabled: #0515240f;
-    --color-background-selected: #e9f2fe;
-    --color-background-selected-hovered: #cfe1fd;
-    --color-background-selected-pressed: #8fb8f6;
-    --color-background-selected-bold: #1868db;
-    --color-interaction-hovered: #00000029;
-    --color-interaction-pressed: #00000052;
-    --color-skeleton: #0515240f;
-    --color-blanket: #050c1f75;
+    --color-background-control: #ffffff;
+    --color-background-control-pressed: #f0f0f0;
+    --color-background-disabled: #0000000d;
+    --color-background-selected: #007aff24;
+    --color-background-selected-hovered: #007aff33;
+    --color-background-selected-pressed: #007aff47;
+    --color-background-selected-bold: #0063e1;
+    --color-on-selected-fill: #ffffff33;
+    --color-interaction-hovered: #0000000d;
+    --color-interaction-pressed: #0000001a;
+    --color-skeleton: #0000000d;
+    --color-blanket: #00000033;
 
-    /* Semantic roles: brand, danger, warning, success, information, discovery */
-    --color-background-brand-bold: #1868db;
-    --color-background-brand-bold-hovered: #1558bc;
-    --color-background-brand-bold-pressed: #144794;
-    --color-background-brand-subtlest: #e9f2fe;
-    --color-text-danger: #ae2e24;
-    --color-icon-danger: #c9372c;
-    --color-border-danger: #e2483d;
-    --color-background-danger: #ffeceb;
-    --color-background-danger-subtle: #fd9891;
-    --color-background-danger-bold: #c9372c;
-    --color-background-danger-bold-hovered: #ae2e24;
-    --color-background-danger-bold-pressed: #872821;
-    --color-text-warning: #9e4c00;
-    --color-text-warning-inverse: #292a2e;
-    --color-icon-warning: #e06c00;
-    --color-icon-warning-inverse: #292a2e;
-    --color-border-warning: #e06c00;
-    --color-background-warning: #fff5db;
-    --color-background-warning-subtle: #fbd779;
-    --color-background-warning-bold: #fbc828;
-    --color-background-warning-bold-hovered: #fca700;
-    --color-background-warning-bold-pressed: #f68909;
-    --color-text-success: #4c6b1f;
-    --color-icon-success: #6a9a23;
-    --color-border-success: #6a9a23;
-    --color-background-success: #efffd6;
-    --color-background-success-subtle: #b3df72;
-    --color-background-success-bold: #5b7f24;
-    --color-background-success-bold-hovered: #4c6b1f;
-    --color-background-success-bold-pressed: #3f5224;
-    --color-text-information: #1558bc;
-    --color-icon-information: #357de8;
-    --color-border-information: #357de8;
-    --color-background-information: #e9f2fe;
-    --color-background-information-subtle: #8fb8f6;
-    --color-background-information-bold: #1868db;
-    --color-text-discovery: #803fa5;
-    --color-icon-discovery: #af59e1;
-    --color-border-discovery: #af59e1;
-    --color-background-discovery: #f8eefe;
-    --color-background-discovery-subtle: #d8a0f7;
-    --color-background-discovery-bold: #964ac0;
+    /* Status: systemRed / Orange / Green / Blue / Purple. Text uses Apple's increased-contrast
+       variants; the green is one step darker than Apple's #248a3d (4.4:1) to clear 4.5:1. */
+    --color-background-brand-bold: #0063e1;
+    --color-background-brand-bold-hovered: #0058cc;
+    --color-background-brand-bold-pressed: #004db3;
+    --color-background-brand-subtlest: #007aff14;
+    --color-text-danger: #d70015;
+    --color-icon-danger: #ff3b30;
+    --color-border-danger: #ff3b30;
+    --color-background-danger: #ff3b301a;
+    --color-background-danger-subtle: #ff3b3040;
+    --color-background-danger-bold: #d70015;
+    --color-background-danger-bold-hovered: #c20013;
+    --color-background-danger-bold-pressed: #a80011;
+    --color-text-warning: #c93400;
+    --color-text-warning-inverse: #000000d9;
+    --color-icon-warning: #ff9500;
+    --color-icon-warning-inverse: #000000d9;
+    --color-border-warning: #ff9500;
+    --color-background-warning: #ff95001f;
+    --color-background-warning-subtle: #ff950052;
+    --color-background-warning-bold: #ff9500;
+    --color-background-warning-bold-hovered: #f08c00;
+    --color-background-warning-bold-pressed: #db8000;
+    --color-text-success: #1e7b34;
+    --color-icon-success: #28cd41;
+    --color-border-success: #28cd41;
+    --color-background-success: #28cd411f;
+    --color-background-success-subtle: #28cd4152;
+    --color-background-success-bold: #28cd41;
+    --color-background-success-bold-hovered: #24b83a;
+    --color-background-success-bold-pressed: #1fa333;
+    --color-text-information: #0068da;
+    --color-icon-information: #007aff;
+    --color-border-information: #007aff;
+    --color-background-information: #007aff1a;
+    --color-background-information-subtle: #007aff52;
+    --color-background-information-bold: #0063e1;
+    --color-text-discovery: #8944ab;
+    --color-icon-discovery: #af52de;
+    --color-border-discovery: #af52de;
+    --color-background-discovery: #af52de1a;
+    --color-background-discovery-subtle: #af52de52;
+    --color-background-discovery-bold: #8944ab;
 
-    /* Accent ramps: decoration only (tags), never status */
-    --color-text-accent-gray: #505258;
-    --color-text-accent-red: #ae2e24;
-    --color-text-accent-orange: #9e4c00;
-    --color-text-accent-yellow: #7f5f01;
-    --color-text-accent-green: #216e4e;
-    --color-text-accent-lime: #4c6b1f;
-    --color-text-accent-teal: #206a83;
-    --color-text-accent-blue: #1558bc;
-    --color-text-accent-purple: #803fa5;
-    --color-text-accent-magenta: #943d73;
-    --color-border-accent-gray: #7d818a;
-    --color-border-accent-red: #e2483d;
-    --color-border-accent-orange: #e06c00;
-    --color-border-accent-yellow: #b38600;
-    --color-border-accent-green: #22a06b;
-    --color-border-accent-lime: #6a9a23;
-    --color-border-accent-teal: #2898bd;
-    --color-border-accent-blue: #357de8;
-    --color-border-accent-purple: #af59e1;
-    --color-border-accent-magenta: #cd519d;
-    --color-icon-accent-lime: #6a9a23;
-    --color-icon-accent-red: #c9372c;
-    --color-icon-accent-orange: #e06c00;
-    --color-icon-accent-yellow: #b38600;
-    --color-icon-accent-green: #22a06b;
-    --color-icon-accent-teal: #2898bd;
-    --color-icon-accent-blue: #357de8;
-    --color-icon-accent-purple: #af59e1;
-    --color-icon-accent-magenta: #cd519d;
-    --color-icon-accent-gray: #7d818a;
+    /* Tag and item-type hues: decoration only, never status. Glyphs and swatches use the system
+       colors; text uses the increased-contrast variant. The stored names predate the palette, so
+       `lime` is systemMint and `magenta` is systemPink. */
+    --color-text-accent-gray: #6c6c70;
+    --color-text-accent-red: #d70015;
+    --color-text-accent-orange: #c93400;
+    --color-text-accent-yellow: #a05a00;
+    --color-text-accent-green: #1e7b34;
+    --color-text-accent-lime: #0c817b;
+    --color-text-accent-teal: #008299;
+    --color-text-accent-blue: #0040dd;
+    --color-text-accent-purple: #8944ab;
+    --color-text-accent-magenta: #d30f45;
+    --color-border-accent-gray: #8e8e93;
+    --color-border-accent-red: #ff3b30;
+    --color-border-accent-orange: #ff9500;
+    --color-border-accent-yellow: #ffcc00;
+    --color-border-accent-green: #28cd41;
+    --color-border-accent-lime: #00c7be;
+    --color-border-accent-teal: #59adc4;
+    --color-border-accent-blue: #007aff;
+    --color-border-accent-purple: #af52de;
+    --color-border-accent-magenta: #ff2d55;
+    --color-icon-accent-gray: #8e8e93;
+    --color-icon-accent-red: #ff3b30;
+    --color-icon-accent-orange: #ff9500;
+    --color-icon-accent-yellow: #ffcc00;
+    --color-icon-accent-green: #28cd41;
+    --color-icon-accent-lime: #00c7be;
+    --color-icon-accent-teal: #59adc4;
+    --color-icon-accent-blue: #007aff;
+    --color-icon-accent-purple: #af52de;
+    --color-icon-accent-magenta: #ff2d55;
 
-    /* Radius: t-shirt scale, chosen by component class, not taste */
+    /* Materials: the floating functional layer only (sidebar, toolbar, menus, popovers, sheets),
+       never content (materials.md › Liquid Glass: "Don't use Liquid Glass in the content layer").
+       `prefers-reduced-transparency` swaps each one for its solid colour below. */
+    --material-sidebar: #e6e6ebcc;
+    --material-toolbar: #ffffffd1;
+    --material-popover: #f6f6f6e6;
+    --material-sheet: #f2f2f2f2;
+    --material-filter: saturate(180%) blur(20px);
+
+    /* Radius: controls 6, grouped sections and popovers 10, windows and sheets 12. */
     --radius-xsmall: 0.125rem;
     --radius-small: 0.25rem;
     --radius-medium: 0.375rem;
-    --radius-large: 0.5rem;
+    --radius-large: 0.625rem;
     --radius-xlarge: 0.75rem;
     --radius-xxlarge: 1rem;
     --radius-full: 624.9375rem;
     --radius-tile: 25%;
 
-    /* Spacing: 8px base. Tight interiors 0-100, roomy 150-300, page level 400+. */
+    /* Spacing: 4/8pt grid. */
     --space-0: 0rem;
     --space-025: 0.125rem;
     --space-050: 0.25rem;
@@ -156,23 +187,28 @@
     --space-200: 1rem;
     --space-250: 1.25rem;
     --space-300: 1.5rem;
+    --space-350: 1.75rem;
     --space-400: 2rem;
     --space-500: 2.5rem;
     --space-600: 3rem;
     --space-800: 4rem;
     --space-1000: 5rem;
 
-    /* Border widths: resting, selected, focused */
+    /* Border widths and the keyboard focus ring: 3pt in the accent, drawn on the control's own edge
+       so it follows the control's corner radius. */
     --border-width-default: 0.0625rem;
     --border-width-selected: 0.125rem;
-    --border-width-focused: 0.125rem;
+    --focus-ring-width: 0.1875rem;
+    --focus-ring-offset: 0rem;
 
-    /* Elevation: the only three shadows the system allows */
-    --shadow-raised: 0px 1px 1px #1e1f2140, 0px 0px 1px #1e1f214f;
-    --shadow-overlay: 0px 8px 12px #1e1f2126, 0px 0px 1px #1e1f214f;
-    --shadow-overflow: 0px 0px 8px #1e1f2129, 0px 0px 1px #1e1f211f;
+    /* Shadows: bezels on push buttons and segments, then popovers/menus, then sheets. Content sits
+       on separators, never on a shadow. */
+    --shadow-control: 0 0 0 0.5px #0000001f, 0 1px 1px #0000001a;
+    --shadow-overlay: 0 0 0 0.5px #00000026, 0 8px 24px #00000029;
+    --shadow-sheet: 0 0 0 0.5px #00000026, 0 20px 50px #00000040;
+    --shadow-track: inset 0 0 0 1px #0000001a;
 
-    /* Motion: interactions 50-150ms, transitions 150-400ms, no bounce in product UI */
+    /* Motion: brief and rare; `prefers-reduced-motion` removes it. */
     --duration-instant: 0ms;
     --duration-xxshort: 50ms;
     --duration-xshort: 100ms;
@@ -181,112 +217,202 @@
     --duration-long: 250ms;
     --duration-xlong: 400ms;
     --duration-xxlong: 600ms;
-    --easing-out-practical: cubic-bezier(0.4, 1, 0.6, 1);
-    --easing-in-practical: cubic-bezier(0.6, 0, 0.8, 0.6);
-    --easing-out-bold: cubic-bezier(0, 0.4, 0, 1);
-    --easing-inout-bold: cubic-bezier(0.4, 0, 0, 1);
+    --easing-out-practical: cubic-bezier(0.25, 0.1, 0.25, 1);
+    --easing-in-practical: cubic-bezier(0.42, 0, 1, 1);
+    --easing-out-bold: cubic-bezier(0, 0, 0.2, 1);
+    --easing-inout-bold: cubic-bezier(0.42, 0, 0.58, 1);
 
     /* Weights */
     --weight-regular: 400;
     --weight-medium: 500;
     --weight-semibold: 600;
-    --weight-bold: 653;
+    --weight-bold: 700;
 
-    /* Alias layer: the component rules read these, so a theme change re-points this group
-       instead of restyling the ~340 selectors that consume it. */
-    --theme-color: var(--color-background-brand-bold);
-    --theme-bg-2: var(--color-surface);
-    --theme-text-70: var(--color-text);
-    --theme-panel: var(--color-surface);
-    --theme-border: var(--color-border);
-    --theme-hover: var(--color-background-neutral-subtle-hovered);
-    --theme-selected: var(--color-background-selected);
-    --theme-shadow: var(--shadow-raised);
-    --passless-sidebar-bg: var(--color-surface-sunken);
-    --passless-sidebar-text: var(--color-text-subtle);
-    --passless-sidebar-active: var(--color-background-selected);
-    --passless-sidebar-active-text: var(--color-text-selected);
-    --passless-surface: var(--color-surface);
-    --passless-surface-muted: var(--color-surface-sunken);
-    --passless-surface-raised: var(--color-surface-raised);
-    --passless-text: var(--color-text);
-    --passless-border: var(--color-border);
-    --passless-border-soft: var(--color-border);
-    --passless-control-hover: var(--color-background-neutral-subtle-hovered);
-    --passless-control-active: var(--color-background-neutral-subtle-pressed);
-    --passless-accent: var(--color-text-brand);
-    --passless-accent-soft: var(--color-background-brand-subtlest);
-    --passless-focus-ring: var(--color-border-focused);
-    --passless-shadow-soft: var(--shadow-raised);
-    /* Documented layout measures, not spacing steps: geometry the 8px grid does not cover.
+    /* Documented layout measures, not spacing steps: geometry the grid does not cover.
        Reference these through the Tailwind width/maxWidth keys, never as an arbitrary [390px]. */
     --measure-content-max: 760px;
-    --measure-settings-max: 860px;
-    --measure-lock-panel: 390px;
-    --measure-modal: 400px;
+    --measure-settings-max: 640px;
+    --measure-lock-panel: 360px;
+    --measure-lock-field: 260px;
+    --measure-modal: 420px;
     --measure-detail-header: 720px;
     /* The sidebar and the item list are both drag-resized, so these are their starting widths and
        the clamp lives in App.tsx (sidebar 150-220, list 180-250). */
     --measure-sidebar: 220px;
     --measure-item-list-min: 150px;
     --measure-window-min: 960px;
-    --measure-settings-nav: 220px;
+    --measure-settings-nav: 200px;
     --measure-slider-min: 160px;
     --measure-resizer: 6px;
     --measure-item-list-default: 220px;
     /* titleBarStyle: "Overlay" reserves the native traffic-light strip; never self-draw it. */
     --measure-titlebar: 44px;
-    /* Atlassian Sans is proprietary; the contract's system fallback stack stands in for it,
-       and Atlassian Mono's JetBrains Mono lineage is carried by the platform mono. */
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    /* The system font: SF Pro on macOS, reached through the platform keywords; no webfont. */
+    font-family: -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", sans-serif;
     -webkit-font-smoothing: antialiased;
     font-synthesis: none;
     color-scheme: light;
     text-rendering: optimizeLegibility;
   }
 
-  /* DESIGN.md ships a light theme only (theme: light), so there is no Atlassian dark token table
-     to copy. These re-point the app's previously shipped dark values onto the new key names —
-     same appearance as before the migration, no invented Atlassian hexes. A real dark palette
-     per role is still owed: needs-design-decision. */
+  /* Dark appearance: Apple's published dark values for the same roles (dark-mode.md › Dark Mode
+     colors: "dimmer background colors and brighter foreground colors"). */
   :root[data-theme="dark"] {
-    --color-surface: #111317;
-    --color-surface-sunken: #171a20;
-    --color-surface-raised: #1b1f26;
-    --color-surface-overlay: #1c1c1e;
-    --color-text: #e4e7ec;
-    --color-text-subtle: #c9ced8;
-    --color-text-subtlest: #8e8e93;
-    --color-text-inverse: #2f3034;
-    --color-text-selected: #86adff;
-    --color-text-brand: #86adff;
-    --color-icon: #e4e7ec;
-    --color-icon-subtle: #c9ced8;
-    --color-icon-subtlest: #8e8e93;
-    --color-icon-inverse: #2f3034;
-    --color-icon-selected: #86adff;
-    --color-icon-brand: #86adff;
-    --color-border: #2c2c2e;
-    --color-border-bold: #39465a;
-    --color-border-input: #8e8e93;
-    --color-border-focused: #4b8cff;
-    --color-border-selected: #4b8cff;
-    --color-link: #86adff;
-    --color-link-pressed: #adc7ff;
-    --color-background-input: #1c1c1e;
-    --color-background-input-hovered: #242a33;
-    --color-background-input-pressed: #1c1c1e;
-    --color-background-neutral-subtle-hovered: #242a33;
-    --color-background-neutral-subtle-pressed: #2f353f;
-    --color-background-neutral-bold: #f1f0f5;
-    --color-background-selected: #004493;
-    --color-background-selected-hovered: #4f79d3;
-    --color-background-brand-bold: #4b8cff;
-    --color-background-brand-bold-hovered: #86adff;
-    --color-background-brand-bold-pressed: #1868db;
-    --color-background-brand-subtlest: #001a41;
-    --passless-sidebar-bg: #171d26;
+    --color-text: #ffffffd9;
+    --color-text-subtle: #ffffff8c;
+    --color-text-subtlest: #ffffff87;
+    --color-text-selected: #ffffff;
+    --color-text-selected-subtle: #ffffffeb;
+    --color-text-disabled: #ffffff40;
+    --color-text-inverse: #ffffff;
+    --color-text-brand: #419cff;
+    --color-icon: #ffffffd9;
+    --color-icon-subtle: #ffffff8c;
+    --color-icon-subtlest: #ffffff87;
+    --color-icon-selected: #0a84ff;
+    --color-icon-disabled: #ffffff40;
+    --color-icon-inverse: #ffffff;
+    --color-icon-brand: #0a84ff;
+    --color-accent: #0a84ff;
+    --color-surface: #1e1e1e;
+    --color-surface-sunken: #1e1e1e;
+    --color-surface-raised: #2c2c2e;
+    --color-surface-overlay: #323234;
+    --color-window: #323232;
+    --color-sidebar: #2a2a2d;
+    --color-border: #ffffff1a;
+    --color-border-bold: #ffffff40;
+    --color-border-input: #ffffff26;
+    --color-border-focused: #0a84ff;
+    --color-border-selected: #0a84ff;
+    --color-border-disabled: #ffffff0d;
+    --color-border-inverse: #000000;
+    --color-focus-ring: #0a84ff;
+    --color-link: #419cff;
+    --color-link-pressed: #6fb3ff;
+    --color-link-visited: #da8fff;
+    --color-link-visited-pressed: #e5aeff;
+    --color-background-neutral-subtle-hovered: #ffffff14;
+    --color-background-neutral-subtle-pressed: #ffffff24;
+    --color-background-neutral-bold: #ffffffd9;
+    --color-background-neutral-bold-hovered: #ffffffb3;
+    --color-background-neutral-bold-pressed: #ffffff99;
+    --color-background-input: #ffffff0f;
+    --color-background-input-hovered: #ffffff14;
+    --color-background-input-pressed: #ffffff0f;
+    --color-background-control: #ffffff26;
+    --color-background-control-pressed: #ffffff38;
+    --color-background-disabled: #ffffff0d;
+    --color-background-selected: #0a84ff3d;
+    --color-background-selected-hovered: #0a84ff4d;
+    --color-background-selected-pressed: #0a84ff66;
+    --color-background-selected-bold: #0059d1;
+    --color-interaction-hovered: #ffffff14;
+    --color-interaction-pressed: #ffffff24;
+    --color-skeleton: #ffffff0d;
+    --color-blanket: #00000059;
+    --color-background-brand-bold: #0059d1;
+    --color-background-brand-bold-hovered: #0a64de;
+    --color-background-brand-bold-pressed: #004bb0;
+    --color-background-brand-subtlest: #0a84ff1f;
+    --color-text-danger: #ff6961;
+    --color-icon-danger: #ff453a;
+    --color-border-danger: #ff453a;
+    --color-background-danger: #ff453a26;
+    --color-background-danger-subtle: #ff453a59;
+    --color-background-danger-bold: #d70015;
+    --color-background-danger-bold-hovered: #e0182b;
+    --color-background-danger-bold-pressed: #b30012;
+    --color-text-warning: #ffb340;
+    --color-text-warning-inverse: #000000d9;
+    --color-icon-warning: #ff9f0a;
+    --color-icon-warning-inverse: #000000d9;
+    --color-border-warning: #ff9f0a;
+    --color-background-warning: #ff9f0a26;
+    --color-background-warning-subtle: #ff9f0a59;
+    --color-background-warning-bold: #ff9f0a;
+    --color-background-warning-bold-hovered: #ffaa2a;
+    --color-background-warning-bold-pressed: #e08c00;
+    --color-text-success: #30db5b;
+    --color-icon-success: #32d74b;
+    --color-border-success: #32d74b;
+    --color-background-success: #32d74b26;
+    --color-background-success-subtle: #32d74b59;
+    --color-background-success-bold: #32d74b;
+    --color-background-success-bold-hovered: #48dc5e;
+    --color-background-success-bold-pressed: #28b43e;
+    --color-text-information: #419cff;
+    --color-icon-information: #0a84ff;
+    --color-border-information: #0a84ff;
+    --color-background-information: #0a84ff26;
+    --color-background-information-subtle: #0a84ff59;
+    --color-background-information-bold: #0059d1;
+    --color-text-discovery: #da8fff;
+    --color-icon-discovery: #bf5af2;
+    --color-border-discovery: #bf5af2;
+    --color-background-discovery: #bf5af226;
+    --color-background-discovery-subtle: #bf5af259;
+    --color-background-discovery-bold: #9d45c9;
+    --color-text-accent-gray: #aeaeb2;
+    --color-text-accent-red: #ff6961;
+    --color-text-accent-orange: #ffb340;
+    --color-text-accent-yellow: #ffd426;
+    --color-text-accent-green: #30db5b;
+    --color-text-accent-lime: #66d4cf;
+    --color-text-accent-teal: #5de6ff;
+    --color-text-accent-blue: #409cff;
+    --color-text-accent-purple: #da8fff;
+    --color-text-accent-magenta: #ff6482;
+    --color-border-accent-gray: #98989d;
+    --color-border-accent-red: #ff453a;
+    --color-border-accent-orange: #ff9f0a;
+    --color-border-accent-yellow: #ffd60a;
+    --color-border-accent-green: #32d74b;
+    --color-border-accent-lime: #63e6e2;
+    --color-border-accent-teal: #6ac4dc;
+    --color-border-accent-blue: #0a84ff;
+    --color-border-accent-purple: #bf5af2;
+    --color-border-accent-magenta: #ff375f;
+    --color-icon-accent-gray: #98989d;
+    --color-icon-accent-red: #ff453a;
+    --color-icon-accent-orange: #ff9f0a;
+    --color-icon-accent-yellow: #ffd60a;
+    --color-icon-accent-green: #32d74b;
+    --color-icon-accent-lime: #63e6e2;
+    --color-icon-accent-teal: #6ac4dc;
+    --color-icon-accent-blue: #0a84ff;
+    --color-icon-accent-purple: #bf5af2;
+    --color-icon-accent-magenta: #ff375f;
+    --material-sidebar: #2a2a2dcc;
+    --material-toolbar: #1e1e1ed1;
+    --material-popover: #2c2c2ee6;
+    --material-sheet: #323234f2;
+    --shadow-control: 0 0 0 0.5px #ffffff1a, 0 1px 1px #00000040;
+    --shadow-overlay: 0 0 0 0.5px #ffffff1f, 0 10px 30px #00000080;
+    --shadow-sheet: 0 0 0 0.5px #ffffff1f, 0 22px 60px #000000a6;
+    --shadow-track: inset 0 0 0 1px #ffffff1a;
     color-scheme: dark;
+  }
+
+  /* Reduce Transparency (accessibility.md, materials.md): every material becomes its solid colour. */
+  @media (prefers-reduced-transparency: reduce) {
+    :root {
+      --material-sidebar: var(--color-sidebar);
+      --material-toolbar: var(--color-surface);
+      --material-popover: var(--color-surface-overlay);
+      --material-sheet: var(--color-surface-overlay);
+      --material-filter: none;
+    }
+  }
+
+  /* Reduce Motion: transitions collapse to an instant change. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0ms !important;
+      animation-duration: 0ms !important;
+    }
   }
 
   * {
@@ -295,7 +421,7 @@
 
   body {
     color: var(--color-text);
-    background: var(--color-surface);
+    background: var(--color-window);
     @apply m-0 h-screen overflow-hidden text-body;
   }
 
@@ -330,7 +456,8 @@
     @apply cursor-pointer;
   }
 
-  /* textfield-standard: background-input + border-input + radius-medium + body, padding space-075. */
+  /* Text field (text-fields.md): a white well with a hairline bezel, the control radius and body
+     type, 28pt tall — the macOS default control size (accessibility.md › 28x28 pt). */
   input,
   textarea,
   select {
@@ -348,15 +475,15 @@
 
   input,
   select {
-    @apply h-400 px-075;
+    @apply h-350 px-100;
   }
 
   textarea {
     @apply resize-y p-075;
   }
 
-  /* Focus ring contract: 2px border-focused, offset 2px, ring radius = component radius + 2px.
-     Never `outline: none` without this replacement. */
+  /* Keyboard focus ring (focus-and-selection.md): 3pt in the accent, on the control's own edge, so
+     the outline follows the control's corner radius. Never `outline: none` without this ring. */
   button:focus-visible,
   input:focus-visible,
   textarea:focus-visible,
@@ -365,48 +492,68 @@
   [role="checkbox"]:focus-visible,
   [role="radio"]:focus-visible,
   [tabindex]:focus-visible {
-    outline: var(--border-width-focused) solid var(--color-border-focused);
-    outline-offset: var(--space-025);
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
   }
 
+  /* background-color, never the shorthand: `background` would reset the select's chevron. */
   input:focus,
   textarea:focus,
   select:focus {
-    background: var(--color-background-input-pressed);
+    background-color: var(--color-background-input-pressed);
     border-color: var(--color-border-focused);
   }
 
+  /* background-color, never the shorthand: it would reset the select chevron's repeat and tile it. */
   input:disabled,
   textarea:disabled,
   select:disabled {
     color: var(--color-text-disabled);
-    background: var(--color-background-disabled);
+    background-color: var(--color-background-disabled);
     border-color: var(--color-border-disabled);
   }
 
+  /* Pop-up button (pop-up-buttons.md): a bezeled push button with the up-down chevron pair at its
+     trailing edge. Data-URI glyph: its stroke literal mirrors --color-text-subtle (black 60% light,
+     white 55% dark), which a background image cannot resolve through currentColor. */
   select {
-    /* Data-URI glyph: the stroke literal mirrors --color-icon-subtlest, which a background image
-       cannot resolve through currentColor. */
-    background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 10L12 14L16 10' stroke='%236B6E76' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-color: var(--color-background-control);
+    background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 9.5L12 5.5L16 9.5M8 14.5L12 18.5L16 14.5' stroke='%23666666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: right var(--space-100) center;
-    background-size: 1rem 1rem;
+    background-position: right var(--space-075) center;
+    background-size: 0.875rem 0.875rem;
+    border-color: transparent;
+    box-shadow: var(--shadow-control);
     @apply appearance-none pr-300;
   }
 
   select:hover {
-    background-color: var(--color-background-input-hovered);
+    background-color: var(--color-background-control);
+  }
+
+  select:focus {
+    border-color: transparent;
   }
 
   :root[data-theme="dark"] select {
-    background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 10L12 14L16 10' stroke='%238E8E93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 9.5L12 5.5L16 9.5M8 14.5L12 18.5L16 14.5' stroke='%23999999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
 
-  /* form-label: body-small in text-subtle. Paragraphs stay in `text` — the contract bans
-     demoting prose to text-subtle to fake hierarchy. */
+  :root[data-theme="dark"] select option {
+    color: var(--color-text);
+    background-color: var(--color-surface-overlay);
+  }
+
+  /* Selected text in a field: selectedTextBackgroundColor, the accent at low strength. */
+  ::selection {
+    background-color: var(--color-background-selected-hovered);
+  }
+
+  /* A field label is callout in the secondary label colour; paragraphs stay in the primary label
+     colour, because secondary is for captions and metadata, not prose. */
   label {
     color: var(--color-text-subtle);
-    @apply grid gap-050 text-body-small;
+    @apply grid gap-050 text-callout;
   }
 
   p {
@@ -416,15 +563,18 @@
 }
 
 @layer components {
-  /* Lock dialog: overlay plane, radius-xlarge per the modal-dialog recipe. */
+  /* Lock screen: one centred unlock panel on the window background, the way the macOS login window
+     centres its icon, name and password field. */
   .lock-screen {
-    @apply grid h-screen overflow-auto place-items-center bg-surface p-100;
+    @apply grid h-screen overflow-auto place-items-center bg-window p-100;
   }
 
   .lock-panel {
-    background: var(--color-surface-overlay);
+    background: var(--material-sheet);
     border-color: var(--color-border);
-    box-shadow: var(--shadow-overlay);
+    box-shadow: var(--shadow-sheet);
+    -webkit-backdrop-filter: var(--material-filter);
+    backdrop-filter: var(--material-filter);
     @apply w-full max-w-lock-panel rounded-xlarge border p-100;
   }
 
@@ -433,38 +583,44 @@
   }
 
   .lock-panel h1 {
-    @apply m-0 text-heading-small font-bold text-text;
+    @apply m-0 text-title-3 font-bold text-text;
   }
 
   .compact-lock-screen {
-    @apply flex h-screen items-center justify-center overflow-hidden bg-surface p-300;
+    @apply flex h-screen items-center justify-center overflow-hidden bg-window p-300;
   }
 
   .compact-unlock-form {
-    @apply grid w-full max-w-lock-panel gap-300;
+    @apply grid w-full max-w-lock-field justify-items-stretch gap-300;
   }
 
-  /* The artwork is the only thing naming the app on this panel, so it leads from above the word
-     rather than sitting beside it at control size. */
+  /* The artwork is the only thing naming the app on this panel, so it leads from above the word at
+     the size macOS gives an app icon in a login or alert panel. */
   .compact-lock-brand {
     color: var(--color-text);
-    @apply m-0 flex flex-col items-center justify-center gap-100 text-heading-xsmall;
+    @apply m-0 flex flex-col items-center justify-center gap-150 text-title-2 font-semibold;
   }
 
   .compact-lock-brand .brand-mark {
-    @apply h-600 w-600;
+    @apply h-800 w-800;
   }
 
+  /* A capsule password field, as on the macOS login window: the field and its trailing buttons are
+     one control, so the ring is drawn on the wrapper. */
   .compact-password-control {
     background: var(--color-background-input);
     border-color: var(--color-border-input);
-    @apply flex h-400 items-center rounded-medium border px-050;
+    @apply flex h-350 items-center rounded-full border pl-100 pr-025;
   }
 
   .compact-password-control:focus-within {
-    outline: var(--border-width-focused) solid var(--color-border-focused);
-    outline-offset: var(--space-025);
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
     border-color: var(--color-border-focused);
+  }
+
+  .compact-password-control input:focus {
+    background-color: transparent;
   }
 
   /* The wrapper wears the ring for the whole composite control, so the input inside it contributes
@@ -480,21 +636,21 @@
   }
 
   .compact-unlock-icon-button {
-    color: var(--color-text-brand);
-    @apply grid h-300 w-300 shrink-0 place-items-center rounded-medium border-0 bg-transparent p-0;
+    color: var(--color-icon-subtle);
+    @apply grid h-300 w-300 shrink-0 place-items-center rounded-full border-0 bg-transparent p-0;
   }
 
   .compact-unlock-icon-button:hover {
-    background: var(--passless-control-hover);
+    background: var(--color-background-neutral-subtle-hovered);
   }
 
   /* Role background + role border, body copy stays in --color-text. */
   .compact-lock-error {
-    @apply rounded-medium border border-border-danger bg-background-danger px-100 py-050 text-body-small text-text;
+    @apply rounded-medium bg-background-danger px-150 py-075 text-center text-callout text-text;
   }
 
   .app-shell {
-    background: var(--passless-surface);
+    background: var(--color-surface);
     @apply grid h-screen min-h-0 min-w-window grid-rows-titlebar overflow-hidden;
   }
 
@@ -521,15 +677,15 @@
   }
 
   .sidebar {
-    color: var(--passless-sidebar-text);
-    background: var(--passless-sidebar-bg);
-    border-color: var(--passless-border);
+    color: var(--color-text-subtle);
+    background: var(--material-sidebar);
+    border-color: var(--color-border);
     @apply flex flex-col gap-300 border-r px-100 py-100;
   }
 
   .top-search-bar {
-    background: var(--passless-surface);
-    border-color: var(--passless-border);
+    background: var(--color-surface);
+    border-color: var(--color-border);
     @apply col-start-2 col-span-4 grid min-h-0 grid-cols-[1fr_auto] items-center gap-200 border-b px-150;
   }
 
@@ -538,11 +694,14 @@
      centred line and a selected-colour bar stacked three pixels apart. `cursor-col-resize` is the
      whole affordance, and a tabbed handle still gets the base layer's focus ring. */
   .column-resize-handle {
+    background-color: var(--color-surface-sunken);
     @apply col-start-4 row-start-2 h-full w-full cursor-col-resize border-0;
   }
 
-  /* The sidebar's own gutter comes before the list column, not after it. */
+  /* The sidebar's own gutter comes before the list column, not after it. Each gutter takes the colour
+     of the column it opens onto, so it reads as part of that column rather than as a bar. */
   .column-resize-handle.is-sidebar {
+    background-color: var(--color-surface);
     @apply col-start-2;
   }
 
@@ -576,7 +735,7 @@
   }
 
   .top-search-results button:hover {
-    background: var(--passless-control-hover);
+    background: var(--color-background-neutral-subtle-hovered);
   }
 
   .top-search-results button strong,
@@ -585,7 +744,7 @@
   }
 
   .top-search-results button small {
-    @apply mt-025 text-body-small text-text-subtle;
+    @apply mt-025 text-callout text-text-subtle;
   }
 
   .top-search-results p {
@@ -595,7 +754,8 @@
   .top-new-item-button {
     color: var(--color-text-inverse);
     background: var(--color-background-brand-bold);
-    @apply inline-flex min-h-400 items-center justify-center gap-075 rounded-medium border-transparent px-150 text-body font-medium;
+    box-shadow: var(--shadow-control);
+    @apply inline-flex min-h-350 items-center justify-center gap-075 rounded-medium border-0 px-150 text-body font-medium;
   }
 
   .top-new-item-button:hover {
@@ -617,7 +777,7 @@
 
   .brand span {
     color: var(--color-text-subtlest);
-    @apply mt-025 text-body-small;
+    @apply mt-025 text-callout;
   }
 
   .brand-mark,
@@ -668,23 +828,23 @@
   .password-control button,
   .icon-button {
     background: var(--color-background-neutral-subtle);
-    border-color: var(--passless-border);
+    border-color: var(--color-border);
     @apply min-h-400 rounded-medium border text-text-subtle transition-colors;
   }
 
   .toolbar button:hover,
   .password-control button:hover,
   .icon-button:hover {
-    background: var(--passless-control-hover);
+    background: var(--color-background-neutral-subtle-hovered);
   }
 
   .sidebar-section-title {
-    @apply flex items-center justify-between text-body-small font-medium text-text-subtle;
+    @apply flex items-center justify-between text-callout font-medium text-text-subtle;
   }
 
   .item-list {
-    background: var(--passless-surface-muted);
-    border-color: var(--passless-border);
+    background: var(--color-surface-sunken);
+    border-color: var(--color-border);
     @apply border-r px-100 py-100;
   }
 
@@ -718,8 +878,8 @@
   }
 
   .item-row:hover {
-    background: var(--passless-control-hover);
-    border-color: var(--passless-border-soft);
+    background: var(--color-background-neutral-subtle-hovered);
+    border-color: var(--color-border);
   }
 
   .item-row.active {
@@ -738,7 +898,7 @@
   }
 
   .item-row small {
-    @apply mt-050 flex items-baseline justify-between gap-100 text-body-small text-text-subtle;
+    @apply mt-050 flex items-baseline justify-between gap-100 text-callout text-text-subtle;
   }
 
   .row-star {
@@ -750,12 +910,12 @@
   }
 
   .detail-pane {
-    background: var(--passless-surface);
+    background: var(--color-surface);
     @apply px-200 py-150;
   }
 
   .detail-topbar {
-    border-color: var(--passless-border-soft);
+    border-color: var(--color-border);
     @apply mb-150 flex max-w-content flex-wrap items-center justify-between gap-100 border-b pb-150;
   }
 
@@ -769,17 +929,17 @@
 
   .top-edit-button {
     background: var(--color-background-neutral-subtle);
-    border-color: var(--passless-border);
+    border-color: var(--color-border);
     @apply inline-flex min-h-400 items-center justify-center gap-100 rounded-medium border px-100 text-body font-medium text-text-subtle transition-colors;
   }
 
   .top-edit-button:hover {
-    background: var(--passless-control-hover);
+    background: var(--color-background-neutral-subtle-hovered);
   }
 
   .type-display {
-    background: var(--passless-surface-muted);
-    border-color: var(--passless-border);
+    background: var(--color-surface-sunken);
+    border-color: var(--color-border);
     @apply inline-flex min-h-400 items-center rounded-medium border px-100 text-body font-medium text-text-subtle;
   }
 
@@ -788,8 +948,8 @@
   }
 
   .generator-output {
-    background: var(--passless-surface-raised);
-    border-color: var(--passless-border);
+    background: var(--color-surface-raised);
+    border-color: var(--color-border);
     @apply grid grid-cols-[minmax(0,1fr)_auto] gap-100 rounded-large border p-100;
   }
 
@@ -802,8 +962,8 @@
   }
 
   .generator-controls {
-    background: var(--passless-surface-raised);
-    border-color: var(--passless-border);
+    background: var(--color-surface-raised);
+    border-color: var(--color-border);
     @apply grid gap-100 rounded-large border p-100;
   }
 
@@ -812,7 +972,7 @@
   }
 
   .generator-length-control input[type="range"] {
-    accent-color: var(--color-background-brand-bold);
+    accent-color: var(--color-accent);
     @apply h-400 cursor-pointer border-0 bg-transparent p-0 shadow-none;
   }
 
@@ -825,11 +985,11 @@
   }
 
   .generator-check-row:hover {
-    background: var(--passless-control-hover);
+    background: var(--color-background-neutral-subtle-hovered);
   }
 
   .generator-check-row input {
-    accent-color: var(--color-background-brand-bold);
+    accent-color: var(--color-accent);
     @apply h-200 w-200 rounded-small;
   }
 
@@ -837,12 +997,25 @@
     @apply m-0 border-0 p-0;
   }
 
-  .detail-fieldset:disabled {
-    @apply opacity-95;
+  /* A stored item that is not being edited reads as content, not as unavailable controls: its fields
+     drop the bezel and keep the label colour (the fieldset is disabled only to stop typing). */
+  .detail-fieldset:disabled input,
+  .detail-fieldset:disabled textarea,
+  .detail-fieldset:disabled select {
+    color: var(--color-text);
+    background-color: transparent;
+    background-image: none;
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  .detail-fieldset:disabled .website-name-input,
+  .detail-fieldset:disabled .custom-field-name-input {
+    color: var(--color-text-subtle);
   }
 
   .detail-header {
-    border-color: var(--passless-border-soft);
+    border-color: var(--color-border);
     @apply flex items-center gap-150 border-b pb-150;
   }
 
@@ -851,7 +1024,7 @@
   }
 
   .title-input {
-    @apply h-auto w-full max-w-content border-0 bg-transparent p-0 text-heading-medium font-bold text-inherit;
+    @apply h-auto w-full max-w-content border-0 bg-transparent p-0 text-title-2 font-bold text-inherit;
   }
 
   .form-grid {
@@ -877,13 +1050,13 @@
 
   .onepassword-group,
   .onepassword-block {
-    background: var(--passless-surface-raised);
-    border-color: var(--passless-border);
+    background: var(--color-surface-raised);
+    border-color: var(--color-border);
     @apply overflow-hidden rounded-large border;
   }
 
   .onepassword-group .onepassword-field + .onepassword-field {
-    border-color: var(--passless-border-soft);
+    border-color: var(--color-border);
     @apply border-t;
   }
 
@@ -893,8 +1066,8 @@
   }
 
   .onepassword-field.standalone {
-    background: var(--passless-surface-raised);
-    border-color: var(--passless-border);
+    background: var(--color-surface-raised);
+    border-color: var(--color-border);
     @apply rounded-large border;
   }
 
@@ -930,8 +1103,8 @@
   }
 
   .website-row {
-    background: var(--passless-surface-raised);
-    border-color: var(--passless-border);
+    background: var(--color-surface-raised);
+    border-color: var(--color-border);
     @apply grid grid-cols-field items-stretch overflow-hidden rounded-large border;
   }
 
@@ -991,13 +1164,13 @@
 
   .inline-add-button,
   .add-more-button {
-    color: var(--passless-accent);
+    color: var(--color-text-brand);
     @apply inline-flex min-h-400 items-center gap-100 rounded-medium border border-transparent bg-transparent px-100 text-body font-medium transition-colors;
   }
 
   .inline-add-button:hover,
   .add-more-button:hover {
-    background: var(--passless-accent-soft);
+    background: var(--color-background-brand-subtlest);
   }
 
   .inline-add-button {
@@ -1005,8 +1178,8 @@
   }
 
   .custom-field-row {
-    background: var(--passless-surface-raised);
-    border-color: var(--passless-border);
+    background: var(--color-surface-raised);
+    border-color: var(--color-border);
     @apply grid grid-cols-handle-field items-stretch overflow-hidden rounded-large border;
   }
 
@@ -1027,17 +1200,17 @@
 
   .otp-display-button {
     --otp-progress: 1;
-    color: var(--passless-text);
+    color: var(--color-text);
     @apply flex min-h-400 items-center gap-100 rounded-full border-0 bg-transparent px-0 py-0 text-left;
   }
 
   .otp-display-button:hover .otp-code {
-    color: var(--passless-accent);
+    color: var(--color-text-brand);
   }
 
   .otp-code {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    @apply text-metric-medium;
+    @apply text-title-1;
   }
 
   .password-control input {
@@ -1086,8 +1259,8 @@
   }
 
   .section-child-row {
-    background: var(--passless-surface);
-    border-color: var(--passless-border-soft);
+    background: var(--color-surface);
+    border-color: var(--color-border);
     @apply grid grid-cols-field overflow-hidden rounded-large border;
   }
 
@@ -1148,8 +1321,8 @@
   }
 
   .add-more-button {
-    background: var(--passless-surface-muted);
-    border-color: var(--passless-border-soft);
+    background: var(--color-surface-sunken);
+    border-color: var(--color-border);
     @apply mt-150 w-full justify-start rounded-medium border px-100 text-left;
   }
 
@@ -1174,7 +1347,7 @@
   }
 
   .menu-option:hover {
-    background: var(--passless-control-hover);
+    background: var(--color-background-neutral-subtle-hovered);
   }
 
   .menu-option span {
@@ -1182,7 +1355,7 @@
   }
 
   .menu-option small {
-    @apply mt-025 text-body-small text-text-subtle;
+    @apply mt-025 text-callout text-text-subtle;
   }
 
   .menu-option.separated {
@@ -1203,7 +1376,8 @@
     @apply inline-flex min-h-400 items-center justify-center gap-075 rounded-medium px-150 font-medium transition-[background-color,border-color,color];
   }
 
-  /* button-primary: filled brand, borderless. */
+  /* Push buttons (buttons.md › Push buttons): the default button is filled with the accent, every
+     other push button is bezeled. */
   .primary-button {
     background: var(--color-background-brand-bold);
     @apply border-transparent text-text-inverse disabled:cursor-not-allowed;
@@ -1219,12 +1393,12 @@
 
   .secondary-button {
     background: var(--color-background-neutral-subtle);
-    border-color: var(--passless-border);
+    border-color: var(--color-border);
     @apply border text-text-subtle disabled:cursor-not-allowed;
   }
 
   .secondary-button:hover {
-    background: var(--passless-control-hover);
+    background: var(--color-background-neutral-subtle-hovered);
   }
 
   .danger-button {
@@ -1237,7 +1411,7 @@
     background: var(--color-background-danger-bold-hovered);
   }
 
-  /* button-disabled: the fill and label both step back, and hover no longer responds. */
+  /* Unavailable: the label steps back to the disabled label colour and hover no longer responds. */
   .primary-button:disabled,
   .secondary-button:disabled,
   .danger-button:disabled,
@@ -1245,19 +1419,9 @@
   .secondary-button:disabled:hover,
   .danger-button:disabled:hover {
     color: var(--color-text-disabled);
-    background: transparent;
-    border-color: var(--color-border-disabled);
-  }
-
-  /* A two-choice toggle marks its active member with button-selected, never with the primary action. */
-  .segment-button[aria-pressed="true"] {
-    color: var(--color-text-selected);
-    background: var(--color-background-selected);
-    border-color: var(--color-border-selected);
-  }
-
-  .segment-button[aria-pressed="true"]:hover {
-    background: var(--color-background-selected-hovered);
+    background: var(--color-background-disabled);
+    border-color: transparent;
+    box-shadow: none;
   }
 
   /* Section-message roles: tinted surface + role border, prose stays in --color-text. */
@@ -1278,7 +1442,7 @@
   }
 
   .integration-card h2 {
-    @apply m-0 text-heading-xsmall font-bold;
+    @apply m-0 text-headline font-bold;
   }
 
   .integration-card p {
@@ -1310,7 +1474,7 @@
   }
 
   .shortcut-row kbd {
-    @apply rounded-xsmall border border-border bg-background-neutral-subtle-hovered px-050 py-025 text-body-small font-medium text-text;
+    @apply rounded-xsmall border border-border bg-background-neutral-subtle-hovered px-050 py-025 text-callout font-medium text-text;
   }
 
   code {
@@ -1324,7 +1488,7 @@
   }
 
   .settings-sidebar {
-    color: var(--passless-sidebar-text);
+    color: var(--color-text-subtle);
     background: var(--color-surface-sunken);
     @apply flex min-h-screen flex-col gap-250 border-r border-border p-100;
   }
@@ -1348,13 +1512,13 @@
   }
 
   .settings-tabs button {
-    color: var(--passless-sidebar-text);
+    color: var(--color-text-subtle);
     @apply min-h-400 rounded-medium px-100 text-left text-body font-semibold transition-colors hover:bg-background-neutral-subtle-hovered;
   }
 
   .settings-tabs button.active {
-    color: var(--passless-sidebar-active-text);
-    background: var(--passless-sidebar-active);
+    color: var(--color-text);
+    background: var(--color-background-selected);
   }
 
   .settings-content {
@@ -1366,7 +1530,7 @@
   }
 
   .settings-header h1 {
-    @apply m-0 text-heading-xsmall;
+    @apply m-0 text-headline;
   }
 
   .settings-header .icon-button {
@@ -1390,7 +1554,7 @@
   }
 
   .security-check-row input {
-    accent-color: var(--color-background-brand-bold);
+    accent-color: var(--color-accent);
     @apply h-300 w-300 rounded-medium;
   }
 
@@ -1399,7 +1563,7 @@
   }
 
   .security-inline-row select {
-    @apply h-500 w-auto min-w-item-list rounded-large border-border-input bg-surface px-100 pr-100 text-body font-semibold;
+    @apply h-350 w-auto min-w-item-list px-100 pr-300 text-body font-regular;
   }
 
   .security-help {
@@ -1409,27 +1573,60 @@
 
 @layer components {
   .lock-screen {
-    background: var(--theme-bg-2);
+    background: var(--color-window);
     @apply p-100;
   }
 
   .lock-panel {
-    background: var(--theme-panel);
-    border-color: var(--theme-border);
-    box-shadow: var(--theme-shadow);
-    @apply max-w-lock-panel rounded-large border p-200 shadow-raised;
+    @apply max-w-lock-panel rounded-xlarge p-300 text-center;
+  }
+
+  /* The panel names the app the way an alert does: icon above, name, then one line of tagline. */
+  .lock-panel .brand {
+    @apply flex-col items-center justify-center gap-100 text-center;
+  }
+
+  .lock-panel .brand .brand-mark {
+    @apply h-800 w-800;
+  }
+
+  .lock-panel .brand strong {
+    @apply text-title-2 font-semibold;
   }
 
   .lock-panel form {
-    @apply mt-200 gap-150;
+    @apply mt-300 gap-150 text-left;
   }
 
-  .lock-panel h1,
-  .settings-header h1,
+  .lock-panel form > p {
+    color: var(--color-text-subtle);
+    @apply mt-0;
+  }
+
+  .lock-panel .primary-button,
+  .lock-panel .secondary-button {
+    @apply w-full;
+  }
+
+  .lock-panel h1 {
+    color: var(--color-text);
+    @apply text-center text-headline;
+  }
+
+  .lock-panel form > p,
+  .lock-panel form > h1 + p {
+    @apply text-center;
+  }
+
+  .settings-header h1 {
+    color: var(--color-text);
+    @apply text-title-2 font-semibold;
+  }
+
   .integration-card h2,
   .security-group h2 {
     color: var(--color-text);
-    @apply text-heading-small;
+    @apply text-headline;
   }
 
   .app-shell {
@@ -1439,14 +1636,18 @@
       var(--sidebar-width, var(--measure-sidebar)) var(--measure-resizer)
       var(--item-list-width, var(--measure-item-list-default)) var(--measure-resizer)
       minmax(0, 1fr);
-    background: var(--theme-bg-2);
+    background: var(--color-window);
     @apply grid h-screen min-h-0 min-w-window grid-rows-titlebar overflow-hidden;
   }
 
+  /* Source list (sidebars.md): the sidebar floats in the functional layer, so it wears the sidebar
+     material; Reduce Transparency turns it solid. */
   .sidebar {
-    color: var(--theme-text-70);
-    background: var(--color-surface-sunken);
-    border-color: var(--theme-border);
+    color: var(--color-text);
+    background: var(--material-sidebar);
+    border-color: var(--color-border);
+    -webkit-backdrop-filter: var(--material-filter);
+    backdrop-filter: var(--material-filter);
     @apply row-span-2 flex h-screen min-h-0 flex-col gap-200 overflow-hidden border-r px-100 pb-100 pt-titlebar;
   }
 
@@ -1465,19 +1666,19 @@
 
   .brand strong,
   .settings-title strong {
-    @apply truncate text-body font-semibold leading-tight;
+    @apply truncate text-headline;
   }
 
   .brand span,
   .settings-title span {
     color: var(--color-text-subtlest);
-    @apply mt-0 truncate text-body-small;
+    @apply mt-0 truncate text-callout;
   }
 
   .brand-mark {
-    color: var(--theme-color);
+    color: var(--color-accent);
     background: var(--color-background-selected);
-    @apply h-400 w-400 rounded-medium;
+    @apply h-350 w-350 rounded-medium;
   }
 
   /* The app icon brings its own tile, colour and corner radius, so the shared selected-background
@@ -1496,16 +1697,23 @@
 
   .nav-list,
   .section-nav {
-    @apply gap-050;
+    @apply gap-025;
   }
 
+  /* A sidebar row: 28pt, body type in the label colour, glyph in the accent unless the row's own
+     hue (a tag, a category, a vault) colours it. */
   .nav-item {
-    color: var(--color-text-subtle);
-    @apply min-h-400 gap-100 rounded-medium px-100 py-075 text-body font-medium transition-colors;
+    color: var(--color-text);
+    @apply min-h-350 gap-100 rounded-medium px-100 py-050 text-body font-regular transition-colors;
   }
 
   .nav-item svg {
-    @apply h-150 w-150 shrink-0;
+    @apply h-200 w-200 shrink-0;
+  }
+
+  /* :where() keeps this at element specificity, so a row's own `text-accent-icon-*` class wins. */
+  :where(.nav-item) > svg {
+    color: var(--color-accent);
   }
 
   .nav-item span {
@@ -1514,29 +1722,34 @@
 
   .nav-item .nav-count {
     color: var(--color-text-subtlest);
-    @apply flex-none tabular-nums text-body-small;
+    @apply flex-none tabular-nums text-callout;
   }
 
   .nav-item.active .nav-count {
-    color: var(--color-text-selected);
+    color: var(--color-text-subtle);
   }
 
   .nav-item:hover,
   .settings-tabs button:hover {
-    color: var(--theme-text-70);
-    background: var(--color-background-selected);
+    color: var(--color-text);
+    background: var(--color-background-neutral-subtle-hovered);
   }
 
+  /* The selected row is a rounded accent-tinted capsule (focus-and-selection.md: a highlight, not a
+     ring, marks the selected row in a list). */
   .nav-item.active,
-  .settings-tabs button.active {
-    color: var(--theme-text-70);
+  .settings-tabs button.active,
+  .nav-item.active:hover,
+  .settings-tabs button.active:hover {
+    color: var(--color-text);
     background: var(--color-background-selected);
     box-shadow: none;
   }
 
+  /* Section header: subheadline, semibold, secondary label — Finder's "Favorites" / "Locations". */
   .sidebar-section-title {
-    color: var(--color-text-subtle);
-    @apply mb-050 px-050 text-body-small font-medium;
+    color: var(--color-text-subtlest);
+    @apply mb-025 mt-100 px-100 text-subheadline font-semibold;
   }
 
   .sidebar-section-title button {
@@ -1546,7 +1759,7 @@
   }
 
   .sidebar-section-title button:hover {
-    background: var(--theme-hover);
+    background: var(--color-background-neutral-subtle-hovered);
   }
 
   .section-toggle {
@@ -1554,28 +1767,35 @@
   }
 
   .section-toggle:hover {
-    color: var(--theme-text-70);
-    background: var(--passless-control-hover);
+    color: var(--color-text-subtle);
+    background: transparent;
+  }
+
+  .section-toggle svg {
+    @apply h-150 w-150;
   }
 
   .toolbar button,
   .password-control button,
   .icon-button {
-    color: var(--color-text-subtle);
+    color: var(--color-icon-subtle);
     background: transparent;
-    @apply min-h-400 rounded-medium border border-transparent text-body;
+    @apply min-h-350 rounded-medium border border-transparent text-body;
   }
 
   .toolbar button:hover,
   .password-control button:hover,
   .icon-button:hover {
-    color: var(--theme-text-70);
-    background: var(--theme-hover);
+    color: var(--color-text);
+    background: var(--color-background-neutral-subtle-hovered);
   }
 
+  /* The unified toolbar: material over the content columns, a separator under it. */
   .top-search-bar {
-    background: var(--theme-bg-2);
-    border-color: var(--theme-border);
+    background: var(--material-toolbar);
+    border-color: var(--color-border);
+    -webkit-backdrop-filter: var(--material-filter);
+    backdrop-filter: var(--material-filter);
     @apply col-span-4 col-start-2 grid min-h-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-100 border-b px-100 py-050;
   }
 
@@ -1583,29 +1803,43 @@
     @apply max-w-none;
   }
 
+  /* Search field (search-fields.md): a filled rounded field with the magnifying glass leading; the
+     whole field wears the focus ring, so the input inside it draws none. */
   .top-search-box {
-    color: var(--color-text-subtlest);
-    background: var(--color-surface);
-    border-color: var(--theme-border);
-    @apply h-400 rounded-medium border px-100 text-body-small shadow-none;
+    color: var(--color-icon-subtlest);
+    background: var(--color-background-neutral-subtle-hovered);
+    border-color: transparent;
+    @apply h-350 max-w-content gap-075 rounded-medium border px-100 text-callout shadow-none;
+  }
+
+  .top-search-box:focus-within {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
   }
 
   .top-search-box input {
-    @apply text-body font-normal;
+    @apply text-body font-normal outline-none;
   }
 
+  .top-search-box input:focus {
+    background-color: transparent;
+  }
+
+  /* Menus and popovers: the popover material, a 10pt corner and the soft overlay shadow. */
   .top-search-results,
   .add-more-menu,
   .section-add-menu,
   .item-search-list {
-    background: var(--theme-panel);
-    border-color: var(--theme-border);
-    box-shadow: var(--theme-shadow);
-    @apply rounded-large border py-050 shadow-overlay;
+    background: var(--material-popover);
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-overlay);
+    -webkit-backdrop-filter: var(--material-filter);
+    backdrop-filter: var(--material-filter);
+    @apply rounded-large border p-050;
   }
 
   .top-search-results button {
-    @apply mx-050 min-h-500 gap-100 rounded-medium px-100 py-075 text-body;
+    @apply mx-0 min-h-500 gap-100 rounded-small px-100 py-075 text-body;
   }
 
   .top-search-results button small,
@@ -1614,19 +1848,24 @@
   .item-search-empty,
   .integration-card p {
     color: var(--color-text-subtlest);
-    @apply text-body-small;
+    @apply text-callout;
   }
 
   .item-list {
-    background: var(--theme-bg-2);
-    border-color: var(--theme-border);
-    @apply border-r px-050 py-050;
+    background: var(--color-surface);
+    border-color: var(--color-border);
+    @apply border-r px-100 py-050;
   }
 
   .sync-state {
     color: var(--color-text-subtle);
-    background: var(--color-background-brand-subtlest);
-    @apply my-050 min-h-400 gap-075 rounded-medium px-100 text-body-small font-medium;
+    background: transparent;
+    @apply my-050 min-h-300 gap-075 rounded-medium px-100 text-callout font-regular;
+  }
+
+  .sync-state svg {
+    color: var(--color-icon-success);
+    @apply h-150 w-150 shrink-0;
   }
 
   .rows {
@@ -1638,24 +1877,42 @@
   }
 
   .item-row:hover {
-    background: var(--theme-hover);
+    background: var(--color-background-neutral-subtle-hovered);
     border-color: transparent;
   }
 
-  .item-row.active {
-    background: var(--theme-selected);
+  /* The selected row is filled with selectedContentBackgroundColor and its text turns white, the way
+     a focused macOS list draws it; every child colour follows. */
+  .item-row.active,
+  .item-row.active:hover {
+    color: var(--color-text-selected);
+    background: var(--color-background-selected-bold);
     border-color: transparent;
     box-shadow: none;
   }
 
+  .item-row.active strong {
+    color: var(--color-text-selected);
+  }
+
+  .item-row.active small,
+  .item-row.active .row-star {
+    color: var(--color-text-selected-subtle);
+  }
+
+  .item-row.active .item-icon {
+    color: var(--color-text-selected);
+    background: var(--color-on-selected-fill);
+  }
+
   .item-icon,
   .large-icon {
-    color: var(--theme-color);
+    color: var(--color-text-brand);
     background: var(--color-background-selected);
   }
 
   .item-icon {
-    @apply h-300 w-300 rounded-medium text-body-small font-semibold;
+    @apply h-300 w-300 rounded-medium text-callout font-semibold;
   }
 
   .item-row strong {
@@ -1686,23 +1943,23 @@
   }
 
   .state-row-button {
-    background: var(--color-background-neutral-subtle);
-    border-color: var(--color-border);
-    @apply inline-flex min-h-300 items-center rounded-small border px-100 text-body-small font-medium text-text-subtle transition-colors;
+    background: var(--color-background-control);
+    box-shadow: var(--shadow-control);
+    @apply inline-flex min-h-300 items-center rounded-medium border-0 px-100 text-callout font-regular text-text transition-colors;
   }
 
   .state-row-button:hover {
     color: var(--color-text);
-    background: var(--color-background-neutral-subtle-hovered);
+    background: var(--color-background-control-pressed);
   }
 
   .state-row-button.danger {
     color: var(--color-text-danger);
   }
 
-  /* The panel that asks before a trashed row is gone for good. DESIGN.md's modal recipe: blanket +
-     surface-overlay + radius-xlarge + shadow-overlay, on the 400px small tier. The blanket is the
-     contract's own scrim, so it dims the page instead of washing it out. */
+  /* Sheets and alerts (sheets.md › Desktop: "a cardlike view with rounded corners that floats on top
+     of its parent window. The parent window is dimmed"): the blanket dims, the card wears the sheet
+     material, a 12pt corner and the sheet shadow. */
   .confirm-layer {
     @apply fixed inset-0 grid place-items-center p-200;
   }
@@ -1712,14 +1969,16 @@
   }
 
   .confirm-dialog {
-    background: var(--color-surface-overlay);
+    background: var(--material-sheet);
     border-color: var(--color-border);
-    box-shadow: var(--shadow-overlay);
-    @apply relative w-full max-w-modal rounded-xlarge border p-300;
+    box-shadow: var(--shadow-sheet);
+    -webkit-backdrop-filter: var(--material-filter);
+    backdrop-filter: var(--material-filter);
+    @apply relative w-full max-w-modal rounded-xlarge border p-250;
   }
 
   .confirm-dialog h2 {
-    @apply text-heading-small;
+    @apply text-headline;
   }
 
   .confirm-dialog p {
@@ -1727,8 +1986,9 @@
     @apply mt-100 text-body;
   }
 
+  /* Default button on the trailing side, Cancel before it (alerts.md › Buttons). */
   .confirm-actions {
-    @apply mt-300 flex items-center justify-end gap-100;
+    @apply mt-250 flex items-center justify-end gap-100;
   }
 
   /* The create-vault panel borrows the purge confirmation's shell, so its one field has to bring its
@@ -1748,7 +2008,7 @@
   }
 
   .detail-empty h2 {
-    @apply text-heading-small;
+    @apply text-title-3 font-semibold;
   }
 
   .detail-empty p {
@@ -1767,49 +2027,67 @@
 
   /* No `border-l`: the list's own `border-r` is the single hairline at that boundary, and a left
      border here would draw a second one six pixels away, on the far side of the resize gutter. */
+  /* The detail pane is a grouped form, like System Settings: inset sections on a gray ground. */
   .detail-pane {
-    background: var(--theme-bg-2);
-    @apply flex flex-col overflow-hidden px-200 py-0;
+    background: var(--color-surface-sunken);
+    @apply flex flex-col overflow-hidden px-250 py-0;
   }
 
   .detail-topbar {
-    border-color: var(--theme-border);
+    border-color: var(--color-border);
     @apply mb-0 max-w-none flex-none border-b px-0 py-100;
   }
 
   .type-display {
-    color: var(--theme-text-70);
+    color: var(--color-text-subtle);
     /* background-color, never the `background` shorthand: the shorthand resets the chevron's
        repeat and position that `@layer base` sets, and the select comes out tiled. */
-    background-color: var(--color-surface);
-    border-color: var(--theme-border);
-    @apply h-400 rounded-medium border px-100 text-body-small font-medium shadow-none;
+    background-color: var(--color-background-neutral-subtle-hovered);
+    border-color: transparent;
+    @apply h-300 rounded-full border px-150 text-callout font-medium shadow-none;
   }
 
   .vault-add-button,
   .password-control button,
   .icon-button {
-    @apply h-400 w-400;
+    @apply h-350 w-350;
   }
 
+  /* Bezeled push buttons: the control surface and a hairline bezel shadow, 28pt tall. */
   .top-edit-button,
   .secondary-button,
   .danger-button {
-    color: var(--theme-text-70);
-    background: var(--color-surface);
-    border-color: var(--theme-border);
-    @apply min-h-400 gap-075 rounded-medium border px-100 text-body font-medium shadow-none;
+    color: var(--color-text);
+    background: var(--color-background-control);
+    border-color: transparent;
+    box-shadow: var(--shadow-control);
+    @apply min-h-350 gap-075 rounded-medium border px-150 text-body font-regular;
   }
 
   .top-edit-button:hover,
   .secondary-button:hover {
-    background: var(--theme-hover);
+    background: var(--color-background-control-pressed);
   }
 
+  .top-edit-button:active,
+  .secondary-button:active,
+  .danger-button:active {
+    background: var(--color-background-neutral-subtle-pressed);
+  }
+
+  /* A destructive push button keeps the bezel and says so with the red label (alerts.md: the
+     destructive style marks the action, the shape stays a push button). */
   .danger-button {
     color: var(--color-text-danger);
+  }
+
+  .danger-button:hover {
     background: var(--color-background-danger);
-    border-color: var(--color-border-danger);
+  }
+
+  .primary-button {
+    box-shadow: var(--shadow-control);
+    @apply min-h-350 rounded-medium border-0 px-150 font-regular;
   }
 
   .detail-form {
@@ -1821,17 +2099,22 @@
   }
 
   .detail-header {
-    border-color: var(--theme-border);
-    @apply gap-100 border-b px-0 py-150;
+    border-color: transparent;
+    @apply gap-150 border-b px-0 pb-050 pt-250;
+  }
+
+  .detail-header p {
+    color: var(--color-text-subtle);
+    @apply mt-025 text-callout;
   }
 
   .large-icon {
-    @apply h-400 w-400 rounded-medium text-body font-semibold;
+    @apply h-600 w-600 rounded-large text-title-2 font-semibold;
   }
 
   .title-input {
     color: var(--color-text);
-    @apply text-body-large font-medium;
+    @apply text-title-2 font-semibold;
   }
 
   .form-grid,
@@ -1849,44 +2132,56 @@
   .generator-controls,
   .integration-card,
   .shortcut-row {
-    background: var(--color-surface);
-    border-color: var(--theme-border);
+    background: var(--color-surface-raised);
+    border-color: var(--color-border);
     @apply rounded-large border shadow-none;
   }
 
   .onepassword-field {
     color: var(--color-text-subtlest);
-    @apply gap-050 px-150 py-100 text-body-small font-medium;
+    @apply gap-050 px-150 py-100 text-callout font-medium;
   }
 
-  .generator-mode-tabs {
-    @apply flex gap-050 rounded-medium bg-background-neutral-subtle p-050;
+  /* Segmented control (segmented-controls.md): a filled track, the chosen segment raised on the
+     control surface with the bezel shadow. */
+  .generator-mode-tabs,
+  .segmented-control {
+    @apply flex gap-025 rounded-medium bg-background-neutral-subtle-hovered p-025;
   }
 
-  .generator-mode-tab {
-    color: var(--color-text-subtle);
+  .segmented-control {
+    @apply w-fit;
+  }
+
+  .generator-mode-tab,
+  .segmented-control .segment-button {
+    color: var(--color-text);
     background: transparent;
-    @apply min-h-400 flex-1 rounded-medium border-0 px-100 text-body font-medium transition-colors;
+    box-shadow: none;
+    @apply min-h-300 flex-1 rounded-small border-0 px-150 text-body font-regular transition-colors;
   }
 
-  .generator-mode-tab:hover {
-    color: var(--color-text);
+  .generator-mode-tab:hover,
+  .segmented-control .segment-button:hover {
+    background: var(--color-background-neutral-subtle-hovered);
   }
 
-  .generator-mode-tab[aria-pressed="true"] {
+  .generator-mode-tab[aria-pressed="true"],
+  .segmented-control .segment-button[aria-pressed="true"] {
     color: var(--color-text);
-    background: var(--color-background-selected);
-    @apply font-semibold;
+    background: var(--color-background-control);
+    box-shadow: var(--shadow-control);
+    @apply font-medium;
   }
 
   .generator-preview {
     color: var(--color-text-subtle);
-    @apply m-0 text-body-small;
+    @apply m-0 text-callout;
   }
 
   .otp-card {
-    background: var(--color-surface);
-    border-color: var(--theme-border);
+    background: var(--color-surface-raised);
+    border-color: var(--color-border);
     @apply mb-150 flex max-w-content shrink-0 flex-col gap-100 rounded-large border p-150;
   }
 
@@ -1904,7 +2199,7 @@
 
   .otp-card-pending {
     color: var(--color-text-subtlest);
-    @apply text-body-small;
+    @apply text-callout;
   }
 
   .otp-card-secret {
@@ -1919,13 +2214,13 @@
 
   .otp-card-warning {
     color: var(--color-text-subtle);
-    @apply m-0 w-full text-body-small;
+    @apply m-0 w-full text-callout;
   }
 
   .attachment-dropzone {
     color: var(--color-text-subtlest);
     border-color: var(--color-border-input);
-    @apply flex items-center gap-100 rounded-large border border-dashed px-150 py-250 text-body-small;
+    @apply flex items-center gap-100 rounded-large border border-dashed px-150 py-250 text-callout;
   }
 
   .attachment-dropzone.is-active {
@@ -1942,7 +2237,7 @@
 
   .nav-sublist-empty {
     color: var(--color-text-subtlest);
-    @apply m-0 px-100 text-body-small;
+    @apply m-0 px-100 text-callout;
   }
 
   .tag-field-label {
@@ -1956,12 +2251,12 @@
 
   .tag-chip {
     background: var(--color-background-neutral-subtle-hovered);
-    @apply flex items-center gap-050 rounded-small px-100 py-025 text-body text-text;
+    @apply flex items-center gap-050 rounded-full py-025 pl-100 pr-050 text-callout text-text;
   }
 
   .tag-chip-remove {
     color: var(--color-text-subtlest);
-    @apply grid h-250 w-250 shrink-0 place-items-center rounded-small border-0 bg-transparent p-0;
+    @apply grid h-250 w-250 shrink-0 place-items-center rounded-full border-0 bg-transparent p-0;
   }
 
   .tag-chip-remove:hover {
@@ -2004,29 +2299,34 @@
   }
 
   .website-match-select {
-    @apply h-300 w-auto self-start rounded-medium px-075 pr-300 text-body-small font-normal text-text-subtle shadow-none;
+    @apply h-300 w-auto self-start rounded-medium px-075 pr-300 text-callout font-normal text-text-subtle shadow-none;
   }
 
   .drag-handle {
     color: var(--color-text-subtlest);
-    @apply text-body-small;
+    @apply text-callout;
   }
 
   .inline-add-button,
   .add-more-button {
-    color: var(--theme-color);
+    color: var(--color-text-brand);
     @apply min-h-400 gap-075 rounded-medium px-100 text-body font-medium;
   }
 
   .add-more-button {
-    background: var(--color-background-brand-subtlest);
-    border-color: var(--theme-border);
+    background: var(--color-surface-raised);
+    border-color: var(--color-border);
     @apply mt-100 border;
   }
 
+  .add-more-button:hover {
+    background: var(--color-background-brand-subtlest);
+  }
+
+  /* A menu item: 24pt row, 4pt corner, body type (menus.md). */
   .menu-option {
     color: var(--color-text);
-    @apply mx-050 min-h-400 rounded-medium px-100 py-075 text-body;
+    @apply mx-0 min-h-300 rounded-small px-100 py-050 text-body;
   }
 
   /* A new item's type is picked from the same list the sidebar shows, so the option reads the way the
@@ -2036,8 +2336,9 @@
   }
 
   .item-type-option {
-    background: var(--color-surface);
-    border-color: var(--color-border);
+    background: var(--color-background-control);
+    border-color: transparent;
+    box-shadow: var(--shadow-control);
     @apply flex min-h-400 items-center gap-100 rounded-medium border px-100 text-left text-body text-inherit transition-colors;
   }
 
@@ -2046,7 +2347,7 @@
   }
 
   .unsaved-hint {
-    @apply text-body-small text-text-subtle;
+    @apply text-callout text-text-subtle;
   }
 
   .password-strength {
@@ -2058,12 +2359,12 @@
   }
 
   .password-strength-segment {
-    background: var(--color-background-neutral-subtle);
-    @apply h-050 w-200 rounded-xsmall;
+    background: var(--color-background-neutral-subtle-pressed);
+    @apply h-050 w-200 rounded-full;
   }
 
   .password-strength-label {
-    @apply flex items-center gap-050 text-body-small text-text-subtle;
+    @apply flex items-center gap-050 text-callout text-text-subtle;
   }
 
   .password-strength.is-weak .password-strength-segment.filled {
@@ -2075,65 +2376,79 @@
   }
 
   .password-strength.is-strong .password-strength-segment.filled {
-    background: var(--color-background-information);
+    background: var(--color-icon-information);
   }
 
   .password-strength.is-excellent .password-strength-segment.filled {
     background: var(--color-background-success-bold);
   }
 
+  /* Inline banners: a tinted fill in the status hue; the prose stays in the label colour. */
   .error-banner {
-    color: var(--color-text-danger);
+    color: var(--color-text);
     background: var(--color-background-danger);
-    border-color: var(--color-border-danger);
-    @apply rounded-medium border px-100 py-100 text-body;
+    border-color: transparent;
+    @apply rounded-large border px-150 py-100 text-body;
   }
 
   .success-banner {
-    color: var(--theme-text-70);
-    background: var(--color-background-brand-subtlest);
-    border-color: var(--color-background-selected);
-    @apply rounded-medium border px-100 py-100 text-body;
+    color: var(--color-text);
+    background: var(--color-background-success);
+    border-color: transparent;
+    @apply rounded-large border px-150 py-100 text-body;
   }
 
+  /* The settings window (settings.md): a source list of panes, the pane title at the top, and each
+     group of options in an inset section. */
   .settings-shell {
-    color: var(--theme-text-70);
-    background: var(--theme-bg-2);
+    color: var(--color-text);
+    background: var(--color-surface-sunken);
     @apply grid min-h-screen grid-cols-settings overflow-hidden text-body;
   }
 
   .settings-sidebar {
-    color: var(--theme-text-70);
-    background: var(--color-surface-sunken);
-    border-color: var(--theme-border);
+    color: var(--color-text);
+    background: var(--material-sidebar);
+    border-color: var(--color-border);
+    -webkit-backdrop-filter: var(--material-filter);
+    backdrop-filter: var(--material-filter);
     @apply min-h-screen gap-200 border-r px-100 pb-100 pt-titlebar;
   }
 
   .settings-tabs {
-    @apply gap-050;
+    @apply gap-025;
   }
 
   .settings-tabs button {
-    color: var(--color-text-subtle);
-    @apply min-h-400 rounded-medium px-100 py-075 text-body font-medium;
+    color: var(--color-text);
+    @apply min-h-350 rounded-medium border-0 bg-transparent px-100 py-050 text-body font-regular;
   }
 
   .settings-content {
-    background: var(--theme-bg-2);
-    @apply max-h-screen grid-rows-[auto_auto_1fr] gap-100 overflow-auto p-150;
+    background: var(--color-surface-sunken);
+    @apply max-h-screen grid-rows-[auto_auto_1fr] content-start gap-200 overflow-auto px-300 pb-300 pt-titlebar;
   }
 
   .settings-header {
-    border-color: var(--theme-border);
-    @apply border-b pb-100;
+    border-color: transparent;
+    @apply border-b pb-0;
+  }
+
+  .settings-header p {
+    color: var(--color-text-subtle);
+    @apply mt-050 text-callout;
   }
 
   .settings-section {
-    @apply max-w-settings gap-100;
+    @apply max-w-settings gap-200;
   }
 
   .integration-card {
-    @apply gap-100 p-150;
+    @apply gap-150 p-200;
+  }
+
+  .integration-card p {
+    @apply mt-0;
   }
 
   .integration-actions {
@@ -2147,67 +2462,92 @@
     @apply min-h-400 gap-100 text-body font-normal;
   }
 
+  /* A settings row in a grouped form reads label first and control last (toggles.md › Switches:
+     "Within a grouped form, consider using a mini switch to control the setting in a single row"). */
+  .checkbox-row,
+  .security-check-row {
+    @apply flex-row-reverse justify-between;
+  }
+
+  .security-inline-row {
+    @apply justify-between;
+  }
+
   .checkbox-row input,
   .security-check-row input {
-    accent-color: var(--theme-color);
-    @apply h-200 w-200;
+    @apply shrink-0;
   }
 
   .watchtower-grid {
-    color: var(--color-text-subtle);
-    @apply grid-cols-2 gap-075 text-body-small;
+    color: var(--color-text);
+    @apply grid-cols-2 gap-075 text-callout;
   }
 
   .watchtower-grid span,
   .watchtower-grid strong {
-    background: var(--color-background-brand-subtlest);
-    @apply rounded-medium px-100 py-050;
+    background: var(--color-background-neutral-subtle-hovered);
+    @apply rounded-medium px-100 py-075;
   }
 
   .shortcut-list {
     @apply gap-050;
   }
 
+  /* An inset group: rows divided by separators, the title as its first line. */
   .security-group {
-    background: var(--color-surface);
-    border-color: var(--theme-border);
-    @apply gap-100 rounded-large border p-150;
+    background: var(--color-surface-raised);
+    border-color: var(--color-border);
+    @apply gap-0 rounded-large border px-200 py-100;
+  }
+
+  .security-group h2 {
+    @apply mb-050 mt-050;
+  }
+
+  .security-group .security-check-row,
+  .security-group .security-inline-row {
+    border-color: var(--color-border);
+    @apply min-h-500 border-t;
+  }
+
+  .security-group .security-help {
+    @apply mb-050 mt-0;
   }
 
   .security-inline-row select {
-    background: var(--theme-panel);
-    border-color: var(--theme-border);
-    @apply h-400 min-w-item-list rounded-medium border px-100 text-body font-medium shadow-none;
+    @apply h-300 w-auto min-w-item-list rounded-medium px-100 pr-300 text-body font-regular;
   }
 
   .security-help {
-    color: var(--color-text-subtlest);
-    @apply text-body-small;
+    color: var(--color-text-subtle);
+    @apply text-callout;
   }
 
   code,
   .shortcut-row kbd {
-    color: var(--theme-text-70);
-    background: var(--color-background-brand-subtlest);
-    border-color: var(--theme-border);
-    @apply rounded-medium border px-100 py-050 text-body-small font-medium;
+    color: var(--color-text);
+    background: var(--color-background-neutral-subtle-hovered);
+    border-color: transparent;
+    @apply rounded-small border px-075 py-025 font-mono text-callout font-regular;
   }
 
   .quick-access-shell {
-    background: var(--theme-panel);
-    border-color: var(--theme-border);
-    box-shadow: var(--theme-shadow);
+    background: var(--material-popover);
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-overlay);
+    -webkit-backdrop-filter: var(--material-filter);
+    backdrop-filter: var(--material-filter);
     @apply flex h-screen flex-col overflow-hidden rounded-xlarge border;
   }
 
   .quick-access-header {
-    border-color: var(--theme-border);
+    border-color: var(--color-border);
     @apply flex shrink-0 items-center justify-between gap-100 border-b px-150 py-100;
   }
 
   .quick-access-header h1 {
     color: var(--color-text-subtle);
-    @apply text-body-small font-medium;
+    @apply text-callout font-medium;
   }
 
   .quick-access-close {
@@ -2216,12 +2556,12 @@
   }
 
   .quick-access-close:hover {
-    color: var(--theme-text-70);
-    background: var(--theme-hover);
+    color: var(--color-text);
+    background: var(--color-background-neutral-subtle-hovered);
   }
 
   .quick-access-search {
-    border-color: var(--theme-border);
+    border-color: var(--color-border);
     @apply flex shrink-0 items-center gap-100 border-b px-150 py-100;
   }
 
@@ -2231,7 +2571,7 @@
   }
 
   .quick-access-search input {
-    @apply h-400 flex-1 rounded-none border-0 bg-transparent px-0 text-body shadow-none;
+    @apply h-350 flex-1 rounded-medium border-0 bg-transparent px-100 text-title-3 shadow-none;
   }
 
   .quick-access-list {
@@ -2242,36 +2582,45 @@
     @apply flex w-full items-center gap-100 rounded-medium border-0 bg-transparent px-100 py-075 text-left shadow-none;
   }
 
-  .quick-access-row:hover,
+  .quick-access-row:hover {
+    background: var(--color-background-neutral-subtle-hovered);
+  }
+
   .quick-access-row[data-selected="true"] {
-    background: var(--theme-selected);
+    background: var(--color-background-selected-bold);
+  }
+
+  .quick-access-row[data-selected="true"] strong,
+  .quick-access-row[data-selected="true"] small,
+  .quick-access-row[data-selected="true"] .quick-access-badge {
+    color: var(--color-text-selected);
   }
 
   .quick-access-row strong {
-    color: var(--theme-text-70);
+    color: var(--color-text);
     @apply min-w-0 flex-1 truncate text-body font-medium;
   }
 
   .quick-access-row small {
     color: var(--color-text-subtlest);
     /* The caption must never crowd out the title, so it is capped by row ratio rather than a width. */
-    @apply max-w-[45%] min-w-0 shrink-0 truncate text-right text-body-small;
+    @apply max-w-[45%] min-w-0 shrink-0 truncate text-right text-callout;
   }
 
   .quick-access-badge {
-    color: var(--theme-color);
-    @apply shrink-0 text-body-small font-medium;
+    color: var(--color-text-brand);
+    @apply shrink-0 text-callout font-medium;
   }
 
   .quick-access-footer {
     color: var(--color-text-subtlest);
-    border-color: var(--theme-border);
-    @apply shrink-0 border-t px-150 py-075 text-body-small;
+    border-color: var(--color-border);
+    @apply shrink-0 border-t px-150 py-075 text-callout;
   }
 
   .quick-access-message {
     color: var(--color-text-subtlest);
-    @apply px-150 py-300 text-center text-body-small;
+    @apply px-150 py-300 text-center text-callout;
   }
 
   /* The field menus lead each option with a type icon; the item picker stays one column.
@@ -2316,7 +2665,7 @@
   .tag-icon-picker legend,
   .tag-color-picker legend {
     color: var(--color-text-subtle);
-    @apply mb-050 text-body-small;
+    @apply mb-050 text-callout;
   }
 
   /* Forty glyphs at four across would push the dialog past the shortest window it can open in. */
@@ -2356,7 +2705,7 @@
     background: var(--color-background-neutral-subtle-hovered);
   }
 
-  /* A picked icon is a selection, not the primary action, so it wears button-selected. */
+  /* A picked icon is a selection, not the primary action, so it wears the accent-tinted selection. */
   .tag-icon-option[aria-pressed="true"] {
     color: var(--color-icon-selected);
     background: var(--color-background-selected);
@@ -2371,8 +2720,61 @@
 
   .tag-icon-option:focus-visible,
   .tag-color-option:focus-visible {
-    outline: var(--border-width-focused) solid var(--color-border-focused);
-    outline-offset: var(--space-025);
-    border-radius: var(--radius-large);
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  /* A menu row under the pointer is highlighted in the accent with white text, glyph and caption
+     (menus.md). Kept last so it outranks the icon tints and the danger colour above. */
+  .menu-option:hover,
+  .menu-option:focus-visible,
+  .top-search-results button:hover {
+    color: var(--color-text-selected);
+    background: var(--color-background-selected-bold);
+  }
+
+  .menu-option:hover svg,
+  .menu-option:hover small,
+  .menu-option.is-danger:hover,
+  .menu-option.is-danger:hover svg,
+  .top-search-results button:hover small {
+    color: var(--color-text-selected);
+  }
+
+  .top-search-results button:hover .item-icon {
+    color: var(--color-text-selected);
+    background: var(--color-on-selected-fill);
+  }
+
+  /* Switch (toggles.md › Switches): the settings checkboxes draw as a macOS switch — a capsule track,
+     the accent when on, a white knob that slides. It is still a native checkbox underneath, so the
+     keyboard, the label click and the focus ring all keep working. */
+  .checkbox-row input[type="checkbox"],
+  .security-check-row input[type="checkbox"] {
+    background: var(--color-background-neutral-subtle-pressed);
+    box-shadow: var(--shadow-track);
+    @apply relative m-0 h-250 w-400 cursor-pointer appearance-none rounded-full border-0 p-0 transition-colors duration-short ease-out-practical;
+  }
+
+  .checkbox-row input[type="checkbox"]::before,
+  .security-check-row input[type="checkbox"]::before {
+    position: absolute;
+    top: var(--space-025);
+    left: var(--space-025);
+    content: "";
+    background: var(--color-text-inverse);
+    box-shadow: var(--shadow-control);
+    @apply h-200 w-200 rounded-full transition-transform duration-short ease-out-practical;
+  }
+
+  .checkbox-row input[type="checkbox"]:checked,
+  .security-check-row input[type="checkbox"]:checked {
+    background: var(--color-accent);
+    box-shadow: none;
+  }
+
+  .checkbox-row input[type="checkbox"]:checked::before,
+  .security-check-row input[type="checkbox"]:checked::before {
+    transform: translateX(var(--space-150));
   }
 }

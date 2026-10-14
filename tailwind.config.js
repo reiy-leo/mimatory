@@ -1,9 +1,18 @@
 /**
- * Token NAMES for the Atlassian design contract in DESIGN.md (revision 0.0.7).
- * Every value here points at a CSS custom property; the VALUES live only in src/styles.css `:root`,
- * so dark mode can re-point them at runtime. Never add a hex to a component rule.
+ * Token NAMES for the Apple (macOS Human Interface Guidelines) design system in .agent/design.md.
+ * Every value here points at a CSS custom property; the VALUES live only in src/styles.css `:root`
+ * (light) and `:root[data-theme="dark"]` (dark), so the appearance can switch at runtime.
+ * Never add a hex to a component rule.
  */
 const colorTokens = [
+  'accent',
+  'window',
+  'sidebar',
+  'focus-ring',
+  'background-control',
+  'background-control-pressed',
+  'background-selected-bold',
+  'text-selected-subtle',
   'text',
   'text-subtle',
   'text-subtlest',
@@ -77,7 +86,8 @@ const colorTokens = [
   'skeleton',
 ]
 
-/** Accent ramps are decoration only (item-type icons, tags) — never a stand-in for a semantic role. */
+/** Tag and item-type hues (system colors) are decoration only — never a stand-in for a status role.
+    The stored names predate the palette: `lime` renders systemMint and `magenta` systemPink. */
 const accentHues = ['gray', 'red', 'orange', 'yellow', 'green', 'lime', 'teal', 'blue', 'purple', 'magenta']
 
 const colors = {
@@ -94,7 +104,8 @@ export default {
   plugins: [],
   theme: {
     extend: {
-      /* radius-* : pick by component class, not by taste. */
+      /* radius-* : medium (6) for controls, large (10) for grouped sections and popovers,
+         xlarge (12) for windows and sheets. */
       borderRadius: {
         full: 'var(--radius-full)',
         large: 'var(--radius-large)',
@@ -106,38 +117,35 @@ export default {
       },
       borderWidth: {
         default: 'var(--border-width-default)',
-        focused: 'var(--border-width-focused)',
         selected: 'var(--border-width-selected)',
       },
-      /* Only these three shadows exist. Cards on the default plane use borders, not shadows. */
+      /* Only these three shadows exist: a control bezel, popovers/menus, sheets. Content sits on
+         separators, never on a shadow. */
       boxShadow: {
-        overflow: 'var(--shadow-overflow)',
+        control: 'var(--shadow-control)',
         overlay: 'var(--shadow-overlay)',
-        raised: 'var(--shadow-raised)',
+        sheet: 'var(--shadow-sheet)',
       },
       colors,
       fontFamily: {
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
-        /* "Atlassian Sans"/"Atlassian Mono" are proprietary; the contract's system fallback stack
-           stands in, and no third-party webfont is imported. */
-        sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        /* SF Mono and SF Pro through the platform keywords; no webfont is imported. */
+        mono: ['ui-monospace', 'SFMono-Regular', 'SF Mono', 'Menlo', 'monospace'],
+        sans: ['-apple-system', 'BlinkMacSystemFont', 'system-ui', 'Helvetica Neue', 'sans-serif'],
       },
-      /* Typography levels from the DESIGN.md `typography:` block. */
+      /* macOS built-in text styles (typography.md › macOS built-in text styles), in rem so the
+         page zoom scales them: size / line height in points. Body is 13, the minimum is 10. */
       fontSize: {
-        body: ['0.875rem', { fontWeight: '400', lineHeight: '1.25rem' }],
-        'body-large': ['1rem', { fontWeight: '400', lineHeight: '1.5rem' }],
-        'body-small': ['0.75rem', { fontWeight: '400', lineHeight: '1rem' }],
-        code: ['0.875em', { fontWeight: '400', lineHeight: '1' }],
-        'heading-large': ['1.5rem', { fontWeight: '653', lineHeight: '1.75rem' }],
-        'heading-medium': ['1.25rem', { fontWeight: '653', lineHeight: '1.5rem' }],
-        'heading-small': ['1rem', { fontWeight: '653', lineHeight: '1.25rem' }],
-        'heading-xlarge': ['1.75rem', { fontWeight: '653', lineHeight: '2rem' }],
-        'heading-xsmall': ['0.875rem', { fontWeight: '653', lineHeight: '1.25rem' }],
-        'heading-xxlarge': ['2rem', { fontWeight: '653', lineHeight: '2.25rem' }],
-        'heading-xxsmall': ['0.75rem', { fontWeight: '653', lineHeight: '1rem' }],
-        'metric-large': ['1.75rem', { fontWeight: '653', lineHeight: '2rem' }],
-        'metric-medium': ['1.5rem', { fontWeight: '653', lineHeight: '1.75rem' }],
-        'metric-small': ['1rem', { fontWeight: '653', lineHeight: '1.25rem' }],
+        body: ['0.8125rem', { fontWeight: '400', lineHeight: '1rem' }],
+        callout: ['0.75rem', { fontWeight: '400', lineHeight: '0.9375rem' }],
+        caption: ['0.625rem', { fontWeight: '400', lineHeight: '0.8125rem' }],
+        code: ['0.92em', { fontWeight: '400', lineHeight: '1' }],
+        footnote: ['0.625rem', { fontWeight: '400', lineHeight: '0.8125rem' }],
+        headline: ['0.8125rem', { fontWeight: '600', lineHeight: '1rem' }],
+        'large-title': ['1.625rem', { fontWeight: '400', lineHeight: '2rem' }],
+        subheadline: ['0.6875rem', { fontWeight: '400', lineHeight: '0.875rem' }],
+        'title-1': ['1.375rem', { fontWeight: '400', lineHeight: '1.625rem' }],
+        'title-2': ['1.0625rem', { fontWeight: '400', lineHeight: '1.375rem' }],
+        'title-3': ['0.9375rem', { fontWeight: '400', lineHeight: '1.25rem' }],
       },
       /* weight-* : never an arbitrary numeric weight. */
       fontWeight: {
@@ -163,6 +171,7 @@ export default {
       maxWidth: {
         content: 'var(--measure-content-max)',
         'detail-header': 'var(--measure-detail-header)',
+        'lock-field': 'var(--measure-lock-field)',
         'lock-panel': 'var(--measure-lock-panel)',
         modal: 'var(--measure-modal)',
         settings: 'var(--measure-settings-max)',
@@ -176,8 +185,8 @@ export default {
       padding: {
         titlebar: 'var(--measure-titlebar)',
       },
-      /* space-* : 8px base, named by the DESIGN.md step. p-075 = 6px, p-200 = 16px, p-400 = 32px.
-         Tailwind's own 1..96 steps are left in place and land on the same grid (p-4 = p-200). */
+      /* space-* : the 4/8pt grid, named by step. p-075 = 6px, p-200 = 16px, p-350 = 28px (the macOS
+         default control size), p-400 = 32px. Tailwind's own 1..96 steps land on the same grid. */
       spacing: {
         '025': '0.125rem',
         '050': '0.25rem',
@@ -187,6 +196,7 @@ export default {
         200: '1rem',
         250: '1.25rem',
         300: '1.5rem',
+        350: '1.75rem',
         400: '2rem',
         500: '2.5rem',
         600: '3rem',

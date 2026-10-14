@@ -121,7 +121,7 @@ import {
   tagIconComponent,
   tagIconOptions,
 } from './app/tagIcons'
-import { getInitialTheme, type Theme } from './app/theme'
+import { applyTheme, getInitialTheme, type Theme, themeOptions } from './app/theme'
 import {
   buildOtpAuthUri,
   formatOtpCode,
@@ -675,8 +675,8 @@ function StyleEditorDialog({
               ))}
             </div>
           </fieldset>
-          {/* One of the two places DESIGN.md lets an accent hue stand for itself rather than for a
-              status, so the picker offers the whole ramp and "none" alongside it. */}
+          {/* Tags are one of the places a system hue stands for itself rather than for a status, so the
+              picker offers every hue and "none" alongside it. */}
           <fieldset className="tag-color-picker">
             <legend>{t('vault.tagColor')}</legend>
             <div className="tag-color-row">
@@ -719,6 +719,7 @@ function VaultWindow() {
   const [activeNavigation, setActiveNavigation] = useState<ActiveNavigation>('vaults')
   const [topSearch, setTopSearch] = useState('')
   const [masterPassword, setMasterPassword] = useState('')
+  const masterPasswordInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -810,16 +811,14 @@ function VaultWindow() {
   const formRef = useRef(form)
   const [lastActivityAt, setLastActivityAt] = useState(() => Date.now())
   const topSearchInputRef = useRef<HTMLInputElement>(null)
-  const [theme, setTheme] = useState<Theme>(() =>
-    getInitialTheme(localStorage.getItem('passless-theme'), window.matchMedia('(prefers-color-scheme: dark)').matches),
-  )
+  const [theme, setTheme] = useState<Theme>(() => getInitialTheme(localStorage.getItem('passless-theme')))
   const [, setLanguage] = useState<SupportedLanguage>(() =>
     getInitialLanguage(localStorage.getItem('passless-language')),
   )
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme
     localStorage.setItem('passless-theme', theme)
+    return applyTheme(theme)
   }, [theme])
 
   useEffect(() => {
@@ -897,8 +896,18 @@ function VaultWindow() {
     if (mode !== 'unlocked') return
     const updateActivity = () => setLastActivityAt(Date.now())
     const events: Array<keyof WindowEventMap> = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart']
-    events.forEach((eventName) => window.addEventListener(eventName, updateActivity, { capture: true, passive: true }))
-    return () => events.forEach((eventName) => window.removeEventListener(eventName, updateActivity, { capture: true }))
+    for (const eventName of events) {
+      window.addEventListener(eventName, updateActivity, { capture: true, passive: true })
+    }
+    return () => {
+      for (const eventName of events) window.removeEventListener(eventName, updateActivity, { capture: true })
+    }
+  }, [mode])
+
+  // The lock screen's password field takes focus from an effect rather than `autoFocus`, the same way
+  // every other panel in the window focuses its first field.
+  useEffect(() => {
+    if (mode === 'locked' || mode === 'setup') masterPasswordInputRef.current?.focus()
   }, [mode])
 
   useEffect(() => {
@@ -2349,10 +2358,10 @@ function VaultWindow() {
             <div className="compact-password-control">
               <input
                 aria-label={t('lock.masterPassword')}
-                autoFocus
                 minLength={8}
                 onChange={(event) => setMasterPassword(event.target.value)}
                 placeholder={t('lock.enterPasswordPlaceholder')}
+                ref={masterPasswordInputRef}
                 type={showPassword ? 'text' : 'password'}
                 value={masterPassword}
               />
@@ -2401,10 +2410,10 @@ function VaultWindow() {
             <label>
               {t('lock.masterPassword')}
               <input
-                autoFocus
                 minLength={8}
                 onChange={(event) => setMasterPassword(event.target.value)}
                 placeholder={t('lock.masterPasswordPlaceholder')}
+                ref={masterPasswordInputRef}
                 type="password"
                 value={masterPassword}
               />
@@ -2950,7 +2959,7 @@ function VaultWindow() {
                                 />
                               ) : null}
                               {field.field_type === 'otp' && otpQrHint === index ? (
-                                <p className="text-body-small text-text-subtle">{t('vault.readQrHint')}</p>
+                                <p className="text-callout text-text-subtle">{t('vault.readQrHint')}</p>
                               ) : null}
                             </div>
                             <button
@@ -3749,16 +3758,14 @@ function SettingsWindow() {
   const [generatedPassword, setGeneratedPassword] = useState('')
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
   const [autostartEnabled, setAutostartEnabled] = useState(false)
-  const [theme, setTheme] = useState<Theme>(() =>
-    getInitialTheme(localStorage.getItem('passless-theme'), window.matchMedia('(prefers-color-scheme: dark)').matches),
-  )
+  const [theme, setTheme] = useState<Theme>(() => getInitialTheme(localStorage.getItem('passless-theme')))
   const [language, setLanguage] = useState<SupportedLanguage>(() =>
     getInitialLanguage(localStorage.getItem('passless-language')),
   )
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme
     localStorage.setItem('passless-theme', theme)
+    return applyTheme(theme)
   }, [theme])
 
   useEffect(() => {
@@ -3988,23 +3995,18 @@ function SettingsWindow() {
             <div className="integration-card">
               <h2>{t('settings.appearance')}</h2>
               <p>{t('settings.appearanceDescription')}</p>
-              <div className="integration-actions">
-                <button
-                  aria-pressed={theme === 'light'}
-                  className="segment-button secondary-button"
-                  onClick={() => updateTheme('light')}
-                  type="button"
-                >
-                  {t('settings.light')}
-                </button>
-                <button
-                  aria-pressed={theme === 'dark'}
-                  className="segment-button secondary-button"
-                  onClick={() => updateTheme('dark')}
-                  type="button"
-                >
-                  {t('settings.dark')}
-                </button>
+              <div className="segmented-control">
+                {themeOptions.map((option) => (
+                  <button
+                    aria-pressed={theme === option}
+                    className="segment-button secondary-button"
+                    key={option}
+                    onClick={() => updateTheme(option)}
+                    type="button"
+                  >
+                    {t(`settings.${option}`)}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -4325,9 +4327,7 @@ function QuickAccessWindow() {
   const [locked, setLocked] = useState(true)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [theme, setTheme] = useState<Theme>(() =>
-    getInitialTheme(localStorage.getItem('passless-theme'), window.matchMedia('(prefers-color-scheme: dark)').matches),
-  )
+  const [theme, setTheme] = useState<Theme>(() => getInitialTheme(localStorage.getItem('passless-theme')))
   const [language, setLanguage] = useState<SupportedLanguage>(() =>
     getInitialLanguage(localStorage.getItem('passless-language')),
   )
@@ -4391,9 +4391,7 @@ function QuickAccessWindow() {
     }
   }
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme
-  }, [theme])
+  useEffect(() => applyTheme(theme), [theme])
 
   useEffect(() => {
     void i18n.changeLanguage(language)

@@ -103,8 +103,8 @@ export function tagIconComponent(name: string): LucideIcon {
 
 export const defaultTagColor = ''
 
-// DESIGN.md reserves the accent ramps for decoration and names tags as one of the things they may colour,
-// so a hue here is a label, never a status. The stored value is the bare hue because the classes are the
+// The design rules (.agent/design.md) reserve the system hues for decoration, tags among them, so a hue
+// here is a label, never a status. The stored value is the bare hue because the classes are the
 // renderer's business: an old vault's `teal` still means teal after a restyle.
 export type TagColorOption = { iconClass: string; name: string; swatchClass: string }
 
