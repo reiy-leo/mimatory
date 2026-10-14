@@ -27,7 +27,13 @@
 		}
 	},
 	"files": {
-		"includes": ["**/*.{js,ts,jsx,tsx,mjs,cjs}", "**/*.{json,jsonc,css,scss}", "!browser-extension/popup.css"]
+		"includes": [
+			"**/*.{js,ts,jsx,tsx,mjs,cjs}",
+			"**/*.{json,jsonc,css,scss}",
+			"!browser-extension/popup.css",
+			"!.claude",
+			"!skills-lock.json"
+		]
 	},
 	"formatter": {
 		"attributePosition": "auto",
