@@ -10,13 +10,14 @@ Also ships a Manifest V3 browser extension (autofill via a local HTTP bridge on 
 | File | Carries | Read it when |
 |---|---|---|
 | `AGENTS.md` (this file) | Commands, workflow, architecture, engineering constraints and traps | Always, first. |
-| `.agent/design.md` | Design constraints, the three token layers, deviations from the contract, documented exceptions | Any UI/CSS/class change. |
+| `.agent/design.md` | The project's Apple (macOS HIG) design rules: tokens with light and dark values, type scale, radii, materials, focus ring, component rules, deviations from Apple's published values, documented exceptions | Any UI/CSS/class change. |
+| `.claude/skills/apple-design/` | **Vendored** `apple-design` skill (owner-installed 2026-10-14, pinned in `skills-lock.json`): `SKILL.md` + 123 HIG pages under `references/hig/`. The design reference — never hand-edited. | Before a UI decision: open the HIG pages `SKILL.md` lists for what is on screen and cite them. |
 | `.agent/todo.md` | Open work, what has never been seen in a running app, completed items, decided-against features | Picking up someone else's thread, or before proposing a feature. |
-| `DESIGN.md` | **Vendored** Atlassian design contract, revision 0.0.7 — the only vendored design document. Never edited to describe a deviation. | Looking up what the contract actually says. |
-| `.write-technical-spec/2026_10_08_cupertino_vault_ui_000/` | History of the previous restyle. Its source spec was deleted. | Only for *why* something is shaped oddly. Never what to build. |
 
-There is no second vendored design document: the macOS HIG extract that sat at `.agent/DESIGN.md` was deleted
-2026-10-10, and the platform conclusions it was consulted for live in "Runtime, windows and shell" below.
+The UI follows Apple's Human Interface Guidelines for macOS (owner ruling, 2026-10-14: "我喜欢改成apple design，
+删掉其他的design干扰"). The Atlassian contract (`DESIGN.md`) and the old restyle history
+(`.write-technical-spec/`) were deleted that day; they survive only in git history and are not a source of truth.
+The platform conclusions about native chrome live in "Runtime, windows and shell" below.
 
 ## Commands
 
@@ -26,7 +27,7 @@ npm run build        # tailwindcss (extension CSS) → tsc → vite build
 npm run build:css    # Tailwind-compiles src/styles.css only, to /tmp — proves a token resolves
 npm run typecheck    # tsc --noEmit only, without the bundle
 npm run test         # Vitest, all 16 files (node environment; fork pool capped at 2)
-npm run test:design  # Only src/app/designContract.test.ts — the CSS/className/token guard
+npm run test:design  # Only src/app/designContract.test.ts — the Apple-design token/CSS/className guard
 npm run lint:fix     # biome check --write (JS/TS, CSS, JSON)
 npm run tauri dev    # Full desktop app (frontend + Rust backend)
 npm run tauri build  # Production .app — the only build where the CSP takes effect
@@ -54,7 +55,7 @@ how a turn reaches load average 30.
 | Style or `className` only (`styles.css`, `popup.tailwind.css`, a class string) | `npx biome check <file>` (~7s) + `npm run test:design` (~10s, the guard that reads both) + `npm run build:css` (~22s, the only thing proving a token resolves). Then look at it. | `tsc`, `vite build`, the other 15 test files, `cargo` — none of them reads CSS. |
 | TS logic, no Rust | `npm run typecheck` (~64s) + `test:design` + the covering test files (`npm run test -- src/app/lockScreen.test.ts`) | Full suite unless the change crosses modules. |
 | Rust (`src-tauri/**`) | `cargo test`; `cargo check` while chasing a type error; `cargo test --no-run` once so later runs only relink | Never overlap a cargo pass with `npm run build`. A small Rust edit does **not** rebuild the 545-crate graph (measured: 13 files rewritten against 879 untouched rlibs) — it pays two ~39MB links. |
-| Before the commit, once | `npm run build` (~2m22) + `npm run test` (~63s, 16 files/88 tests) + `npm run lint:fix` | Per edit inside the same turn. |
+| Before the commit, once | `npm run build` (~2m22) + `npm run test` (~63s, 16 files/95 tests) + `npm run lint:fix` | Per edit inside the same turn. |
 | Packaged build itself (CSP, bundling) | `npm run tauri build` | Otherwise: release build of all 545 crates, minutes of all-core CPU. |
 
 **The running `tauri dev`/Vite server is the inner loop** — it compiles Tailwind and hot-reloads a class
@@ -102,12 +103,12 @@ src/                  # React frontend
   styles.css          # Tailwind + all custom CSS + the token values in :root (~2380 lines)
   app/vaultApi.ts     # All Tauri invoke() calls — typed wrappers
   app/navigation.ts   # Sidebar nav rows (4 rows in 2 groups)
-  app/theme.ts        # Light/dark switch only — the primary colour is a token, not a preference
+  app/theme.ts        # Appearance: system (default, follows prefers-color-scheme) / light / dark
   app/i18n.ts         # zh (fallback) / en / ja bundles, one flat object per locale; parity is tested
   app/tagIcons.ts     # 43 pickable lucide glyphs + the 11 colour options, written out as full class pairs
   app/itemTags.ts sidebarHighlights.ts securityPreferences.ts lockScreen.ts totpDisplay.ts
   app/relativeTime.ts menuPlacement.ts itemDrafts.ts itemTemplates.ts windowPlacement.ts otpQrImport.ts
-  app/designContract.test.ts  # executable DESIGN.md guard — see .agent/design.md
+  app/designContract.test.ts  # executable guard for the .agent/design.md rules
   test/setup.ts       # jest-dom matcher import; present but NOT wired (no test uses a matcher)
 
 src-tauri/src/        # Rust backend
@@ -200,7 +201,7 @@ browser-extension/    # Manifest V3 extension (not built by Vite)
   `runJavaScriptAlertPanel` / `runJavaScriptConfirmPanel` / `runJavaScriptTextInputPanel`, so in this webview
   `window.confirm` resolves `false` and `window.prompt` returns `null` **without showing anything** — the call
   site silently takes the cancelled branch. Ask in the page instead: `.confirm-layer` + `.confirm-dialog`
-  (`role="alertdialog"`, `DESIGN.md`'s `modal-dialog` — blanket + overlay + `rounded-xlarge` — sized by the
+  (`role="alertdialog"`, a macOS sheet — blanket + sheet material + `rounded-xlarge` — sized by the
   project's own `--measure-modal`), driven by a state flag and dismissed by its own button, Escape, and a
   full-bleed
   dismiss `<button>` behind the card. **`aria-modal="true"` prunes that backdrop out of the macOS accessibility
@@ -367,6 +368,8 @@ browser-extension/    # Manifest V3 extension (not built by Vite)
   of the re-render, so a live refresh looks broken when it is the stub that is); read the DOM in a **separate**
   `evaluate_script` call from the one that dispatched the event or click, because a read taken in the same call
   describes the previous state; and it proves the frontend only — `cargo test` is what proves the Rust side.
+- `@types/node` is a devDependency and `tsconfig.json` `types` lists `node` beside `vitest/globals`: the guard
+  tests read source files through `node:fs`, and without it `npm run typecheck` fails on a clean `npm ci`.
 - Vite exposes `VITE_*` and `TAURI_*` prefixed env vars only.
 - The extension popup is localised by Chrome, not by the app: `_locales/{en,zh,ja}/messages.json` plus
   `__MSG_key__` in `manifest.json` and `chrome.i18n.getMessage` applied to `[data-i18n]` /

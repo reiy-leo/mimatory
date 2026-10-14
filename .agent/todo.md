@@ -7,9 +7,20 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 
 ## Open
 
-- **needs-owner-decision — Dark palette is owed.** `:root[data-theme="dark"]` only re-points the tokens onto
-  the hexes the app shipped with before dark mode existed, because `DESIGN.md` is light-only. It renders, but
-  it is not a designed dark theme. Do not invent Atlassian dark hexes locally.
+- **needs-owner-decision — Keep or drop the in-app appearance override.** Settings ▸ Appearance now defaults
+  to System (follows macOS), with Light and Dark still offered. `dark-mode.md` › Best practices says "Avoid
+  offering an app-specific appearance setting", so the HIG answer is to delete the Light/Dark segments; that
+  removes a feature, so it is the owner's call. Existing installs keep whatever `passless-theme` value the old
+  build wrote on first launch (it always persisted the resolved light/dark), so they will not see System until
+  they pick it once — a migration to `system` is also the owner's call.
+- **needs-owner-decision — Native vibrancy.** The sidebar, toolbar, menus and sheets use CSS
+  `backdrop-filter` materials, which can only blur page content because the Tauri window is opaque. Real macOS
+  behind-window vibrancy needs `tauri.conf.json` window effects (`"windowEffects": { "effects": ["sidebar"] }`
+  plus a transparent window / `macOSPrivateApi`), which touches window config and was left alone.
+- **HIG notes not acted on (owner layout).** `sidebars.md` › Desktop: "Avoid putting critical information or
+  actions at the bottom of a sidebar" — Archive and Trash are pinned to the foot by design. `settings.md`:
+  macOS settings windows use a fixed toolbar of panes; this one keeps its sidebar of panes (the System
+  Settings pattern). Neither was changed.
 - **needs-owner-decision — There is no recovery path for a forgotten master password.** No export, no import,
   no sync, no Keychain copy of the key, so nothing can undo it. This is not theoretical: the owner lost their
   own vault to it on 2026-10-08 and the vault was wiped. Any recovery design must keep the vault key
@@ -46,7 +57,13 @@ Everything in this list is written and unit-proven or not proven at all; none of
   a browser.
 - The settings window as real `NSWindow`s on a real second display. Only the *payload* has been proven through
   the browser stub.
-- Every hover/pressed/disabled state; the settings tabs other than the generator; TOTP; attachments.
+- Every hover/pressed/disabled state; TOTP; attachments.
+- The Apple restyle (2026-10-14) in a real `tauri dev` window: SF Pro rendering, the overlay traffic lights
+  against the translucent sidebar, `backdrop-filter` in WKWebView, and `prefers-reduced-transparency` /
+  increased contrast. It was checked only as Vite + Chromium screenshots against a stubbed bridge, in light
+  and dark. In that harness the header ellipsis (`vault.itemActions`) opened no menu — the window `click`
+  listener added by the opening render appears to dismiss it in the same event; the row right-click menu
+  opened fine. Not investigated; check it in the real window before assuming either way.
 
 ## Completed
 
@@ -55,8 +72,9 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-14 | UI restyled to Apple design (macOS HIG): semantic system colours with real light **and** dark values (closes the "dark palette is owed" item), SF type scale, macOS radii/materials/focus ring, System appearance by default; Atlassian `DESIGN.md` and `.write-technical-spec/` deleted | `.agent/design.md` |
 | 2026-10-10 | Documentation split: engineering rules stay here in `AGENTS.md`, design constraints moved to `.agent/design.md`, all task state to this file | The three files |
-| 2026-10-10 | The vendored macOS HIG extract at `.agent/DESIGN.md` was deleted — the project carries one design document, `DESIGN.md` | `.agent/design.md` header |
+| 2026-10-10 | The vendored macOS HIG extract at `.agent/DESIGN.md` was deleted (superseded 2026-10-14 by the `apple-design` skill) | `.agent/design.md` header |
 | 2026-10-10 | Gate tiers by diff type; vitest moved off jsdom and fork-capped, so a style edit no longer pays for a full toolchain pass | `AGENTS.md` Commands |
 | 2026-10-10 | Sidebar gutter paints nothing at rest/hover/drag; sidebar gets its own resizable gutter, clamped 150–220 | `design.md` exceptions; `AGENTS.md` sidebar |
 | 2026-10-10 | A folded sidebar section stays at one row at the top (`content-start`) | `AGENTS.md` sidebar |
@@ -73,7 +91,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 | 2026-10-09 | i18n completeness gate: named keys defined, no `defaultValue` fallback, runtime-built prefixes covered | `AGENTS.md` Workflow |
 | 2026-10-09 | All three UI string bundles complete; `App.tsx` carries zero `defaultValue` fallbacks | `AGENTS.md` Workflow |
 | 2026-10-09 | Sync, backup and import deleted (see "Decided against" below) | `AGENTS.md` no transport |
-| 2026-10-08 | Atlassian `DESIGN.md` installed as the contract; Cupertino spec deleted | `design.md` header |
+| 2026-10-08 | Atlassian `DESIGN.md` installed as the contract; Cupertino spec deleted (both superseded 2026-10-14) | `design.md` header |
 | 2026-10-08 | Audit #1 export encryption, #2 file permissions (0600/0700, self-repairing), #4 CSP + constant-time pairing | `AGENTS.md` CSP, file permissions, bridge |
 
 ## Decided against (not pending — do not re-propose)
