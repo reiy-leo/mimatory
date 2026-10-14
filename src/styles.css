@@ -2746,6 +2746,210 @@
     background: var(--color-on-selected-fill);
   }
 
+  /* Item fields, read-only: System Settings–style inset groups (lists-and-tables.md, designing-for-macos.md).
+     Each row is a label over its value with trailing 28pt icon buttons; empty fields are never drawn. */
+  .detail-view {
+    @apply min-h-0 flex-1 overflow-auto pb-200;
+  }
+
+  .detail-title {
+    color: var(--color-text);
+    @apply m-0 min-w-0 flex-1 truncate text-title-2 font-semibold;
+  }
+
+  .detail-view-body {
+    @apply mt-200 grid max-w-content gap-200;
+  }
+
+  .field-section {
+    @apply grid gap-075;
+  }
+
+  .field-group-title {
+    color: var(--color-text-subtle);
+    @apply m-0 px-150 text-callout font-semibold;
+  }
+
+  .field-group {
+    background: var(--color-surface-raised);
+    border-color: var(--color-border);
+    @apply grid overflow-hidden rounded-large border;
+  }
+
+  .field-row {
+    @apply flex min-h-500 items-center gap-100 px-150 py-100;
+  }
+
+  .field-group > .field-row + .field-row,
+  .field-group > .contents + .contents > .field-row:first-child,
+  .field-group > .contents > .field-row + .field-row {
+    border-top: var(--border-width-default) solid var(--color-border);
+  }
+
+  .field-row-main {
+    @apply grid min-w-0 flex-1 gap-025;
+  }
+
+  .field-row-label {
+    color: var(--color-text-subtle);
+    @apply text-callout font-medium;
+  }
+
+  .field-row-value {
+    color: var(--color-text);
+    @apply min-w-0 break-words text-body;
+  }
+
+  .field-row-value.is-mono,
+  .custom-field-value-input.is-mono,
+  .field-caption code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+
+  .field-row-value.is-multiline {
+    @apply whitespace-pre-wrap;
+  }
+
+  .field-row-value.is-mono.is-multiline {
+    @apply break-all text-callout;
+  }
+
+  .field-row-value.is-masked {
+    letter-spacing: 0.1em;
+  }
+
+  .field-row-meta {
+    @apply flex flex-wrap items-center gap-100;
+  }
+
+  .field-row-caption {
+    color: var(--color-text-subtle);
+    @apply shrink-0 text-callout;
+  }
+
+  .field-row-actions {
+    @apply flex shrink-0 items-center gap-050 self-center;
+  }
+
+  .field-row-actions .icon-button {
+    color: var(--color-icon-subtle);
+    background: transparent;
+    border-color: transparent;
+    @apply h-350 w-350;
+  }
+
+  .field-row-actions .icon-button:hover {
+    color: var(--color-icon);
+    background: var(--color-background-neutral-subtle-hovered);
+  }
+
+  /* Status in words plus a glyph, tinted by role, never colour alone (color.md › "don't rely solely on color"). */
+  .field-status {
+    @apply inline-flex items-center gap-050 text-callout font-medium;
+  }
+
+  .field-status.is-expired {
+    color: var(--color-text-danger);
+  }
+
+  .field-status.is-expiring {
+    color: var(--color-text-warning);
+  }
+
+  /* Item fields, editing. The section's own "Add Field" sits inside a field row, whose button rule is
+     the red remove glyph's; this puts it back to an accent text button on one line. */
+  .custom-field-row .section-add-button {
+    color: var(--color-text-brand);
+    @apply inline-flex w-fit place-items-start items-center gap-050 px-050;
+  }
+
+  .custom-field-row .section-add-button:hover {
+    background: var(--color-background-brand-subtlest);
+  }
+
+  /* Item fields, editing. */
+  .field-label-row {
+    @apply flex items-center gap-050;
+  }
+
+  .field-label-row .custom-field-name-input {
+    @apply min-w-0 flex-1;
+  }
+
+  .field-order-buttons {
+    @apply flex shrink-0 items-center gap-025;
+  }
+
+  .field-editor {
+    @apply grid gap-050;
+  }
+
+  .field-editor-row {
+    @apply flex min-w-0 items-center gap-050;
+  }
+
+  .field-editor-row > input,
+  .field-editor-row > textarea {
+    @apply min-w-0 flex-1;
+  }
+
+  .field-editor-button {
+    color: var(--color-icon-subtle);
+    @apply grid h-300 w-300 shrink-0 place-items-center rounded-medium border-0 bg-transparent p-0 transition-colors;
+  }
+
+  .custom-field-row .field-editor-button,
+  .section-child-row .field-editor-button {
+    color: var(--color-icon-subtle);
+  }
+
+  .field-editor-button:hover,
+  .custom-field-row .field-editor-button:hover,
+  .section-child-row .field-editor-button:hover {
+    color: var(--color-icon);
+    background: var(--color-background-neutral-subtle-hovered);
+  }
+
+  .field-editor-button:disabled,
+  .custom-field-row .field-editor-button:disabled,
+  .section-child-row .field-editor-button:disabled {
+    color: var(--color-icon-disabled);
+    @apply cursor-default bg-transparent;
+  }
+
+  .field-textarea {
+    @apply resize-none leading-normal;
+  }
+
+  /* A concealed multi-line value (a private key, a recovery phrase) rests as dots like a secure field. */
+  .field-textarea.is-concealed {
+    -webkit-text-security: disc;
+  }
+
+  .field-select {
+    @apply h-300 w-auto min-w-0 max-w-full self-start rounded-medium py-0 pl-100 pr-300 text-body;
+  }
+
+  .field-hint {
+    color: var(--color-text-subtle);
+    @apply m-0 flex items-start gap-050 text-callout;
+  }
+
+  .field-hint svg {
+    color: var(--color-icon-warning);
+    @apply mt-025 shrink-0;
+  }
+
+  .field-caption {
+    color: var(--color-text-subtle);
+    @apply m-0 flex flex-wrap items-center gap-050 text-callout;
+  }
+
+  .field-caption code {
+    color: var(--color-text);
+    @apply break-all;
+  }
+
   /* Switch (toggles.md › Switches): the settings checkboxes draw as a macOS switch — a capsule track,
      the accent when on, a white knob that slides. It is still a native checkbox underneath, so the
      keyboard, the label click and the focus ring all keep working. */
