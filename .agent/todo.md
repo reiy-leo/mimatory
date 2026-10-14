@@ -41,6 +41,18 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 - **Neither sidebar column's width persists across a restart**, and no real mouse drag in the Tauri window has
   ever been exercised — only the clamps, through the browser harness.
 
+- **needs-owner-decision — Opening a URL field in the browser.** `FieldView` renders the open button as an
+  `<a target="_blank" rel="noopener noreferrer">` because no opener exists in the app. In a browser harness it
+  works; in WKWebView under Tauri v2 a `_blank` navigation most likely does nothing without
+  `tauri-plugin-opener` (Rust dependency + `opener:allow-open-url` in `capabilities/main.json`). Adding a plugin
+  and a capability was left to the owner.
+- **Watchtower does not see template fields.** `has_expiring_field` / `has_totp` in `vault.rs` match top-level
+  custom-field *labels* in English (`expiry`, `otp`, `2fa`), so a card or passport expiry inside a template
+  section, or any zh/ja label, is invisible to it. The fix belongs in Rust (read section JSON children and their
+  `key` / `field_type`), with tests; the frontend already shows "Expired" / "Expires soon" per field.
+- **Template field placeholders are generic** ("Value") except card number, email, URL and month/year; a
+  per-field example placeholder in the template data would be cheap if wanted.
+
 ## Never yet seen in a running app
 
 Everything in this list is written and unit-proven or not proven at all; none of it has been observed.
@@ -55,6 +67,9 @@ Everything in this list is written and unit-proven or not proven at all; none of
 - The settings window as real `NSWindow`s on a real second display. Only the *payload* has been proven through
   the browser stub.
 - Every hover/pressed/disabled state; TOTP; attachments.
+- The typed item fields (2026-10-14): `-webkit-text-security` on the concealed textarea, `<input type="date">`
+  and the pop-up selects in WKWebView, the clipboard copy buttons, and the URL open button. Checked only in
+  Vite + Chromium against a stubbed bridge, light and dark.
 - The Apple restyle (2026-10-14) in a real `tauri dev` window: SF Pro rendering, the overlay traffic lights
   against the translucent sidebar, `backdrop-filter` in WKWebView, and `prefers-reduced-transparency` /
   increased contrast. It was checked only as Vite + Chromium screenshots against a stubbed bridge, in light

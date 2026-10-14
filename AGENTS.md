@@ -26,7 +26,7 @@ npm run dev          # Vite dev server on :1430 (Tauri launches this automatical
 npm run build        # tailwindcss (extension CSS) → tsc → vite build
 npm run build:css    # Tailwind-compiles src/styles.css only, to /tmp — proves a token resolves
 npm run typecheck    # tsc --noEmit only, without the bundle
-npm run test         # Vitest, all 16 files (node environment; fork pool capped at 2)
+npm run test         # Vitest, all 19 files (node environment; fork pool capped at 2)
 npm run test:design  # Only src/app/designContract.test.ts — the Apple-design token/CSS/className guard
 npm run lint:fix     # biome check --write (JS/TS, CSS, JSON)
 npm run tauri dev    # Full desktop app (frontend + Rust backend)
@@ -108,6 +108,7 @@ src/                  # React frontend
   app/tagIcons.ts     # 43 pickable lucide glyphs + the 11 colour options, written out as full class pairs
   app/itemTags.ts sidebarHighlights.ts securityPreferences.ts lockScreen.ts totpDisplay.ts
   app/relativeTime.ts menuPlacement.ts itemDrafts.ts itemTemplates.ts windowPlacement.ts otpQrImport.ts
+  app/itemFields.ts fieldFormats.ts fieldControls.tsx  # typed item fields: template bridge, rules, view/edit components
   app/designContract.test.ts  # executable guard for the .agent/design.md rules
   test/setup.ts       # jest-dom matcher import; present but NOT wired (no test uses a matcher)
 
@@ -355,6 +356,23 @@ browser-extension/    # Manifest V3 extension (not built by Vite)
   Because the Rust session may have been reading the row just deleted, the frontend re-points it through
   `handleSwitchVault` rather than duplicating the `state.session` / `biometric_session` sync block a sixth time; if
   the last live vault is archived there is nowhere to switch, so it stays parked and only re-lists.
+
+- **Item templates and typed fields** (2026-10-14). Every category's default fields are data in
+  `src/app/itemTemplates.ts` (key, `field_type`, label key, options, rules); the editor and the read-only view
+  draw every field through `FieldEditor` / `FieldView` in `src/app/fieldControls.tsx`, chosen by type alone, so a
+  new behaviour is a type or a template change, never a per-category branch in `App.tsx`. **The vault format did
+  not change**: a template section is still a `section` custom field whose value is a JSON array of children,
+  and each child a template seeds carries a `key` inside that JSON (Rust treats both as opaque strings; a
+  top-level `CustomField` cannot take a new property, because serde drops unknown fields on the round trip).
+  `itemFields.ts` reads it both ways: on load `normalizeTemplateFields` gives keyed children the template's
+  current type, recognises unkeyed children saved by older builds by their label in *any* locale (that is the
+  migration — no stored data is rewritten until the user saves), and seeds missing template fields empty; on save
+  `pruneEmptyTemplateFields` drops empty template children (and a section left with nothing else), so the vault
+  only holds what was typed and the dirty check compares through `comparableFields`. Template fields have no
+  remove button (empty means hidden in view, not stored); user-added fields and sections do. Types without
+  username/password columns still show them when an older item has data there. Select values are stored as
+  option ids, labelled `itemTemplates.options.<set>.<id>`; an unknown stored value stays selectable as itself.
+  Validation hints (`fieldHints.*`) appear on blur and never block saving.
 
 ## Testing and verification
 
