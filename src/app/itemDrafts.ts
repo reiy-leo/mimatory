@@ -1,3 +1,4 @@
+import { comparableFields } from './itemFields'
 import { parseTags, type UrlMatchType } from './vaultApi'
 
 type DraftField = { field_type: string; label: string; value: string }
@@ -20,7 +21,8 @@ export type DraftSnapshot = {
 
 export function formFingerprint(form: DraftSnapshot): string {
   return JSON.stringify({
-    custom_fields: form.custom_fields.map((field) => [field.field_type, field.label, field.value]),
+    // Child ids and the empty template fields a save drops are not edits, so they are compared away.
+    custom_fields: comparableFields(form.item_type, form.custom_fields),
     favorite: form.favorite,
     item_type: form.item_type,
     notes: form.notes,

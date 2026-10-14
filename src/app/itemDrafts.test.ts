@@ -74,4 +74,18 @@ describe('item draft dirty checking', () => {
     })
     expect(isFormDirty(draft(), renamed)).toBe(true)
   })
+
+  it('ignores child ids and the empty template fields a save drops', () => {
+    const section = (id: string, value: string) => ({
+      field_type: 'section',
+      label: 'Card Details',
+      value: JSON.stringify([
+        { field_type: 'card_number', id, key: 'number', label: 'Card number', value },
+        { field_type: 'concealed', id: `${id}-cvv`, key: 'cvv', label: 'Security code', value: '' },
+      ]),
+    })
+    const card = (fields: DraftSnapshot['custom_fields']) => draft({ custom_fields: fields, item_type: 'credit_card' })
+    expect(isFormDirty(card([section('a', '4242')]), card([section('b', '4242')]))).toBe(false)
+    expect(isFormDirty(card([section('a', '4242')]), card([section('a', '4243')]))).toBe(true)
+  })
 })
