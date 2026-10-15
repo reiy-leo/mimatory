@@ -1,4 +1,5 @@
 import { comparableFields } from './itemFields'
+import { type RelationDraft, relationDraftKey } from './itemRelations'
 import { parseTags, type UrlMatchType } from './vaultApi'
 
 type DraftField = { field_type: string; label: string; value: string }
@@ -13,6 +14,8 @@ export type DraftSnapshot = {
   item_type: string
   notes: string
   password: string
+  // Optional so a snapshot from before links existed still compares; absent means no links.
+  relationDraft?: RelationDraft
   tagsInput: string
   title: string
   urlsInput: DraftUrl[]
@@ -27,6 +30,7 @@ export function formFingerprint(form: DraftSnapshot): string {
     item_type: form.item_type,
     notes: form.notes,
     password: form.password,
+    relations: relationDraftKey(form.relationDraft),
     tags: parseTags(form.tagsInput),
     title: form.title.trim(),
     urls: form.urlsInput.map((url) => [url.label.trim(), url.url.trim(), url.match_type]).filter(([, url]) => url),

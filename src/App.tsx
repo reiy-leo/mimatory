@@ -20,6 +20,8 @@ import {
   Cog,
   Coins,
   Copy,
+  CornerDownRight,
+  CornerLeftUp,
   CreditCard,
   Database,
   DollarSign,
@@ -97,6 +99,17 @@ import {
   stringifySectionChildren,
 } from './app/itemFields'
 import {
+  emptyRelationDraft,
+  filterByTitle,
+  hasRelations,
+  type RelationDraft,
+  type RelationKind,
+  relationCandidates,
+  relationChanges,
+  relationDraftOf,
+  relationRef,
+} from './app/itemRelations'
+import {
   addTag,
   countItemTags,
   filterItemsByTag,
@@ -114,6 +127,7 @@ import { getLockScreenVariant, shouldShowTouchIdUnlock } from './app/lockScreen'
 import { getMenuAnchorStyle, type MenuAnchor } from './app/menuPlacement'
 import { type NavigationItem, navigationItems } from './app/navigation'
 import { clipboardImageFile, otpSecretFromQrImage } from './app/otpQrImport'
+import { RelationSection } from './app/relationControls'
 import { formatItemTimestamp } from './app/relativeTime'
 import {
   type AccountPasswordRequirement,
@@ -186,6 +200,9 @@ type LoginFormState = LoginItemInput & {
   tagsInput: string
   customFieldsInput: string
   urlsInput: UrlFormState[]
+  // The item's links as the form is editing them. Not part of the item payload: a save writes the
+  // item first, then sends the difference from the stored links through their own commands.
+  relationDraft: RelationDraft
 }
 
 type UrlFormState = ItemUrl & {
@@ -275,7 +292,6 @@ const addMoreOptions = [
   { icon: Fingerprint, labelKey: 'vault.addMoreOptions.passkey', type: 'passkey' },
   { icon: Group, labelKey: 'vault.addMoreOptions.section', type: 'section' },
   { icon: Paperclip, labelKey: 'vault.addMoreOptions.attachFile', type: 'file' },
-  { icon: Link2, labelKey: 'vault.addMoreOptions.relatedItem', type: 'related_item' },
 ] as const
 
 // Sections hold plain values only: no nested section, attachment, related item,
@@ -294,11 +310,19 @@ const sectionChildFieldTypes: readonly string[] = [
   'phone',
 ]
 
+// Links to other items close the Add More menu in their own group. They are not fields: each opens the
+// item picker, and the choice lands in the form's relation draft rather than in `custom_fields`.
+const relationMenuOptions: ReadonlyArray<{ icon: typeof Link2; kind: RelationKind; labelKey: string }> = [
+  { icon: CornerLeftUp, kind: 'parent', labelKey: 'vault.relations.addParent' },
+  { icon: CornerDownRight, kind: 'child', labelKey: 'vault.relations.addChild' },
+  { icon: Link2, kind: 'related', labelKey: 'vault.relations.addRelated' },
+]
+
 const sectionChildOptions = addMoreOptions.filter((option) => sectionChildFieldTypes.includes(option.type))
 
 // Only used to decide which side of the trigger has more room, so a rough height is enough.
 const menuRowHeight = 36
-const addMoreMenuHeight = addMoreOptions.length * menuRowHeight + 40
+const addMoreMenuHeight = (addMoreOptions.length + relationMenuOptions.length) * menuRowHeight + 48
 const sectionMenuHeight = Math.ceil(sectionChildOptions.length / 2) * menuRowHeight + 24
 // Edit, highlight, delete — the highlight row reads 取消突出显示 once the row already carries one.
 const tagMenuHeight = 3 * menuRowHeight + 24
@@ -309,7 +333,8 @@ const vaultMenuHeight = 3 * menuRowHeight + 24
 // The item panel is wider than the button it hangs from, and its two sections are the same height
 // because only the taller one can ever be the one that has to flip above the trigger.
 const itemMenuWidth = 220
-const itemMenuHeight = 6 * menuRowHeight + 40
+// Move and Delete each carry a one-line hint while the item has links, hence the extra allowance.
+const itemMenuHeight = 8 * menuRowHeight + 40
 
 // These belong with the credentials they protect, so they render in the username /
 // password group instead of the custom field list.
@@ -594,6 +619,7 @@ function toFormState(item: LoginItem | LoginItemInput): LoginFormState {
     item_type: item.item_type,
     notes: item.notes,
     password: item.password,
+    relationDraft: relationDraftOf('relations' in item ? item.relations : undefined),
     tags: item.tags,
     tagsInput: tagsToInput(item.tags),
     title: item.title,
@@ -822,6 +848,10 @@ function VaultWindow() {
   const [categoryToFocus, setCategoryToFocus] = useState<CategoryItemType | null>(null)
   const categoryListRef = useRef<HTMLDivElement>(null)
   const itemTypeFirstOptionRef = useRef<HTMLButtonElement>(null)
+  // Which kind of link the item picker is choosing for, if it is open, and what its search box holds.
+  const [relationPicker, setRelationPicker] = useState<RelationKind | null>(null)
+  const [relationQuery, setRelationQuery] = useState('')
+  const relationSearchRef = useRef<HTMLInputElement>(null)
   // One panel holds everything that can be done to a stored item, opened either from the header's
   // ellipsis or by right-clicking the row. `move` is the vault list swapped into the same panel rather
   // than a second anchor that could cover the trigger, and the source decides which of the two rows
@@ -1141,6 +1171,25 @@ function VaultWindow() {
   const otpFieldIndexes = useMemo(() => otpSecretFieldIndexes(form.custom_fields), [form.custom_fields])
   const viewOtpIndexes = otpFieldIndexes.filter((index) => form.custom_fields[index]?.value.trim())
 
+  // The links as each mode draws them: read-only reads what the vault returned, editing reads the draft
+  // (ids resolved through the live list, or the stored ref for an archived counterpart).
+  const selectedHasRelations = hasRelations(selectedItem?.relations)
+  const viewRelations = selectedItem?.relations
+  const draftRelationRefs = (ids: string[]) =>
+    ids.flatMap((id) => {
+      const ref = relationRef(id, items, selectedItem?.relations)
+      return ref ? [ref] : []
+    })
+  const editParentRefs = draftRelationRefs(form.relationDraft.parentId ? [form.relationDraft.parentId] : [])
+  const editChildRefs = draftRelationRefs(form.relationDraft.childIds)
+  const editRelatedRefs = draftRelationRefs(form.relationDraft.relatedIds)
+  const relationPickerItems = relationPicker
+    ? filterByTitle(
+        relationCandidates(items, selectedItem?.id ?? null, relationPicker, form.relationDraft),
+        relationQuery,
+      )
+    : []
+
   // The category the sidebar is showing is the category a new item belongs to, which is
   // what decides both the layout and the fields an empty item starts out with.
   const newItemCategory = activeNavigation.startsWith('category:')
@@ -1203,6 +1252,11 @@ function VaultWindow() {
   useEffect(() => {
     if (itemTypePickerOpen) itemTypeFirstOptionRef.current?.focus()
   }, [itemTypePickerOpen])
+
+  // The item picker opens on its search field, so typing narrows the list straight away.
+  useEffect(() => {
+    if (relationPicker) relationSearchRef.current?.focus()
+  }, [relationPicker])
 
   // The category a new draft was built under is scrolled into view and focused, which has to happen
   // after the row exists: an unfolded section and its rows arrive in the same commit as this state.
@@ -1367,12 +1421,28 @@ function VaultWindow() {
         return
       }
       const saved = selectedItem ? await vaultApi.update(selectedItem.id, input) : await vaultApi.create(input)
+      // Links are written after the item exists (a new item has no id before this), removals first.
+      // A refused link (Rust re-checks cycles) is reported, but the item's own fields stay saved.
+      let relationError: unknown = null
+      const baselineRelations = selectedItem ? baselineRef.current.relationDraft : emptyRelationDraft
+      for (const change of relationChanges(saved.id, baselineRelations, form.relationDraft)) {
+        try {
+          if (change.kind === 'setParent') await vaultApi.setParent(change.itemId, change.parentId)
+          else if (change.kind === 'link') await vaultApi.linkRelated(saved.id, change.otherId)
+          else await vaultApi.unlinkRelated(saved.id, change.otherId)
+        } catch (nextError) {
+          relationError = relationError ?? nextError
+        }
+      }
       const nextItems = await vaultApi.list()
+      const fresh = toFormState(nextItems.find((item) => item.id === saved.id) ?? saved)
       // A save retires the draft and moves the form off its `new:` key, so the switch effect
       // below does not file the just-saved values as unsaved edits on the old key.
       delete draftsRef.current[draftKeyRef.current]
       draftKeyRef.current = saved.id
-      baselineRef.current = toFormState(saved)
+      baselineRef.current = fresh
+      setForm(fresh)
+      if (relationError) setError(String(relationError))
       setItems(nextItems)
       setSelectedId(saved.id)
       setComposing(false)
@@ -1382,6 +1452,67 @@ function VaultWindow() {
     } finally {
       setSaving(false)
     }
+  }
+
+  // Links can change from the other end (another item picking this one as its parent) without this
+  // form being reloaded, so editing starts from the stored links rather than from what the form held.
+  function beginEdit() {
+    closeFieldMenus()
+    const stored = relationDraftOf(selectedItem?.relations)
+    baselineRef.current = { ...baselineRef.current, relationDraft: stored }
+    setForm((current) => ({ ...current, relationDraft: stored }))
+    setIsEditing(true)
+  }
+
+  function openRelationPicker(kind: RelationKind) {
+    closeFieldMenus()
+    setRelationQuery('')
+    setRelationPicker(kind)
+  }
+
+  function pickRelation(id: string) {
+    const kind = relationPicker
+    setRelationPicker(null)
+    if (!kind) return
+    setForm((current) => {
+      const draft = current.relationDraft
+      const next: RelationDraft =
+        kind === 'parent'
+          ? { ...draft, parentId: id }
+          : kind === 'child'
+            ? { ...draft, childIds: [...draft.childIds, id] }
+            : { ...draft, relatedIds: [...draft.relatedIds, id] }
+      return { ...current, relationDraft: next }
+    })
+  }
+
+  function removeRelation(kind: RelationKind, id: string) {
+    setForm((current) => {
+      const draft = current.relationDraft
+      const next: RelationDraft =
+        kind === 'parent'
+          ? { ...draft, parentId: null }
+          : kind === 'child'
+            ? { ...draft, childIds: draft.childIds.filter((childId) => childId !== id) }
+            : { ...draft, relatedIds: draft.relatedIds.filter((relatedId) => relatedId !== id) }
+      return { ...current, relationDraft: next }
+    })
+  }
+
+  // A linked item opens in the pane like a list click would; the list's own filter is left alone.
+  function openRelatedItem(id: string) {
+    closeFieldMenus()
+    setOperationMessage(null)
+    setSelectedId(id)
+  }
+
+  function relationIcon(itemType: string) {
+    const category = categoryItems.find((entry) => entry.itemType === itemType)
+    return { colorClass: category?.colorClass ?? 'text-accent-icon-gray', icon: category?.icon ?? KeyRound }
+  }
+
+  function relationTypeLabel(itemType: string) {
+    return t(`itemTypes.${itemType}`)
   }
 
   function handleCancelEdit() {
@@ -1905,6 +2036,7 @@ function VaultWindow() {
       !tagEditor &&
       !tagDeleteTarget &&
       !itemTypePickerOpen &&
+      !relationPicker &&
       !vaultEditor &&
       !vaultDissolveTarget
     )
@@ -1918,6 +2050,7 @@ function VaultWindow() {
       if (event.key !== 'Escape') return
       if (menuOpen) closeFieldMenus()
       setPurgeTarget(null)
+      setRelationPicker(null)
       closeCreateVault()
       closeTagEditor()
       setTagDeleteTarget(null)
@@ -1937,6 +2070,7 @@ function VaultWindow() {
     itemMenu,
     itemTypePickerOpen,
     purgeTarget,
+    relationPicker,
     sectionHighlightMenu,
     sectionMenuIndex,
     showAddMore,
@@ -2243,7 +2377,14 @@ function VaultWindow() {
 
   async function handleTrash() {
     if (!selectedItem) return
-    await vaultApi.trash(selectedItem.id)
+    try {
+      await vaultApi.trash(selectedItem.id)
+    } catch (nextError) {
+      // Rust refuses an item that still has links; the menu row is disabled for that, so this is
+      // only reached when the list in hand was stale.
+      setError(String(nextError))
+      return
+    }
     const nextItems = await vaultApi.list()
     setItems(nextItems)
     // Nothing takes the place of the item that just left — the pane goes to its empty state rather
@@ -2407,7 +2548,13 @@ function VaultWindow() {
   // anywhere in the app. The panel that asks is what stands between a stray click and lost secrets.
   async function purgeTrashedItem() {
     if (!purgeTarget) return
-    await vaultApi.purge(purgeTarget.id)
+    try {
+      await vaultApi.purge(purgeTarget.id)
+    } catch (nextError) {
+      setPurgeTarget(null)
+      setError(String(nextError))
+      return
+    }
     setPurgeTarget(null)
     await loadTrashedItems()
   }
@@ -2887,7 +3034,7 @@ function VaultWindow() {
               </>
             ) : selectedItem ? (
               <>
-                <button className="top-edit-button" onClick={() => setIsEditing(true)} type="button">
+                <button className="top-edit-button" onClick={beginEdit} type="button">
                   <Edit3 size={15} />
                   {t('vault.edit')}
                 </button>
@@ -3405,6 +3552,19 @@ function VaultWindow() {
                               </span>
                             </button>
                           ))}
+                          {relationMenuOptions.map((option, index) => (
+                            <button
+                              className={index === 0 ? 'menu-option with-icon separated' : 'menu-option with-icon'}
+                              key={option.kind}
+                              onClick={() => openRelationPicker(option.kind)}
+                              type="button"
+                            >
+                              <option.icon aria-hidden="true" size={15} />
+                              <span className="menu-option-label">
+                                <span>{t(option.labelKey)}</span>
+                              </span>
+                            </button>
+                          ))}
                         </div>
                       ) : null}
                     </div>
@@ -3415,6 +3575,28 @@ function VaultWindow() {
                       </div>
                     ) : null}
                   </div>
+                  {editParentRefs.length || editChildRefs.length || editRelatedRefs.length ? (
+                    <div className="relation-editor">
+                      {(
+                        [
+                          ['parent', 'vault.relations.parent', editParentRefs],
+                          ['child', 'vault.relations.children', editChildRefs],
+                          ['related', 'vault.relations.related', editRelatedRefs],
+                        ] as const
+                      ).map(([kind, headingKey, refs]) => (
+                        <RelationSection
+                          archivedLabel={t('vault.relations.archived')}
+                          heading={t(headingKey)}
+                          iconFor={relationIcon}
+                          key={kind}
+                          onRemove={(ref) => removeRelation(kind, ref.id)}
+                          refs={refs}
+                          removeLabel={(title) => t('vault.relations.remove', { title })}
+                          typeLabel={relationTypeLabel}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="onepassword-field standalone">
                     <span className="tag-field-label">{t('vault.tags')}</span>
                     <div className="tag-chip-box">
@@ -3647,6 +3829,24 @@ function VaultWindow() {
                     ))}
                   </div>
                 ) : null}
+                {(
+                  [
+                    ['parent', 'vault.relations.parent', viewRelations?.parent ? [viewRelations.parent] : []],
+                    ['child', 'vault.relations.children', viewRelations?.children ?? []],
+                    ['related', 'vault.relations.related', viewRelations?.related ?? []],
+                  ] as const
+                ).map(([kind, headingKey, refs]) => (
+                  <RelationSection
+                    archivedLabel={t('vault.relations.archived')}
+                    heading={t(headingKey)}
+                    iconFor={relationIcon}
+                    key={kind}
+                    onOpen={(ref) => openRelatedItem(ref.id)}
+                    openLabel={(title) => t('vault.relations.open', { title })}
+                    refs={refs}
+                    typeLabel={relationTypeLabel}
+                  />
+                ))}
                 {tagList(form.tagsInput).length ? (
                   <div className="field-group">
                     <div className="field-row">
@@ -3732,6 +3932,92 @@ function VaultWindow() {
           </div>
         </div>
       ) : null}
+      {/* The item picker for a link: a sheet with a search field over the vault's live items, minus
+          the item itself, what it is already linked to, and anything that would close a loop. */}
+      {relationPicker ? (
+        <div className="confirm-layer">
+          <button
+            aria-label={t('common.close')}
+            className="confirm-backdrop"
+            onClick={() => setRelationPicker(null)}
+            type="button"
+          />
+          <div
+            aria-labelledby="relation-picker-title"
+            aria-modal="true"
+            className="confirm-dialog relation-picker"
+            role="dialog"
+          >
+            <h2 id="relation-picker-title">{t(`vault.relations.pickerTitle.${relationPicker}`)}</h2>
+            <p className="relation-picker-hint">{t(`vault.relations.pickerHint.${relationPicker}`)}</p>
+            <div className="relation-picker-search">
+              <Search aria-hidden="true" size={15} />
+              <input
+                aria-controls="relation-picker-list"
+                aria-label={t('vault.relations.search')}
+                onChange={(event) => setRelationQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault()
+                    document.querySelector<HTMLButtonElement>('#relation-picker-list button')?.focus()
+                  }
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    if (relationPickerItems.length === 1) pickRelation(relationPickerItems[0].id)
+                  }
+                }}
+                placeholder={t('vault.relations.search')}
+                ref={relationSearchRef}
+                type="search"
+                value={relationQuery}
+              />
+            </div>
+            {relationPickerItems.length ? (
+              <ul
+                aria-label={t(`vault.relations.pickerTitle.${relationPicker}`)}
+                className="relation-picker-list"
+                id="relation-picker-list"
+              >
+                {relationPickerItems.map((candidate) => {
+                  const { colorClass, icon: Icon } = relationIcon(candidate.item_type)
+                  return (
+                    <li key={candidate.id}>
+                      <button
+                        className="relation-picker-option"
+                        onClick={() => pickRelation(candidate.id)}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+                          event.preventDefault()
+                          const row = event.currentTarget.closest('li')
+                          const next = event.key === 'ArrowDown' ? row?.nextElementSibling : row?.previousElementSibling
+                          if (next) next.querySelector('button')?.focus()
+                          else if (event.key === 'ArrowUp') relationSearchRef.current?.focus()
+                        }}
+                        type="button"
+                      >
+                        <Icon aria-hidden="true" className={colorClass} size={16} />
+                        <span className="relation-row-text">
+                          <span className="relation-row-title">{candidate.title}</span>
+                          <span className="relation-row-caption">{relationTypeLabel(candidate.item_type)}</span>
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <p className="relation-picker-empty">
+                {relationQuery.trim() ? t('vault.relations.noMatches') : t('vault.relations.noCandidates')}
+              </p>
+            )}
+            <div className="confirm-actions">
+              <button className="secondary-button" onClick={() => setRelationPicker(null)} type="button">
+                {t('vault.cancelEditing')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {/* The header's ellipsis. Two sections share one anchor: the vault list swaps in place rather
           than flying out beside a panel that already sits at the right edge of the window. */}
       {itemMenu ? (
@@ -3764,14 +4050,7 @@ function VaultWindow() {
                   the header has no need of one; 分享 copies the password, which is the header's business
                   on the item already on screen. */}
               {itemMenuSource === 'row' ? (
-                <button
-                  className="menu-option with-icon"
-                  onClick={() => {
-                    closeFieldMenus()
-                    setIsEditing(true)
-                  }}
-                  type="button"
-                >
+                <button className="menu-option with-icon" onClick={beginEdit} type="button">
                   <Edit3 aria-hidden="true" size={15} />
                   <span className="menu-option-label">
                     <span>{t('vault.edit')}</span>
@@ -3792,11 +4071,21 @@ function VaultWindow() {
                 </span>
               </button>
               {otherVaults.length ? (
-                <button className="menu-option with-icon" onClick={() => setItemMenu('move')} type="button">
+                // Links never cross a vault, so a linked item stays put until its links are removed.
+                <button
+                  className="menu-option with-icon"
+                  disabled={selectedHasRelations}
+                  onClick={() => setItemMenu('move')}
+                  type="button"
+                >
                   <FolderInput aria-hidden="true" size={15} />
-                  <span className="menu-option-label trailing">
+                  <span className={selectedHasRelations ? 'menu-option-label' : 'menu-option-label trailing'}>
                     <span>{t('vault.moveTo')}</span>
-                    <ChevronRight aria-hidden="true" size={15} />
+                    {selectedHasRelations ? (
+                      <small>{t('vault.relations.moveBlocked')}</small>
+                    ) : (
+                      <ChevronRight aria-hidden="true" size={15} />
+                    )}
                   </span>
                 </button>
               ) : null}
@@ -3828,8 +4117,12 @@ function VaultWindow() {
                   <span>{t('vault.archiveAction')}</span>
                 </span>
               </button>
+              {/* An item with a parent, children or peers cannot be deleted (Rust refuses it too); the row
+                  stays visible but unavailable and says why, with Archive right above it. */}
               <button
+                aria-describedby={selectedHasRelations ? 'delete-blocked-hint' : undefined}
                 className="menu-option with-icon is-danger"
+                disabled={selectedHasRelations}
                 onClick={() => {
                   closeFieldMenus()
                   void handleTrash()
@@ -3839,6 +4132,9 @@ function VaultWindow() {
                 <Trash2 aria-hidden="true" size={15} />
                 <span className="menu-option-label">
                   <span>{t('common.delete')}</span>
+                  {selectedHasRelations ? (
+                    <small id="delete-blocked-hint">{t('vault.relations.deleteBlocked')}</small>
+                  ) : null}
                 </span>
               </button>
             </>

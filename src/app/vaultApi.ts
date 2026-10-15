@@ -20,6 +20,23 @@ export type LoginItem = {
   custom_fields: CustomField[]
   favorite: boolean
   updated_at: string
+  // Left out of the payload when the item has no links (and by the browser bridge entirely).
+  relations?: ItemRelations
+}
+
+// One linked item, as much as the detail pane needs to draw it and navigate to it.
+export type RelatedItemRef = {
+  archived: boolean
+  id: string
+  item_type: string
+  title: string
+}
+
+// A child belongs to its parent (one parent, no cycles); a related item is a peer, linked both ways.
+export type ItemRelations = {
+  children: RelatedItemRef[]
+  parent: RelatedItemRef | null
+  related: RelatedItemRef[]
 }
 
 export type VaultSummary = {
@@ -49,7 +66,7 @@ export type CustomField = {
   field_type: string
 }
 
-export type LoginItemInput = Omit<LoginItem, 'id' | 'updated_at'>
+export type LoginItemInput = Omit<LoginItem, 'id' | 'relations' | 'updated_at'>
 
 export type PasswordGeneratorMode = 'passphrase' | 'pin' | 'random'
 
@@ -173,6 +190,8 @@ export const vaultApi = {
   hideQuickAccess: () => invoke<void>('hide_quick_access'),
   initialize: () => invoke<AppStatus>('initialize_database'),
   isAutostartEnabled: () => invoke<boolean>('is_autostart_enabled'),
+  // Peer links are stored on both items, so either end unlinks both.
+  linkRelated: (id: string, otherId: string) => invoke<void>('link_related_items', { id, otherId }),
   list: (query?: string) => invoke<LoginItem[]>('list_login_items', { query: query || null }),
   listVaults: () => invoke<VaultSummary[]>('list_vaults'),
   lock: () => invoke<void>('lock_vault'),
@@ -184,6 +203,8 @@ export const vaultApi = {
   restore: (id: string) => invoke<void>('restore_login_item', { id }),
   restoreFromTrash: (id: string) => invoke<void>('restore_trashed_login_item', { id }),
   setAutostart: (enabled: boolean) => invoke<void>('set_autostart', { enabled }),
+  // `parentId: null` clears the parent. Rust refuses itself, a cycle, and an item in the trash.
+  setParent: (id: string, parentId: string | null) => invoke<void>('set_item_parent', { id, parentId }),
   setup: (password: string) => invoke<LoginItem[]>('setup_master_password', { password }),
   // Archiving a vault archives what is in it too, so the items land in the view that already exists.
   setVaultArchived: (archived: boolean, id: string) => invoke<void>('set_vault_archived', { archived, id }),
@@ -191,6 +212,7 @@ export const vaultApi = {
   tags: () => invoke<Tag[]>('list_tags'),
   trash: (id: string) => invoke<void>('trash_login_item', { id }),
   trashed: () => invoke<LoginItem[]>('list_trashed_login_items'),
+  unlinkRelated: (id: string, otherId: string) => invoke<void>('unlink_related_items', { id, otherId }),
   unlock: (password: string) => invoke<LoginItem[]>('unlock_vault', { password }),
   unlockWithBiometrics: () => invoke<LoginItem[]>('unlock_with_biometrics'),
   update: (id: string, input: LoginItemInput) => invoke<LoginItem>('update_login_item', { input: { id, ...input } }),

@@ -235,6 +235,8 @@
     --measure-lock-panel: 360px;
     --measure-lock-field: 260px;
     --measure-modal: 420px;
+    /* The item picker's list: about seven 40pt rows before it scrolls. */
+    --measure-picker-list: 288px;
     --measure-detail-header: 720px;
     /* The sidebar and the item list are both drag-resized, so these are their starting widths and
        the clamp lives in App.tsx (sidebar 150-220, list 180-250). */
@@ -2724,6 +2726,103 @@
     outline-offset: var(--focus-ring-offset);
   }
 
+  /* Links between items (parent, child items, related items): rows of the same inset group the fields
+     use — glyph in the item type's hue, title over the type caption (lists-and-tables.md). A read-only
+     row that opens its item is the whole row as a button with a trailing chevron, like a navigation
+     row in System Settings; an archived counterpart is a plain row with nowhere to go. */
+  .relation-editor {
+    @apply mt-200 grid gap-200;
+  }
+
+  .relation-row {
+    @apply w-full text-left;
+  }
+
+  .relation-row.is-link {
+    color: var(--color-text);
+    @apply rounded-none border-0 bg-transparent transition-colors;
+  }
+
+  .relation-row.is-link:hover {
+    background: var(--color-background-neutral-subtle-hovered);
+  }
+
+  .relation-row-icon {
+    @apply shrink-0;
+  }
+
+  .relation-row-text {
+    @apply grid min-w-0 flex-1 gap-025;
+  }
+
+  .relation-row-title {
+    color: var(--color-text);
+    @apply truncate text-body;
+  }
+
+  .relation-row-caption {
+    color: var(--color-text-subtle);
+    @apply truncate text-callout;
+  }
+
+  .relation-row-chevron {
+    color: var(--color-icon-subtlest);
+    @apply shrink-0;
+  }
+
+  .relation-row .round-remove-button {
+    @apply grid h-300 w-400 shrink-0 place-items-center border-0 bg-transparent text-icon-danger transition-colors;
+  }
+
+  .relation-row .round-remove-button:hover {
+    background: var(--color-background-danger);
+  }
+
+  /* The item picker is a sheet (sheets.md): a filled search field over a scrolling list of the vault's
+     items, each row the same glyph-title-caption a link row shows. */
+  .relation-picker p.relation-picker-hint {
+    @apply mt-050 text-callout;
+  }
+
+  .relation-picker-search {
+    color: var(--color-icon-subtlest);
+    background: var(--color-background-neutral-subtle-hovered);
+    border-color: transparent;
+    @apply mt-200 flex h-350 items-center gap-075 rounded-medium border px-100;
+  }
+
+  .relation-picker-search:focus-within {
+    outline: var(--focus-ring-width) solid var(--color-focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .relation-picker-search input {
+    @apply h-auto min-w-0 flex-1 border-0 bg-transparent p-0 text-body text-text shadow-none outline-none;
+  }
+
+  .relation-picker-search input:focus {
+    background-color: transparent;
+  }
+
+  .relation-picker-list {
+    background: var(--color-surface-raised);
+    border-color: var(--color-border);
+    @apply mt-150 grid max-h-picker-list list-none overflow-auto rounded-large border p-050;
+  }
+
+  .relation-picker-option {
+    color: var(--color-text);
+    @apply flex min-h-500 w-full items-center gap-100 rounded-medium border-0 bg-transparent px-100 py-075 text-left transition-colors;
+  }
+
+  .relation-picker-option:hover {
+    background: var(--color-background-neutral-subtle-hovered);
+  }
+
+  .relation-picker p.relation-picker-empty {
+    @apply mt-150 text-center text-callout;
+  }
+
   /* A menu row under the pointer is highlighted in the accent with white text, glyph and caption
      (menus.md). Kept last so it outranks the icon tints and the danger colour above. */
   .menu-option:hover,
@@ -2739,6 +2838,23 @@
   .menu-option.is-danger:hover svg,
   .top-search-results button:hover small {
     color: var(--color-text-selected);
+  }
+
+  /* An unavailable menu row (Delete or Move on an item that still has links) keeps its place and its
+     explanation but takes no highlight (menus.md: dim an item that is unavailable). Kept after the hover
+     rule above so it wins. */
+  .add-more-menu .menu-option:disabled,
+  .add-more-menu .menu-option:disabled:hover,
+  .add-more-menu .menu-option:disabled svg,
+  .add-more-menu .menu-option:disabled:hover svg {
+    color: var(--color-text-disabled);
+    background: transparent;
+    @apply cursor-default;
+  }
+
+  .add-more-menu .menu-option:disabled small,
+  .add-more-menu .menu-option:disabled:hover small {
+    color: var(--color-text-subtle);
   }
 
   .top-search-results button:hover .item-icon {

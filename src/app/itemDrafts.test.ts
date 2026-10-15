@@ -17,6 +17,15 @@ function draft(overrides: Partial<DraftSnapshot> = {}): DraftSnapshot {
 }
 
 describe('item draft dirty checking', () => {
+  it('counts a link change as unsaved, but not the order links were picked in', () => {
+    const linked = { childIds: ['a', 'b'], parentId: null, relatedIds: [] }
+    expect(isFormDirty(draft(), draft({ relationDraft: { childIds: [], parentId: null, relatedIds: [] } }))).toBe(false)
+    expect(isFormDirty(draft(), draft({ relationDraft: linked }))).toBe(true)
+    expect(
+      isFormDirty(draft({ relationDraft: linked }), draft({ relationDraft: { ...linked, childIds: ['b', 'a'] } })),
+    ).toBe(false)
+  })
+
   it('treats an untouched form as clean', () => {
     expect(isFormDirty(draft(), draft())).toBe(false)
   })
