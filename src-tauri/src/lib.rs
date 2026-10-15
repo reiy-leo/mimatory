@@ -303,6 +303,41 @@ fn purge_login_item(id: String, state: State<AppState>) -> Result<(), String> {
     service.purge_item(&session, &id).map_err(String::from)
 }
 
+/// Sets or clears the one parent an item belongs to; the frontend re-lists afterwards.
+#[tauri::command]
+fn set_item_parent(
+    id: String,
+    parent_id: Option<String>,
+    state: State<AppState>,
+) -> Result<(), String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service
+        .set_item_parent(&session, &id, parent_id.as_deref())
+        .map_err(String::from)
+}
+
+#[tauri::command]
+fn link_related_items(id: String, other_id: String, state: State<AppState>) -> Result<(), String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service
+        .link_related_items(&session, &id, &other_id)
+        .map_err(String::from)
+}
+
+#[tauri::command]
+fn unlink_related_items(id: String, other_id: String, state: State<AppState>) -> Result<(), String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service
+        .unlink_related_items(&session, &id, &other_id)
+        .map_err(String::from)
+}
+
 #[tauri::command]
 fn archive_login_item(id: String, state: State<AppState>) -> Result<(), String> {
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
@@ -557,6 +592,9 @@ pub fn run() {
             restore_login_item,
             list_archived_login_items,
             set_login_favorite,
+            set_item_parent,
+            link_related_items,
+            unlink_related_items,
             list_tags,
             update_tag,
             delete_tag,

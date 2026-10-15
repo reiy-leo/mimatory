@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-const CURRENT_SCHEMA_VERSION: i64 = 2;
+const CURRENT_SCHEMA_VERSION: i64 = 3;
 
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -130,7 +130,10 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
             updated_at TEXT NOT NULL,
             /* Set on the rows a *vault* archiving flipped, so restoring the vault does not also
                restore an item the user had already archived on its own. */
-            archived_by_vault INTEGER NOT NULL DEFAULT 0
+            archived_by_vault INTEGER NOT NULL DEFAULT 0,
+            /* The item's parent and related-item links (schema 3), encrypted JSON of ids under the
+               vault key; NULL for an item with none. */
+            relations_ciphertext BLOB
         );
 
         CREATE TABLE IF NOT EXISTS tags (
@@ -256,6 +259,10 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
             "ALTER TABLE items ADD COLUMN archived_by_vault INTEGER NOT NULL DEFAULT 0",
             [],
         )?;
+    }
+
+    if !has_column(connection, "items", "relations_ciphertext")? {
+        connection.execute("ALTER TABLE items ADD COLUMN relations_ciphertext BLOB", [])?;
     }
 
     connection.execute(
@@ -545,6 +552,71 @@ mod tests {
             .expect("the existing item should survive the upgrade");
 
         assert_eq!(archived_by_vault, 0);
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn initialize_database_adds_item_relations_to_a_version_two_database() {
+        let (temp_dir, database_path) = temp_database("relations");
+        fs::create_dir_all(&temp_dir).expect("temp dir should exist");
+
+        {
+            let connection = Connection::open(&database_path).expect("database should open");
+            connection.execute_batch("
+                CREATE TABLE meta (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+                CREATE TABLE vaults (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name_ciphertext BLOB NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    icon TEXT NOT NULL DEFAULT 'vault',
+                    color TEXT NOT NULL DEFAULT '',
+                    archived INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE TABLE items (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    vault_id TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+                    item_type TEXT NOT NULL,
+                    title_ciphertext BLOB NOT NULL,
+                    favorite INTEGER NOT NULL DEFAULT 0,
+                    archived INTEGER NOT NULL DEFAULT 0,
+                    trashed INTEGER NOT NULL DEFAULT 0,
+                    deleted_at TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    archived_by_vault INTEGER NOT NULL DEFAULT 0
+                );
+                INSERT INTO vaults (id, name_ciphertext, created_at, updated_at)
+                VALUES ('personal', x'05', '2026-01-01', '2026-01-01');
+                INSERT INTO items (
+                    id, vault_id, item_type, title_ciphertext, created_at, updated_at
+                ) VALUES ('kept-item', 'personal', 'login', x'06', '2026-01-01', '2026-01-02');
+                INSERT INTO meta (key, value) VALUES ('schema_version', '2');
+            ").expect("relation-less items table should build");
+        }
+
+        initialize_database(&database_path).expect("database should upgrade");
+        initialize_database(&database_path).expect("upgrading twice should be harmless");
+
+        let connection = Connection::open(&database_path).expect("database should reopen");
+        assert!(
+            has_column(&connection, "items", "relations_ciphertext").expect("column check should run")
+        );
+        let (relations, title): (Option<Vec<u8>>, Vec<u8>) = connection
+            .query_row(
+                "SELECT relations_ciphertext, title_ciphertext FROM items WHERE id = 'kept-item'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("the existing item should survive the upgrade");
+        assert_eq!(relations, None);
+        assert_eq!(title, vec![6]);
+
+        let schema_version: String = connection
+            .query_row("SELECT value FROM meta WHERE key = 'schema_version'", [], |row| row.get(0))
+            .expect("schema version should exist");
+        assert_eq!(schema_version, "3");
 
         let _ = fs::remove_dir_all(temp_dir);
     }

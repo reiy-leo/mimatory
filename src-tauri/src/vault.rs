@@ -22,6 +22,8 @@ const DEFAULT_VAULT_ID: &str = "personal";
 const MASTER_VERIFIER_TEXT: &str = "passless-master-verifier";
 const MATCH_TYPE_EXACT: &str = "exact";
 const MATCH_TYPE_DOMAIN: &str = "domain";
+/// The field type older builds used to point at another item before links were real.
+const LEGACY_RELATED_FIELD: &str = "related_item";
 
 const GENERATOR_MODE_PASSPHRASE: &str = "passphrase";
 const GENERATOR_MODE_PIN: &str = "pin";
@@ -87,6 +89,53 @@ pub struct LoginItem {
     pub custom_fields: Vec<CustomField>,
     pub favorite: bool,
     pub updated_at: String,
+    /// The item's place among the others: the one parent it belongs to, the items that belong to
+    /// it, and its peers. Filled in for the lists the app window reads; the browser bridge never
+    /// asks for it, and an item with none leaves the key out of the payload entirely.
+    #[serde(default, skip_serializing_if = "ItemRelations::is_empty")]
+    pub relations: ItemRelations,
+}
+
+/// What the detail pane needs to draw one linked item and navigate to it. `archived` is shown
+/// beside the title, because a link survives archiving on either side.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct RelatedItemRef {
+    pub id: String,
+    pub title: String,
+    pub item_type: String,
+    pub archived: bool,
+}
+
+/// Two kinds of link. A child belongs to its parent (one parent per item, never a cycle); a
+/// related item is a peer, and the link is stored on both sides so either end reads it.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ItemRelations {
+    pub parent: Option<RelatedItemRef>,
+    pub children: Vec<RelatedItemRef>,
+    pub related: Vec<RelatedItemRef>,
+}
+
+impl ItemRelations {
+    pub fn is_empty(&self) -> bool {
+        self.parent.is_none() && self.children.is_empty() && self.related.is_empty()
+    }
+}
+
+/// What `items.relations_ciphertext` decrypts to: ids only, under the vault key like every other
+/// value, so the link graph is no more visible on disk than an item's title is. Children are not
+/// stored — they are the items whose `parent` names this one.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+struct RelationRecord {
+    #[serde(default)]
+    parent: Option<String>,
+    #[serde(default)]
+    related: Vec<String>,
+}
+
+impl RelationRecord {
+    fn is_empty(&self) -> bool {
+        self.parent.is_none() && self.related.is_empty()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -222,6 +271,16 @@ pub enum VaultError {
     VaultDestinationRequired,
     #[error("the last vault cannot be dissolved")]
     VaultLastOne,
+    #[error("an item cannot be linked to itself")]
+    RelationSelf,
+    #[error("that link would make an item its own parent")]
+    RelationCycle,
+    #[error("the item to link was not found")]
+    RelationItemNotFound,
+    #[error("this item has a parent, child items or related items; remove those links or archive it instead")]
+    ItemHasRelations,
+    #[error("this item has linked items; remove those links before moving it to another vault")]
+    ItemRelationsBlockMove,
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
     #[error("crypto error: {0}")]
@@ -308,6 +367,7 @@ impl VaultService {
         };
         self.migrate_legacy_tags(&session)?;
         self.migrate_standalone_passkeys(&session)?;
+        self.migrate_legacy_related_fields(&session)?;
         Ok(session)
     }
 
@@ -346,9 +406,11 @@ impl VaultService {
         let urls = normalized_urls(&input.website, &input.urls);
         self.replace_login_urls(session, &id, &urls)?;
 
-        Ok(self
+        let mut created = self
             .get_login_item(session, &id)?
-            .expect("created login item should be readable"))
+            .expect("created login item should be readable");
+        created.relations = self.item_relations(session, &id)?;
+        Ok(created)
     }
 
     /// Copies an item under a title the caller supplies, because the word for a copy belongs to
@@ -441,7 +503,7 @@ impl VaultService {
     }
 
     pub fn export_login_items(&self, session: &Session) -> Result<Vec<LoginItem>, VaultError> {
-        self.list_login_items(session, None)
+        self.list_live_items(session, None)
     }
 
     /// Every vault, archived ones included — the sidebar splits the two into their own groups, and it
@@ -671,6 +733,7 @@ impl VaultService {
         };
         self.migrate_legacy_tags(&session)?;
         self.migrate_standalone_passkeys(&session)?;
+        self.migrate_legacy_related_fields(&session)?;
         Ok(session)
     }
 
@@ -687,6 +750,10 @@ impl VaultService {
         let target = self.session_for_vault(session, vault_id)?;
         if target.vault_id == session.vault_id {
             return Ok(());
+        }
+        // Links never cross a vault, so an item that has any stays where its counterparts are.
+        if self.has_relations(session, item_id)? {
+            return Err(VaultError::ItemRelationsBlockMove);
         }
 
         let moved = self.connection.execute(
@@ -802,12 +869,19 @@ impl VaultService {
         let urls = normalized_urls(&input.website, &input.urls);
         self.replace_login_urls(session, &input.id, &urls)?;
 
-        Ok(self
+        let mut updated = self
             .get_login_item(session, &input.id)?
-            .expect("updated login item should be readable"))
+            .expect("updated login item should be readable");
+        updated.relations = self.item_relations(session, &input.id)?;
+        Ok(updated)
     }
 
+    /// Deleting is refused while the item has any link: the parent would silently lose a child, or a
+    /// peer its counterpart. Archiving is the way to put such an item away (links are kept).
     pub fn trash_item(&mut self, session: &Session, item_id: &str) -> Result<(), VaultError> {
+        if self.has_relations(session, item_id)? {
+            return Err(VaultError::ItemHasRelations);
+        }
         let now = Utc::now().to_rfc3339();
         let trashed = self.connection.execute(
             "UPDATE items SET trashed = 1, deleted_at = ?1, updated_at = ?1
@@ -860,6 +934,9 @@ impl VaultService {
     }
 
     pub fn purge_item(&mut self, session: &Session, item_id: &str) -> Result<(), VaultError> {
+        if self.has_relations(session, item_id)? {
+            return Err(VaultError::ItemHasRelations);
+        }
         let purged = self.connection.execute(
             "DELETE FROM items WHERE id = ?1 AND vault_id = ?2 AND trashed = 1",
             params![item_id, session.vault_id],
@@ -1012,7 +1089,20 @@ impl VaultService {
     }
 
 
+    /// The live items the app window lists, each with its links resolved.
     pub fn list_login_items(
+        &self,
+        session: &Session,
+        query: Option<&str>,
+    ) -> Result<Vec<LoginItem>, VaultError> {
+        let mut items = self.list_live_items(session, query)?;
+        self.attach_relations(session, &mut items)?;
+        Ok(items)
+    }
+
+    /// The live items without their links — what the bridge, Watchtower and the migrations read,
+    /// none of which has any use for other items' titles.
+    fn list_live_items(
         &self,
         session: &Session,
         query: Option<&str>,
@@ -1060,7 +1150,7 @@ impl VaultService {
             return Ok(Vec::new());
         };
         let mut matches = Vec::new();
-        for item in self.list_login_items(session, None)? {
+        for item in self.list_live_items(session, None)? {
             if normalized_urls(&item.website, &item.urls)
                 .iter()
                 .any(|url| url_matches_host(&url.url, &request_host, &url.match_type))
@@ -1072,7 +1162,7 @@ impl VaultService {
     }
 
     pub fn watchtower_report(&self, session: &Session) -> Result<WatchtowerReport, VaultError> {
-        let items = self.list_login_items(session, None)?;
+        let items = self.list_live_items(session, None)?;
         let mut weak_passwords = Vec::new();
         let mut missing_websites = Vec::new();
         let mut missing_totp = Vec::new();
@@ -1199,7 +1289,7 @@ impl VaultService {
     ) -> Result<LoginItem, VaultError> {
         let rp_id = rp_id.trim();
         let target = self
-            .list_login_items(session, None)?
+            .list_live_items(session, None)?
             .into_iter()
             .find(|item| item.item_type != PASSKEY_ITEM_TYPE && item_matches_rp_id(item, rp_id));
 
@@ -1255,7 +1345,7 @@ impl VaultService {
     /// to. Runs on every unlock and is a no-op once nothing is left.
     fn migrate_standalone_passkeys(&mut self, session: &Session) -> Result<(), VaultError> {
         let legacy = self
-            .list_login_items(session, None)?
+            .list_live_items(session, None)?
             .into_iter()
             .filter(|item| item.item_type == PASSKEY_ITEM_TYPE)
             .collect::<Vec<_>>();
@@ -1272,7 +1362,7 @@ impl VaultService {
             }
 
             let target = self
-                .list_login_items(session, None)?
+                .list_live_items(session, None)?
                 .into_iter()
                 .find(|item| {
                     item.item_type != PASSKEY_ITEM_TYPE && item_matches_rp_id(item, &rp_id)
@@ -1325,6 +1415,298 @@ impl VaultService {
         Ok(())
     }
 
+    /// Sets (or, with `None`, clears) the one parent an item belongs to. Both ends must be items of
+    /// this vault that are not in the trash; an item cannot be its own parent, nor the parent of
+    /// anything above it.
+    pub fn set_item_parent(
+        &mut self,
+        session: &Session,
+        item_id: &str,
+        parent_id: Option<&str>,
+    ) -> Result<(), VaultError> {
+        if !self.linkable_item_exists(session, item_id)? {
+            return Err(VaultError::RelationItemNotFound);
+        }
+        let mut record = self.relation_record(session, item_id)?;
+        if let Some(parent_id) = parent_id {
+            if parent_id == item_id {
+                return Err(VaultError::RelationSelf);
+            }
+            if !self.linkable_item_exists(session, parent_id)? {
+                return Err(VaultError::RelationItemNotFound);
+            }
+            let index = self.relation_index(session)?;
+            let mut cursor = Some(parent_id.to_string());
+            let mut seen = HashSet::new();
+            while let Some(current) = cursor {
+                if current == item_id {
+                    return Err(VaultError::RelationCycle);
+                }
+                if !seen.insert(current.clone()) {
+                    break;
+                }
+                cursor = index.get(&current).and_then(|record| record.parent.clone());
+            }
+        }
+        let next = parent_id.map(str::to_string);
+        if record.parent == next {
+            return Ok(());
+        }
+        record.parent = next;
+        self.write_relation_record(session, item_id, &record)?;
+        self.record_event("relate_item", &format!("Set the parent of item {item_id}"))?;
+        Ok(())
+    }
+
+    /// Links two items as peers. The link is written on both sides, so either one lists the other
+    /// and unlinking from either end clears both.
+    pub fn link_related_items(
+        &mut self,
+        session: &Session,
+        item_id: &str,
+        other_id: &str,
+    ) -> Result<(), VaultError> {
+        if item_id == other_id {
+            return Err(VaultError::RelationSelf);
+        }
+        if !self.linkable_item_exists(session, item_id)?
+            || !self.linkable_item_exists(session, other_id)?
+        {
+            return Err(VaultError::RelationItemNotFound);
+        }
+        for (from, to) in [(item_id, other_id), (other_id, item_id)] {
+            let mut record = self.relation_record(session, from)?;
+            if !record.related.iter().any(|id| id == to) {
+                record.related.push(to.to_string());
+                self.write_relation_record(session, from, &record)?;
+            }
+        }
+        self.record_event("relate_item", &format!("Linked items {item_id} and {other_id}"))?;
+        Ok(())
+    }
+
+    pub fn unlink_related_items(
+        &mut self,
+        session: &Session,
+        item_id: &str,
+        other_id: &str,
+    ) -> Result<(), VaultError> {
+        for (from, to) in [(item_id, other_id), (other_id, item_id)] {
+            let mut record = self.relation_record(session, from)?;
+            let before = record.related.len();
+            record.related.retain(|id| id != to);
+            if record.related.len() != before {
+                self.write_relation_record(session, from, &record)?;
+            }
+        }
+        self.record_event("unrelate_item", &format!("Unlinked items {item_id} and {other_id}"))?;
+        Ok(())
+    }
+
+    /// Whether the item has any link the user can see — a dangling id (its counterpart gone) does
+    /// not count, because nothing in the app could remove it and it would block deleting forever.
+    fn has_relations(&self, session: &Session, item_id: &str) -> Result<bool, VaultError> {
+        Ok(!self.item_relations(session, item_id)?.is_empty())
+    }
+
+    /// An item that can take part in a link: in this vault and not in the trash. Archived items
+    /// can — archiving keeps links, so refusing new ones there would be arbitrary.
+    fn linkable_item_exists(&self, session: &Session, item_id: &str) -> Result<bool, VaultError> {
+        Ok(self
+            .connection
+            .query_row(
+                "SELECT 1 FROM items WHERE id = ?1 AND vault_id = ?2 AND trashed = 0",
+                params![item_id, session.vault_id],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some())
+    }
+
+    fn relation_record(&self, session: &Session, item_id: &str) -> Result<RelationRecord, VaultError> {
+        let blob = self
+            .connection
+            .query_row(
+                "SELECT relations_ciphertext FROM items WHERE id = ?1 AND vault_id = ?2",
+                params![item_id, session.vault_id],
+                |row| row.get::<_, Option<Vec<u8>>>(0),
+            )
+            .optional()?
+            .flatten();
+        match blob {
+            Some(blob) => Ok(serde_json::from_str(&decrypt_string_from_blob(&session.key, &blob)?)?),
+            None => Ok(RelationRecord::default()),
+        }
+    }
+
+    /// An item with no links goes back to NULL rather than an encrypted empty record.
+    fn write_relation_record(
+        &self,
+        session: &Session,
+        item_id: &str,
+        record: &RelationRecord,
+    ) -> Result<(), VaultError> {
+        let blob = if record.is_empty() {
+            None
+        } else {
+            Some(encrypt_string_to_blob(&session.key, &serde_json::to_string(record)?)?)
+        };
+        self.connection.execute(
+            "UPDATE items SET relations_ciphertext = ?1 WHERE id = ?2 AND vault_id = ?3",
+            params![blob, item_id, session.vault_id],
+        )?;
+        Ok(())
+    }
+
+    /// Every stored link record in the vault, decrypted once, so resolving a whole list is one pass
+    /// rather than one scan per item.
+    fn relation_index(&self, session: &Session) -> Result<HashMap<String, RelationRecord>, VaultError> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, relations_ciphertext FROM items
+             WHERE vault_id = ?1 AND relations_ciphertext IS NOT NULL",
+        )?;
+        let rows = statement
+            .query_map([&session.vault_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut index = HashMap::new();
+        for (id, blob) in rows {
+            let record: RelationRecord =
+                serde_json::from_str(&decrypt_string_from_blob(&session.key, &blob)?)?;
+            index.insert(id, record);
+        }
+        Ok(index)
+    }
+
+    /// A linked item as the detail pane draws it; `None` for an id that no longer resolves to an
+    /// item of this vault outside the trash.
+    fn relation_ref(
+        &self,
+        session: &Session,
+        item_id: &str,
+    ) -> Result<Option<RelatedItemRef>, VaultError> {
+        let row = self
+            .connection
+            .query_row(
+                "SELECT item_type, title_ciphertext, archived FROM items
+                 WHERE id = ?1 AND vault_id = ?2 AND trashed = 0",
+                params![item_id, session.vault_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, Vec<u8>>(1)?,
+                        row.get::<_, i64>(2)?,
+                    ))
+                },
+            )
+            .optional()?;
+        let Some((item_type, title_ciphertext, archived)) = row else {
+            return Ok(None);
+        };
+        Ok(Some(RelatedItemRef {
+            id: item_id.to_string(),
+            title: decrypt_string_from_blob(&session.key, &title_ciphertext)?,
+            item_type,
+            archived: archived == 1,
+        }))
+    }
+
+    fn resolve_relations(
+        &self,
+        session: &Session,
+        item_id: &str,
+        index: &HashMap<String, RelationRecord>,
+    ) -> Result<ItemRelations, VaultError> {
+        let mut relations = ItemRelations::default();
+        if let Some(record) = index.get(item_id) {
+            if let Some(parent_id) = &record.parent {
+                relations.parent = self.relation_ref(session, parent_id)?;
+            }
+            for related_id in &record.related {
+                if let Some(related) = self.relation_ref(session, related_id)? {
+                    relations.related.push(related);
+                }
+            }
+        }
+        for (child_id, record) in index {
+            if record.parent.as_deref() == Some(item_id) {
+                if let Some(child) = self.relation_ref(session, child_id)? {
+                    relations.children.push(child);
+                }
+            }
+        }
+        relations
+            .children
+            .sort_by(|left, right| left.title.to_lowercase().cmp(&right.title.to_lowercase()));
+        Ok(relations)
+    }
+
+    pub fn item_relations(&self, session: &Session, item_id: &str) -> Result<ItemRelations, VaultError> {
+        let index = self.relation_index(session)?;
+        self.resolve_relations(session, item_id, &index)
+    }
+
+    fn attach_relations(&self, session: &Session, items: &mut [LoginItem]) -> Result<(), VaultError> {
+        let index = self.relation_index(session)?;
+        if index.is_empty() {
+            return Ok(());
+        }
+        for item in items.iter_mut() {
+            item.relations = self.resolve_relations(session, &item.id, &index)?;
+        }
+        Ok(())
+    }
+
+    /// Builds before this one offered a "related item" *field* holding another item's id. Each one
+    /// that still names a live item of this vault becomes a real peer link and the field goes; one
+    /// whose target is gone is left as it was, so nothing the user typed disappears. Items in the
+    /// trash are skipped, because a linked item may not sit there.
+    fn migrate_legacy_related_fields(&mut self, session: &Session) -> Result<(), VaultError> {
+        let mut statement = self
+            .connection
+            .prepare("SELECT id FROM items WHERE vault_id = ?1 AND trashed = 0")?;
+        let ids = statement
+            .query_map([&session.vault_id], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        drop(statement);
+
+        for id in ids {
+            let Some(item) = self.get_login_item(session, &id)? else {
+                continue;
+            };
+            if !item.custom_fields.iter().any(|field| field.field_type == LEGACY_RELATED_FIELD) {
+                continue;
+            }
+            let mut kept = Vec::new();
+            let mut linked = false;
+            for field in item.custom_fields {
+                let target = field.value.trim().to_string();
+                if field.field_type == LEGACY_RELATED_FIELD
+                    && !target.is_empty()
+                    && target != id
+                    && self.linkable_item_exists(session, &target)?
+                {
+                    self.link_related_items(session, &id, &target)?;
+                    linked = true;
+                    continue;
+                }
+                kept.push(field);
+            }
+            if linked {
+                self.replace_login_fields(
+                    session,
+                    &id,
+                    &item.username,
+                    &item.password,
+                    &item.notes,
+                    &kept,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
     fn list_login_items_by_archive_state(
         &self,
         session: &Session,
@@ -1348,6 +1730,7 @@ impl VaultService {
                 items.push(item);
             }
         }
+        self.attach_relations(session, &mut items)?;
         Ok(items)
     }
 
@@ -1400,6 +1783,7 @@ impl VaultService {
             custom_fields,
             favorite: favorite == 1,
             updated_at,
+            relations: ItemRelations::default(),
         }))
     }
 
@@ -3841,6 +4225,246 @@ mod tests {
                 .len(),
             2
         );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    fn relation_service(name: &str) -> (std::path::PathBuf, VaultService, Session) {
+        let path = test_database_path(name);
+        initialize_database(&path).expect("database should initialize");
+        let connection = open_database(&path).expect("database should open");
+        let mut service = VaultService::new(connection);
+        let session = service
+            .setup_master_password("master-password")
+            .expect("master password should setup");
+        (path, service, session)
+    }
+
+    fn create_titled(service: &mut VaultService, session: &Session, title: &str) -> String {
+        service
+            .create_login_item(session, login_input(title, vec![]))
+            .expect("item should create")
+            .id
+    }
+
+    fn listed_relations(service: &VaultService, session: &Session, id: &str) -> ItemRelations {
+        service
+            .list_login_items(session, None)
+            .expect("items should list")
+            .into_iter()
+            .find(|item| item.id == id)
+            .expect("item should be listed")
+            .relations
+    }
+
+    fn ref_titles(refs: &[RelatedItemRef]) -> Vec<String> {
+        refs.iter().map(|item| item.title.clone()).collect()
+    }
+
+    #[test]
+    fn a_child_lists_its_parent_and_the_parent_lists_its_children() {
+        let (path, mut service, session) = relation_service("relations-parent");
+        let bank = create_titled(&mut service, &session, "Bank");
+        let card = create_titled(&mut service, &session, "Credit card");
+        let app = create_titled(&mut service, &session, "App login");
+
+        service.set_item_parent(&session, &card, Some(&bank)).expect("parent should set");
+        service.set_item_parent(&session, &app, Some(&bank)).expect("parent should set");
+
+        let bank_relations = listed_relations(&service, &session, &bank);
+        assert_eq!(bank_relations.parent, None);
+        assert_eq!(ref_titles(&bank_relations.children), vec!["App login", "Credit card"]);
+        let card_relations = listed_relations(&service, &session, &card);
+        assert_eq!(card_relations.parent.map(|parent| parent.title), Some("Bank".to_string()));
+        assert!(card_relations.children.is_empty());
+
+        // One parent per item: setting another replaces it.
+        service.set_item_parent(&session, &card, Some(&app)).expect("parent should move");
+        assert_eq!(ref_titles(&listed_relations(&service, &session, &bank).children), vec!["App login"]);
+
+        service.set_item_parent(&session, &card, None).expect("parent should clear");
+        assert!(listed_relations(&service, &session, &card).is_empty());
+        let stored: Option<Vec<u8>> = service
+            .connection()
+            .query_row("SELECT relations_ciphertext FROM items WHERE id = ?1", [&card], |row| {
+                row.get(0)
+            })
+            .expect("row should read");
+        assert_eq!(stored, None, "an item with no links goes back to NULL");
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn a_parent_link_refuses_itself_and_any_cycle() {
+        let (path, mut service, session) = relation_service("relations-cycle");
+        let a = create_titled(&mut service, &session, "A");
+        let b = create_titled(&mut service, &session, "B");
+        let c = create_titled(&mut service, &session, "C");
+
+        assert!(matches!(
+            service.set_item_parent(&session, &a, Some(&a)),
+            Err(VaultError::RelationSelf)
+        ));
+        service.set_item_parent(&session, &b, Some(&a)).expect("b under a");
+        service.set_item_parent(&session, &c, Some(&b)).expect("c under b");
+        assert!(matches!(
+            service.set_item_parent(&session, &a, Some(&c)),
+            Err(VaultError::RelationCycle)
+        ));
+        assert!(matches!(
+            service.set_item_parent(&session, &a, Some(&b)),
+            Err(VaultError::RelationCycle)
+        ));
+        assert!(matches!(
+            service.set_item_parent(&session, &a, Some("missing")),
+            Err(VaultError::RelationItemNotFound)
+        ));
+        assert_eq!(listed_relations(&service, &session, &a).parent, None);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn a_related_link_is_symmetric_and_unlinks_from_either_end() {
+        let (path, mut service, session) = relation_service("relations-related");
+        let server = create_titled(&mut service, &session, "Server");
+        let database = create_titled(&mut service, &session, "Database");
+
+        assert!(matches!(
+            service.link_related_items(&session, &server, &server),
+            Err(VaultError::RelationSelf)
+        ));
+        service.link_related_items(&session, &server, &database).expect("link");
+        service.link_related_items(&session, &database, &server).expect("linking twice is harmless");
+
+        assert_eq!(ref_titles(&listed_relations(&service, &session, &server).related), vec!["Database"]);
+        assert_eq!(ref_titles(&listed_relations(&service, &session, &database).related), vec!["Server"]);
+
+        service.unlink_related_items(&session, &database, &server).expect("unlink");
+        assert!(listed_relations(&service, &session, &server).is_empty());
+        assert!(listed_relations(&service, &session, &database).is_empty());
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn relation_data_is_stored_encrypted() {
+        let (path, mut service, session) = relation_service("relations-encrypted");
+        let a = create_titled(&mut service, &session, "A");
+        let b = create_titled(&mut service, &session, "B");
+        service.link_related_items(&session, &a, &b).expect("link");
+
+        let blob: Vec<u8> = service
+            .connection()
+            .query_row("SELECT relations_ciphertext FROM items WHERE id = ?1", [&a], |row| {
+                row.get(0)
+            })
+            .expect("row should read");
+        let haystack = String::from_utf8_lossy(&blob);
+        assert!(!haystack.contains(&b), "the linked id must not be readable on disk");
+        assert!(!haystack.contains("related"));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn a_linked_item_cannot_be_deleted_or_moved_but_can_be_archived() {
+        let (path, mut service, session) = relation_service("relations-guard");
+        let parent = create_titled(&mut service, &session, "Parent");
+        let child = create_titled(&mut service, &session, "Child");
+        let peer = create_titled(&mut service, &session, "Peer");
+        let loose = create_titled(&mut service, &session, "Loose");
+        service.set_item_parent(&session, &child, Some(&parent)).expect("parent");
+        service.link_related_items(&session, &parent, &peer).expect("link");
+        let work = service.create_vault(&session, "Work").expect("vault should create");
+
+        for id in [&parent, &child, &peer] {
+            assert!(matches!(service.trash_item(&session, id), Err(VaultError::ItemHasRelations)));
+            assert!(matches!(
+                service.move_login_item(&session, id, &work.id),
+                Err(VaultError::ItemRelationsBlockMove)
+            ));
+        }
+        assert!(service.list_trashed_login_items(&session).expect("trash").is_empty());
+        service.trash_item(&session, &loose).expect("an unlinked item still deletes");
+
+        // Archiving keeps the links, and both ends show the archived state.
+        service.archive_item(&session, &child).expect("archive should work");
+        let parent_relations = listed_relations(&service, &session, &parent);
+        assert_eq!(parent_relations.children.len(), 1);
+        assert!(parent_relations.children[0].archived);
+        let archived = service.list_archived_login_items(&session).expect("archived");
+        assert_eq!(archived[0].relations.parent.as_ref().map(|item| item.id.clone()), Some(parent.clone()));
+        assert!(matches!(service.trash_item(&session, &child), Err(VaultError::ItemHasRelations)));
+
+        // Unlinking frees them again.
+        service.set_item_parent(&session, &child, None).expect("unparent");
+        service.unlink_related_items(&session, &peer, &parent).expect("unlink");
+        service.trash_item(&session, &child).expect("child deletes once unlinked");
+        service.trash_item(&session, &parent).expect("parent deletes once unlinked");
+        service.purge_item(&session, &parent).expect("purge");
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn trashed_items_cannot_be_linked_and_duplicates_start_unlinked() {
+        let (path, mut service, session) = relation_service("relations-trash");
+        let a = create_titled(&mut service, &session, "A");
+        let b = create_titled(&mut service, &session, "B");
+        let gone = create_titled(&mut service, &session, "Gone");
+        service.trash_item(&session, &gone).expect("trash");
+        assert!(matches!(
+            service.link_related_items(&session, &a, &gone),
+            Err(VaultError::RelationItemNotFound)
+        ));
+        assert!(matches!(
+            service.set_item_parent(&session, &gone, Some(&a)),
+            Err(VaultError::RelationItemNotFound)
+        ));
+
+        service.link_related_items(&session, &a, &b).expect("link");
+        let copy = service.duplicate_login_item(&session, &a, "A copy").expect("duplicate");
+        assert!(copy.relations.is_empty());
+        assert!(listed_relations(&service, &session, &copy.id).is_empty());
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn unlock_turns_legacy_related_item_fields_into_links() {
+        let (path, mut service, session) = relation_service("relations-legacy");
+        let target = create_titled(&mut service, &session, "Target");
+        let mut input = login_input("Source", vec![]);
+        input.custom_fields = vec![
+            CustomField {
+                label: "Related item".into(),
+                value: target.clone(),
+                field_type: "related_item".into(),
+            },
+            CustomField {
+                label: "Related item".into(),
+                value: "no-such-item".into(),
+                field_type: "related_item".into(),
+            },
+            CustomField { label: "PIN".into(), value: "1234".into(), field_type: "text".into() },
+        ];
+        let source = service.create_login_item(&session, input).expect("source").id;
+
+        let session = service.unlock("master-password").expect("unlock should migrate");
+        let items = service.list_login_items(&session, None).expect("items");
+        let migrated = items.iter().find(|item| item.id == source).expect("source listed");
+        assert_eq!(ref_titles(&migrated.relations.related), vec!["Target"]);
+        assert_eq!(
+            migrated.custom_fields.iter().map(|field| field.value.as_str()).collect::<Vec<_>>(),
+            vec!["no-such-item", "1234"],
+            "a field whose target is gone stays, and other fields are untouched"
+        );
+        assert_eq!(ref_titles(&listed_relations(&service, &session, &target).related), vec!["Source"]);
+
+        service.unlock("master-password").expect("a second unlock changes nothing");
+        assert_eq!(listed_relations(&service, &session, &target).related.len(), 1);
 
         let _ = std::fs::remove_file(path);
     }
