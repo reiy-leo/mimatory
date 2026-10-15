@@ -26,12 +26,12 @@ npm run dev          # Vite dev server on :1430 (Tauri launches this automatical
 npm run build        # tailwindcss (extension CSS) → tsc → vite build
 npm run build:css    # Tailwind-compiles src/styles.css only, to /tmp — proves a token resolves
 npm run typecheck    # tsc --noEmit only, without the bundle
-npm run test         # Vitest, all 19 files (node environment; fork pool capped at 2)
+npm run test         # Vitest, all 21 files (node environment; fork pool capped at 2)
 npm run test:design  # Only src/app/designContract.test.ts — the Apple-design token/CSS/className guard
 npm run lint:fix     # biome check --write (JS/TS, CSS, JSON)
 npm run tauri dev    # Full desktop app (frontend + Rust backend)
 npm run tauri build  # Production .app — the only build where the CSP takes effect
-cd src-tauri && cargo test   # Rust unit tests (vault, storage, crypto, bridge)
+cd src-tauri && cargo test   # Rust unit tests (vault, storage, crypto, bridge); on Linux run with a private TMPDIR
 ```
 
 No CI, no pre-commit hooks: the gates are manual, and you run only the tier the diff needs.
@@ -109,6 +109,7 @@ src/                  # React frontend
   app/itemTags.ts sidebarHighlights.ts securityPreferences.ts lockScreen.ts totpDisplay.ts
   app/relativeTime.ts menuPlacement.ts itemDrafts.ts itemTemplates.ts windowPlacement.ts otpQrImport.ts
   app/itemFields.ts fieldFormats.ts fieldControls.tsx  # typed item fields: template bridge, rules, view/edit components
+  app/itemRelations.ts relationControls.tsx  # parent / child / related links: draft diffing, picker rules, the row group
   app/designContract.test.ts  # executable guard for the .agent/design.md rules
   test/setup.ts       # jest-dom matcher import; present but NOT wired (no test uses a matcher)
 
@@ -356,6 +357,31 @@ browser-extension/    # Manifest V3 extension (not built by Vite)
   Because the Rust session may have been reading the row just deleted, the frontend re-points it through
   `handleSwitchVault` rather than duplicating the `state.session` / `biometric_session` sync block a sixth time; if
   the last live vault is archived there is nowhere to switch, so it stays parked and only re-lists.
+
+- **Item relations** (2026-10-15, owner: "子项（从属关系）… 关联项（平等关系）。有这种关系的不能删除，可归档"). Two
+  kinds of link: a **child** belongs to one parent (no self, no cycle — `set_item_parent` walks the parent chain),
+  a **related** item is a peer and the link is written on **both** items so either end lists and unlinks it.
+  Storage is `items.relations_ciphertext` (schema 3, added by `ALTER TABLE` like every earlier column): encrypted
+  JSON `{parent, related: [ids]}` under the vault key, **NULL when empty** — so the link graph is no more readable
+  on disk than a title, and the only plaintext signal is NULL vs not (same class as `favorite`/`archived`).
+  Children are not stored; they are the items whose `parent` names this one, resolved from one decrypted index
+  per list (`relation_index`). `list_login_items` / archived / trashed and create/update returns carry
+  `relations: {parent, children, related}` (id, title, item_type, archived), skipped from the JSON when empty;
+  the browser bridge, Watchtower and the migrations read `list_live_items`, which never resolves them, so the
+  extension sees no other item's title. **Rules**: links stay inside one vault (only live, non-trashed items of
+  the session's vault can be linked); an item with any *resolvable* link cannot be trashed, purged or moved
+  (`ItemHasRelations`, `ItemRelationsBlockMove` — a dangling id does not count, or nothing could ever free it);
+  **archiving is allowed and keeps the links**, and both ends show the archived counterpart with an "Archived"
+  caption (it is not navigable: the pane only opens live items). Dissolving a vault moves every item together, so
+  links survive it; a duplicate starts unlinked. The old `related_item` custom field is migrated on unlock into a
+  real peer link when its target is still live in that vault (left as a field otherwise). In the UI the links are
+  part of the edit form (`relationDraft` in `LoginFormState`, compared by `itemDrafts`) and only written on Save,
+  after the item, removals first (`relationChanges`); Cancel discards them. Add More ends with Parent Item… /
+  Child Item… / Related Item…, each opening the picker sheet (search field, ↑/↓, Return picks a single match),
+  whose candidates exclude self, already-linked items, anything that would close a loop, and — for a child —
+  items that already have another parent. In the item menu, Delete and Move To stay visible but disabled with a
+  one-line reason while the item has links; Archive sits right above. There is no bulk delete anywhere, so
+  there is no bulk path to guard.
 
 - **Item templates and typed fields** (2026-10-14). Every category's default fields are data in
   `src/app/itemTemplates.ts` (key, `field_type`, label key, options, rules); the editor and the read-only view

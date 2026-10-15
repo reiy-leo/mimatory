@@ -48,10 +48,21 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
   custom-field *labels* in English (`expiry`, `otp`, `2fa`), so a card or passport expiry inside a template
   section, or any zh/ja label, is invisible to it. The fix belongs in Rust (read section JSON children and their
   `key` / `field_type`), with tests; the frontend already shows "Expired" / "Expires soon" per field.
+- **needs-owner-decision — Item relations (2026-10-15), choices made without the owner.** (1) Delete/Move are
+  refused while an item has *any* link, including being someone's parent; the alternative was to let a parent
+  go and orphan its children. (2) Links never cross vaults, so Move is refused rather than carrying counterparts
+  along. (3) Wording: en Parent Item / Child Items / Related Items, zh 上级项 / 子项 / 关联项, ja 親項目 / 子項目 / 関連項目.
+  (4) No child-count badge on list rows (left out to keep rows quiet; cheap to add from `relations.children`).
+  (5) `relations_ciphertext` NULL vs not reveals *that* an item has links (not which); writing an encrypted empty
+  record for every item would hide even that.
 - **Template field placeholders are generic** ("Value") except card number, email, URL and month/year; a
   per-field example placeholder in the template data would be cheap if wanted.
 
 ## Never yet seen in a running app
+
+- Item relations (2026-10-15): the parent / child / related sections, the picker sheet and the disabled Delete
+  and Move rows. Checked in Vite + Chromium against a stubbed bridge (light and dark) and the Rust side by
+  `cargo test` of vault/storage/crypto; never in a real window.
 
 Everything in this list is written and unit-proven or not proven at all; none of it has been observed.
 
