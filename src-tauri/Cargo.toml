@@ -20,10 +20,6 @@ chrono = { version = "0.4", features = ["serde"] }
 data-encoding = "2"
 dirs = "6"
 hmac = "0.12"
-block2 = "0.6"
-objc2 = "0.6"
-objc2-foundation = "0.3"
-objc2-local-authentication = "0.3"
 rand = "0.8"
 reqwest = { version = "0.12", features = ["blocking", "json"] }
 rfd = "0.15"
@@ -40,3 +36,11 @@ tauri-plugin-single-instance = "2.5.2"
 thiserror = "2"
 tiny_http = "0.12"
 uuid = { version = "1", features = ["v4"] }
+
+# Touch ID (biometric.rs). Only the macOS build links them; `biometric.rs` already gates every use
+# behind `cfg(target_os = "macos")`, so other targets (CI, a Linux box running `cargo test`) compile.
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = "0.6"
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-local-authentication = "0.3"
