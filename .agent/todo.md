@@ -41,11 +41,9 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 - **Neither sidebar column's width persists across a restart**, and no real mouse drag in the Tauri window has
   ever been exercised — only the clamps, through the browser harness.
 
-- **needs-owner-decision — Opening a URL field in the browser.** `FieldView` renders the open button as an
-  `<a target="_blank" rel="noopener noreferrer">` because no opener exists in the app. In a browser harness it
-  works; in WKWebView under Tauri v2 a `_blank` navigation most likely does nothing without
-  `tauri-plugin-opener` (Rust dependency + `opener:allow-open-url` in `capabilities/main.json`). Adding a plugin
-  and a capability was left to the owner.
+- **Opening a URL field — verify on a Mac (owner approved tauri-plugin-opener, 2026-10-15).** `FieldView`'s open
+  button hands http/https/mailto/tel links to `openUrl` (`src/app/openExternal.ts`); capabilities grant
+  `opener:allow-open-url` + `opener:allow-default-urls` only (no reveal-in-Finder). Not yet clicked in a real window.
 - **Watchtower does not see template fields.** `has_expiring_field` / `has_totp` in `vault.rs` match top-level
   custom-field *labels* in English (`expiry`, `otp`, `2fa`), so a card or passport expiry inside a template
   section, or any zh/ja label, is invisible to it. The fix belongs in Rust (read section JSON children and their

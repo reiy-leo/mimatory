@@ -23,6 +23,7 @@ import {
   urlHostname,
 } from './fieldFormats'
 import { type OptionSetName, optionLabelKey, optionSets } from './itemTemplates'
+import { openExternal } from './openExternal'
 import type { PasswordStrength } from './vaultApi'
 
 /**
@@ -208,6 +209,9 @@ export function FieldView({
             aria-label={t('vault.openUrl', { host: urlHostname(value) ?? value })}
             className="icon-button"
             href={url}
+            onClick={(event) => {
+              if (openExternal(url)) event.preventDefault()
+            }}
             rel="noopener noreferrer"
             target="_blank"
             title={t('vault.openUrl', { host: urlHostname(value) ?? value })}

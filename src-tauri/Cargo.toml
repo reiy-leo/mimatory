@@ -34,6 +34,7 @@ sha1 = "0.10"
 tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
 tauri-plugin-autostart = "2.7.0"
 tauri-plugin-global-shortcut = "2.4.0"
+tauri-plugin-opener = "2.7.2"
 tauri-plugin-positioner = { version = "2.4.0", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2.5.2"
 thiserror = "2"
