@@ -1,0 +1,76 @@
+# iOS: an unsigned .ipa, run by hand only (Actions → Build iOS → Run workflow), never on tags — Mindough's ios.yml.
+# Signing is left to the owner (e.g. Sideloadly with a free Apple ID, 7-day profile), so no secrets are used.
+# `tauri ios build` archives the app (the Xcode build script needs the CLI running to compile Rust); exporting
+# the ipa needs signing and is expected to fail, so the .app is taken from the .xcarchive and zipped by hand.
+name: Build iOS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: iOS (unsigned ipa)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - run: npm ci
+
+      # src-tauri/gen/ is not committed: the Xcode project is generated here.
+      - name: tauri ios init
+        run: |
+          if [ ! -d src-tauri/gen/apple ]; then npx tauri ios init --ci; fi
+
+      - name: Turn off code signing in the project
+        working-directory: src-tauri/gen/apple
+        run: |
+          for p in *.xcodeproj/project.pbxproj; do
+            perl -0pi -e 's/buildSettings = \{/buildSettings = {\n\t\t\t\tCODE_SIGNING_ALLOWED = NO;\n\t\t\t\tCODE_SIGNING_REQUIRED = NO;\n\t\t\t\tCODE_SIGN_IDENTITY = "";/g' "$p"
+            grep -c "CODE_SIGNING_ALLOWED = NO" "$p"
+          done
+
+      - name: tauri ios build (archive, unsigned)
+        env:
+          # A placeholder team so the CLI does not go looking for one; signing is off.
+          APPLE_DEVELOPMENT_TEAM: AAAAAAAAAA
+        run: |
+          set +e
+          npx tauri ios build --ci --target aarch64 2>&1 | tee "$RUNNER_TEMP/build.log"
+          echo "tauri ios build exited ${PIPESTATUS[0]} (the export step failing is expected)"
+          exit 0
+
+      - name: Package the ipa
+        run: |
+          APP=$(find src-tauri/gen/apple "$HOME/Library/Developer/Xcode" -maxdepth 8 -path '*.xcarchive/Products/Applications/*.app' -type d 2>/dev/null | head -1)
+          if [ -z "$APP" ]; then
+            echo "No .app in the archive; last 80 lines of the build log:"; tail -80 "$RUNNER_TEMP/build.log"; exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+          cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/Passless-unsigned.ipa" Payload
+          ls -la "$GITHUB_WORKSPACE/Passless-unsigned.ipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: passless-ios-unsigned
+          if-no-files-found: error
+          path: Passless-unsigned.ipa
