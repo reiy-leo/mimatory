@@ -15,6 +15,7 @@
 
 /* ───────────────────── Windows 11 (WinUI 3, Fluent 2 for Windows) ───────────────────── */
 :root[data-skin="winui"] {
+  --color-field-hovered: #005fb812;
   --color-text: #000000e4;
   --color-text-subtle: #0000009e;
   --color-text-subtlest: #00000094;
@@ -106,6 +107,7 @@
 }
 
 :root[data-skin="winui"][data-theme="dark"] {
+  --color-field-hovered: #60cdff1a;
   --color-text: #ffffff;
   --color-text-subtle: #ffffffc8;
   --color-text-subtlest: #ffffff9e;
@@ -176,6 +178,7 @@
 /* ───────────────────────── Material 3 (Android, Linux) ───────────────────────── */
 /* The M3 baseline scheme (Mindough's palette); dynamic colour from the Android wallpaper is not wired. */
 :root[data-skin="material"] {
+  --color-field-hovered: #6750a414;
   --color-text: #1d1b20;
   --color-text-subtle: #49454f;
   --color-text-subtlest: #49454f;
@@ -264,6 +267,7 @@
 }
 
 :root[data-skin="material"][data-theme="dark"] {
+  --color-field-hovered: #d0bcff1f;
   --color-text: #e6e0e9;
   --color-text-subtle: #cac4d0;
   --color-text-subtlest: #cac4d0;

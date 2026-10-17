@@ -468,7 +468,7 @@ export function FieldEditor({
     placeholder,
     spellCheck: false,
   } as const
-  const inputClass = meta?.monospace ? 'custom-field-value-input is-mono' : 'custom-field-value-input'
+  const inputClass = meta?.monospace ? 'field-row-input is-mono' : 'field-row-input'
 
   let control: ReactNode
   if (fieldType === 'select') {

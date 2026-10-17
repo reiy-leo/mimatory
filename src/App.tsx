@@ -16,8 +16,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
-  CircleMinus,
   Cog,
   Coins,
   Copy,
@@ -33,7 +31,6 @@ import {
   Fingerprint,
   FolderInput,
   Globe,
-  GripVertical,
   Group,
   IdCard,
   Inbox,
@@ -51,9 +48,9 @@ import {
   PinOff,
   Plane,
   Plus,
-  QrCode,
   RefreshCw,
   Router,
+  ScanQrCode,
   Search,
   Server,
   Share,
@@ -75,13 +72,20 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { copyText } from './app/clipboard'
-import { FieldActionMenu, type FieldMenuAnchor, FieldMenuButton, LargeTypeOverlay } from './app/fieldActionControls'
+import {
+  FieldActionMenu,
+  type FieldMenuAnchor,
+  FieldMenuButton,
+  LargeTypeOverlay,
+  useLongPress,
+} from './app/fieldActionControls'
 import { openAndFillUrl } from './app/fieldActions'
 import {
   FieldEditor,
@@ -92,6 +96,23 @@ import {
   SshFingerprintCaption,
   SshFingerprintView,
 } from './app/fieldControls'
+import {
+  type Container,
+  type ContainerLists,
+  canEnter,
+  keyboardTarget,
+  moveFieldEntry,
+  type Slot,
+  sectionChildFieldTypes,
+} from './app/fieldReorder'
+import {
+  AddRowButton,
+  AutofillBehaviorButton,
+  autofillViewNote,
+  EditFieldRow,
+  type ReorderControl,
+  useFieldDrag,
+} from './app/fieldRows'
 import i18n, { getInitialLanguage, languageOptions, type SupportedLanguage, supportedLanguages } from './app/i18n'
 import { isFormDirty } from './app/itemDrafts'
 import {
@@ -161,7 +182,7 @@ import {
   toggleHighlightKeys,
 } from './app/sidebarHighlights'
 import { SignInPicker, SignInRow, useSignInLabel } from './app/signInControls'
-import { itemSignInProvider, parseSignInProvider, withoutSignInField, withSignInField } from './app/signInProviders'
+import { itemSignInProvider, parseSignInProvider, withSignInField } from './app/signInProviders'
 import {
   forgetSiteIcons,
   loadSiteIcons,
@@ -183,10 +204,12 @@ import {
 import { applyTheme, getInitialTheme, type Theme, themeOptions } from './app/theme'
 import {
   buildOtpAuthUri,
-  formatOtpCode,
+  formatOtpSecret,
   getTotpProgress,
   normalizeTotpSecret,
+  otpCodeGroups,
   otpSecretFieldIndexes,
+  parseOtpSecretInput,
 } from './app/totpDisplay'
 import {
   type AppStatus,
@@ -318,22 +341,6 @@ const addMoreOptions = [
   { icon: Paperclip, labelKey: 'vault.addMoreOptions.attachFile', type: 'file' },
 ] as const
 
-// Sections hold plain values only: no nested section, attachment, related item,
-// OTP secret or OAuth provider.
-const sectionChildFieldTypes: readonly string[] = [
-  'security_questions',
-  'text',
-  'multiline',
-  'concealed',
-  'url',
-  'email',
-  'address',
-  'date',
-  'month_year',
-  'password',
-  'phone',
-]
-
 // Links to other items close the Add More menu in their own group. They are not fields: each opens the
 // item picker, and the choice lands in the form's relation draft rather than in `custom_fields`.
 const relationMenuOptions: ReadonlyArray<{ icon: typeof Link2; kind: RelationKind; labelKey: string }> = [
@@ -410,32 +417,6 @@ function templateFieldMeta(field: TemplateField | undefined): FieldMeta | undefi
 // is drawn by the shared field components.
 const specialFieldTypes = ['otp', 'file', 'related_item', 'sign_in_with', 'passkey', 'section']
 
-function moveEntry<T>(list: readonly T[], index: number, delta: number): T[] {
-  const target = index + delta
-  if (target < 0 || target >= list.length) return [...list]
-  const next = [...list]
-  const [entry] = next.splice(index, 1)
-  next.splice(target, 0, entry)
-  return next
-}
-
-// email/url stay type="text" on purpose: the detail form has no noValidate, so the
-// browser's constraint validation on those types would block saving.
-function fieldValueInputProps(
-  fieldType: string,
-  secretMasked = false,
-): { inputMode?: 'email' | 'tel' | 'url'; type: string } {
-  if (fieldType === 'password') return { type: 'password' }
-  // A saved seed is not a display value: the field rests as dots and only the one being typed in shows
-  // the key, so it is never left on screen for a screenshot or a shoulder.
-  if (fieldType === 'otp') return { type: secretMasked ? 'password' : 'text' }
-  if (fieldType === 'date') return { type: 'date' }
-  if (fieldType === 'email') return { inputMode: 'email', type: 'text' }
-  if (fieldType === 'phone') return { inputMode: 'tel', type: 'text' }
-  if (fieldType === 'url') return { inputMode: 'url', type: 'text' }
-  return { type: 'text' }
-}
-
 function fieldValuePlaceholderKey(fieldType: string) {
   if (fieldType === 'month_year') return 'vault.monthYearPlaceholder'
   if (fieldType === 'otp') return 'vault.otpSecretPlaceholder'
@@ -460,120 +441,200 @@ const iconById = {
   vaults: Vault,
 } as const
 
-function FieldOrderButtons({
-  canMoveDown,
-  canMoveUp,
+/**
+ * The one-time password as a field row of the credentials card (1Password 8, owner screenshot 2026-10-17):
+ * label, then the code as "214 • 685" with a countdown pill; selecting the row copies the code, the chevron adds
+ * Show in Large Type and the two ways to hand the secret to another authenticator.
+ */
+function OtpFieldView({
   label,
-  onMove,
+  onCopy,
+  onCopySecret,
+  onCopySetupLink,
+  preview,
 }: {
-  canMoveDown: boolean
-  canMoveUp: boolean
   label: string
-  onMove: (delta: number) => void
+  onCopy: () => void
+  onCopySecret: () => void
+  onCopySetupLink: () => void
+  preview?: FieldTotpPreview
 }) {
   const { t } = useTranslation()
+  const [menuAnchor, setMenuAnchor] = useState<FieldMenuAnchor | null>(null)
+  const [largeType, setLargeType] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const rowRef = useRef<HTMLDivElement>(null)
+  const labelId = useId()
+  const valueId = useId()
+  const hintId = useId()
+  const longPress = useLongPress((anchor) => setMenuAnchor(anchor))
+  const copyTimer = useRef<number | null>(null)
+  useEffect(
+    () => () => {
+      if (copyTimer.current !== null) window.clearTimeout(copyTimer.current)
+    },
+    [],
+  )
+
+  function copy() {
+    if (!preview) return
+    onCopy()
+    setCopied(true)
+    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current)
+    copyTimer.current = window.setTimeout(() => setCopied(false), 1500)
+  }
+
+  const groups = preview ? otpCodeGroups(preview.code) : []
+  const seconds = preview?.secondsRemaining ?? 0
   return (
-    <span className="field-order-buttons">
-      <button
-        aria-label={t('vault.moveFieldUp', { label })}
-        className="field-editor-button"
-        disabled={!canMoveUp}
-        onClick={() => onMove(-1)}
-        title={t('vault.moveFieldUp', { label })}
-        type="button"
-      >
-        <ChevronUp size={14} />
-      </button>
-      <button
-        aria-label={t('vault.moveFieldDown', { label })}
-        className="field-editor-button"
-        disabled={!canMoveDown}
-        onClick={() => onMove(1)}
-        title={t('vault.moveFieldDown', { label })}
-        type="button"
-      >
-        <ChevronDown size={14} />
-      </button>
-    </span>
+    <div
+      className={[
+        'field-row',
+        preview ? 'is-actionable' : '',
+        copied ? 'is-copied' : '',
+        menuAnchor ? 'is-menu-open' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        setMenuAnchor({ bottom: event.clientY, left: event.clientX, right: event.clientX + 220, top: event.clientY })
+      }}
+      ref={rowRef}
+    >
+      {preview ? (
+        <button
+          aria-describedby={hintId}
+          aria-labelledby={`${labelId} ${valueId}`}
+          className="field-row-primary"
+          onClick={() => {
+            if (longPress.consumeClick()) return
+            copy()
+          }}
+          type="button"
+          {...longPress.handlers}
+        />
+      ) : null}
+      <div className="field-row-main">
+        <span className="field-row-label" id={labelId}>
+          {label}
+        </span>
+        <span className="field-row-value otp-value" id={valueId}>
+          {preview ? (
+            <>
+              <span className="otp-code">
+                {groups.map((group, index) => (
+                  <span className="contents" key={group + index.toString()}>
+                    {index > 0 ? (
+                      <span aria-hidden="true" className="otp-code-separator">
+                        •
+                      </span>
+                    ) : null}
+                    <span>{group}</span>
+                  </span>
+                ))}
+              </span>
+              <span
+                aria-label={t('vault.otpSecondsRemaining', { seconds })}
+                className={seconds <= 5 ? 'otp-countdown is-ending' : 'otp-countdown'}
+                role="timer"
+                style={{ '--otp-progress': getTotpProgress(seconds).toString() } as CSSProperties}
+              >
+                <span aria-hidden="true" className="otp-countdown-ring" />
+                <span>{seconds}</span>
+              </span>
+            </>
+          ) : (
+            <span className="field-row-caption">{t('vault.otpCodePending')}</span>
+          )}
+        </span>
+      </div>
+      <div className="field-row-actions">
+        {preview ? (
+          <span aria-live="polite" className="field-row-hint" id={hintId}>
+            {copied ? t('fieldActions.copied') : t('fieldActions.copy')}
+          </span>
+        ) : null}
+        <FieldMenuButton expanded={menuAnchor !== null} label={label} onOpen={setMenuAnchor} />
+      </div>
+      {menuAnchor ? (
+        <FieldActionMenu
+          actions={preview ? ['copy', 'largeType', 'copySecret', 'copySetupLink'] : ['copySecret', 'copySetupLink']}
+          anchor={menuAnchor}
+          label={label}
+          onClose={(restoreFocus) => {
+            setMenuAnchor(null)
+            if (restoreFocus) rowRef.current?.querySelector<HTMLButtonElement>('.field-menu-button')?.focus()
+          }}
+          onSelect={(id) => {
+            if (id === 'copy') copy()
+            else if (id === 'largeType') setLargeType(true)
+            else if (id === 'copySecret') onCopySecret()
+            else if (id === 'copySetupLink') onCopySetupLink()
+          }}
+        />
+      ) : null}
+      {/* The code changes every period, so the overlay follows the live code rather than a snapshot. */}
+      {largeType && preview ? (
+        <LargeTypeOverlay label={label} onClose={() => setLargeType(false)} value={preview.code} />
+      ) : null}
+    </div>
   )
 }
 
-function OtpCodeButton({ onCopy, preview }: { onCopy: () => void; preview: FieldTotpPreview }) {
+function OtpScanButton({ label, onScan }: { label: string; onScan: () => void }) {
   const { t } = useTranslation()
-
   return (
     <button
-      className="otp-display-button"
-      onClick={onCopy}
-      style={{ '--otp-progress': getTotpProgress(preview.secondsRemaining).toString() } as CSSProperties}
-      title={t('vault.copyOtp')}
+      aria-label={`${t('fieldRows.scanQr')}: ${label}`}
+      className="field-type-button"
+      onClick={onScan}
+      title={t('fieldRows.scanQr')}
       type="button"
     >
-      <span className="otp-code">{formatOtpCode(preview.code)}</span>
-      <span
-        aria-label={t('vault.otpSecondsRemaining', { seconds: preview.secondsRemaining })}
-        className="otp-countdown"
-        role="timer"
-      >
-        <span aria-hidden="true" className="otp-countdown-ring" />
-        <span>{preview.secondsRemaining.toString().padStart(2, '0')}</span>
-      </span>
+      <ScanQrCode aria-hidden="true" size={18} />
     </button>
   )
 }
 
-/** The two-factor card's code, 1Password-style: selecting it copies, the chevron adds Show in Large Type. */
-function OtpCodeMenu({ code, label, onCopy }: { code: string; label: string; onCopy: () => void }) {
-  const [anchor, setAnchor] = useState<FieldMenuAnchor | null>(null)
-  const [largeType, setLargeType] = useState(false)
-  return (
-    <>
-      <FieldMenuButton expanded={anchor !== null} label={label} onOpen={setAnchor} />
-      {anchor ? (
-        <FieldActionMenu
-          actions={['copy', 'largeType']}
-          anchor={anchor}
-          label={label}
-          onClose={() => setAnchor(null)}
-          onSelect={(id) => (id === 'copy' ? onCopy() : setLargeType(true))}
-        />
-      ) : null}
-      {/* The code prop changes every period, so the overlay follows the live code rather than a snapshot. */}
-      {largeType ? <LargeTypeOverlay label={label} onClose={() => setLargeType(false)} value={code} /> : null}
-    </>
-  )
-}
-
-function OtpFieldActions({
-  onCopy,
-  onPreview,
-  onReadQr,
-  preview,
-  secret,
+/** A section's "add more": the field types a section may hold, as a popover — or a sheet on phones. */
+function SectionAddMenu({
+  onPick,
+  options,
+  sheet,
+  style,
 }: {
-  onCopy: () => void
-  onPreview: () => void
-  onReadQr: () => void
-  preview?: FieldTotpPreview
-  secret: string
+  onPick: (type: (typeof addMoreOptions)[number]['type']) => void
+  options: typeof sectionChildOptions
+  sheet: boolean
+  style?: CSSProperties
 }) {
   const { t } = useTranslation()
-
+  const rows = options.map((option) => (
+    <button className="menu-option with-icon" key={option.type} onClick={() => onPick(option.type)} type="button">
+      <option.icon aria-hidden="true" size={15} />
+      <span className="menu-option-label">
+        <span>{t(option.labelKey)}</span>
+        {'descriptionKey' in option ? <small>{t(option.descriptionKey)}</small> : null}
+      </span>
+    </button>
+  ))
+  if (sheet) {
+    return (
+      <div className="field-action-sheet-layer" data-field-menu="">
+        <div aria-hidden="true" className="field-action-sheet-backdrop" />
+        <div className="field-action-sheet">
+          <div className="field-action-sheet-group">
+            <p className="field-action-sheet-title">{t('fieldRows.sectionAddMore')}</p>
+            {rows}
+          </div>
+        </div>
+      </div>
+    )
+  }
   return (
-    <div className="field-inline-actions">
-      <button className="secondary-button" disabled={!secret.trim()} onClick={onPreview} type="button">
-        {t('vault.previewOtp')}
-      </button>
-      {preview ? <OtpCodeButton onCopy={onCopy} preview={preview} /> : null}
-      <button
-        aria-label={t('vault.readQr')}
-        className="icon-button ml-auto"
-        onClick={onReadQr}
-        title={t('vault.readQr')}
-        type="button"
-      >
-        <QrCode size={15} />
-      </button>
+    <div className="section-add-menu" data-field-menu="" style={style}>
+      {rows}
     </div>
   )
 }
@@ -868,12 +929,12 @@ function VaultWindow() {
   const [addMoreMenuAnchor, setAddMoreMenuAnchor] = useState<MenuAnchor>()
   const [sectionMenuAnchor, setSectionMenuAnchor] = useState<MenuAnchor>()
   const [fieldTotpPreviews, setFieldTotpPreviews] = useState<Record<number, FieldTotpPreview>>({})
-  const [revealedTotpSecrets, setRevealedTotpSecrets] = useState<Record<number, boolean>>({})
   // Which seed input is showing its value. A saved seed is not a display value, so it rests as dots and
   // only the field being typed in reveals itself — see `fieldValueInputProps`.
   const [focusedOtpField, setFocusedOtpField] = useState('')
-  const [otpQrHint, setOtpQrHint] = useState<number | null>(null)
   const otpInputRefs = useRef<Record<number, HTMLInputElement | null>>({})
+  const otpFileInputRef = useRef<HTMLInputElement>(null)
+  const otpFileTarget = useRef<number | null>(null)
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
   const [tagDraft, setTagDraft] = useState('')
   // Whether the pane is showing a draft instead of a saved item. Without it, "nothing selected" and
@@ -1229,9 +1290,7 @@ function VaultWindow() {
     draftKeyRef.current = draftKey
     setShowPassword(false)
     setFieldTotpPreviews({})
-    setRevealedTotpSecrets({})
     setFocusedOtpField('')
-    setOtpQrHint(null)
     setTagDraft('')
   }, [draftKey])
 
@@ -1525,9 +1584,7 @@ function VaultWindow() {
     setForm(baselineRef.current)
     setShowPassword(false)
     setFieldTotpPreviews({})
-    setRevealedTotpSecrets({})
     setFocusedOtpField('')
-    setOtpQrHint(null)
     setTagDraft('')
     setComposing(false)
     setIsEditing(false)
@@ -1865,7 +1922,7 @@ function VaultWindow() {
     if (next === null) return
     const buttonRect = trigger.getBoundingClientRect()
     // The panel spans the card it belongs to rather than the width of the text button.
-    const cardRect = trigger.closest('.section-field-card')?.getBoundingClientRect() ?? buttonRect
+    const cardRect = trigger.closest('.field-group')?.getBoundingClientRect() ?? buttonRect
     setSectionMenuAnchor(
       getMenuAnchorStyle({
         menuHeight: sectionMenuHeight,
@@ -2121,6 +2178,8 @@ function VaultWindow() {
       }
     })
     setShowAddMore(false)
+    if (fieldType !== 'section')
+      focusNewLabel(showCredentials && loginSectionFieldTypes.includes(fieldType) ? 'login' : 'top')
   }
 
   function removeCustomField(index: number) {
@@ -2217,10 +2276,6 @@ function VaultWindow() {
     setOperationMessage(t('messages.copiedOtp'))
   }
 
-  function toggleTotpSecret(index: number) {
-    setRevealedTotpSecrets((current) => ({ ...current, [index]: !current[index] }))
-  }
-
   async function copyTotpSecret(index: number) {
     const secret = form.custom_fields[index]?.value
     if (!secret) return
@@ -2243,27 +2298,6 @@ function VaultWindow() {
       return
     }
     updateCustomField(index, { value: seed })
-    setOtpQrHint(null)
-  }
-
-  // Reading the clipboard is the one-click version of the handoff: the QR is on the enrolment page,
-  // already copied. WKWebView may refuse that API, and then the field is focused and the paste
-  // handler below takes over, so the button never leaves the user with nothing to do.
-  async function readOtpQrFromClipboard(index: number) {
-    otpInputRefs.current[index]?.focus()
-    setOtpQrHint(index)
-    let image: Blob | null = null
-    try {
-      for (const item of await navigator.clipboard.read()) {
-        const kind = item.types.find((type) => type.startsWith('image/'))
-        if (!kind) continue
-        image = await item.getType(kind)
-        break
-      }
-    } catch {
-      return
-    }
-    if (image) await importOtpQrImage(index, image)
   }
 
   function handleOtpPaste(index: number, event: ReactClipboardEvent<HTMLInputElement>) {
@@ -2363,8 +2397,21 @@ function VaultWindow() {
     })
   }
 
+  // A field just added is named first (1Password focuses the new row's label), in whichever list it landed.
+  function focusNewLabel(container: string) {
+    window.setTimeout(() => {
+      const labels = document.querySelectorAll<HTMLInputElement>(
+        `[data-reorder-container="${container}"] .field-row-label-input`,
+      )
+      const label = labels[labels.length - 1]
+      label?.focus()
+      label?.select()
+    }, 0)
+  }
+
   function addSectionChild(sectionIndex: number, fieldType: (typeof addMoreOptions)[number]['type']) {
     setSectionMenuIndex(null)
+    focusNewLabel(`section:${sectionIndex}`)
     setForm((current) => {
       const customFields = current.custom_fields.map((field, fieldIndex) => {
         if (fieldIndex !== sectionIndex) return field
@@ -2400,30 +2447,366 @@ function VaultWindow() {
     })
   }
 
-  function moveSectionChild(sectionIndex: number, childIndex: number, delta: number) {
+  const fieldLists = useMemo<ContainerLists>(
+    () => ({ login: loginSectionFields.map(({ index }) => index), top: detailFieldIndexes }),
+    [loginSectionFields, detailFieldIndexes],
+  )
+  // Loose top-level fields between sections share one card, the way 1Password groups them.
+  const editTopRuns = useMemo(() => {
+    const runs: Array<
+      | { entries: Array<{ field: CustomField; index: number; position: number }>; kind: 'fields' }
+      | { entry: { field: CustomField; index: number; position: number }; kind: 'section' }
+    > = []
+    detailCustomFields.forEach(({ field, index }, position) => {
+      if (field.field_type === 'section') {
+        runs.push({ entry: { field, index, position }, kind: 'section' })
+        return
+      }
+      const last = runs[runs.length - 1]
+      if (last?.kind === 'fields') last.entries.push({ field, index, position })
+      else runs.push({ entries: [{ field, index, position }], kind: 'fields' })
+    })
+    return runs
+  }, [detailCustomFields])
+
+  function applyFieldMove(from: Slot, to: Slot) {
     setForm((current) => {
-      const customFields = current.custom_fields.map((field, fieldIndex) =>
-        fieldIndex === sectionIndex
-          ? {
-              ...field,
-              value: stringifySectionChildren(moveEntry(parseSectionChildren(field.value), childIndex, delta)),
-            }
-          : field,
-      )
+      const lists: ContainerLists = {
+        login: current.custom_fields.flatMap((field, index) => (inCredentialBlock(field) ? [index] : [])),
+        top: current.custom_fields.flatMap((field, index) => (inCredentialBlock(field) ? [] : [index])),
+      }
+      const customFields = moveFieldEntry(current.custom_fields, lists, from, to)
+      if (!customFields) return current
       return { ...current, custom_fields: customFields, customFieldsInput: customFieldsToInput(customFields) }
     })
   }
 
-  // Moves a field past its nearest neighbour in the same list (credential block or "more fields"), so
-  // the buttons never appear to do nothing when the next row in storage lives in the other list.
-  function moveCustomField(index: number, delta: number, within: number[]) {
-    const position = within.indexOf(index)
-    const neighbour = within[position + delta]
-    if (neighbour === undefined) return
+  function moveUrl(from: number, to: number) {
     setForm((current) => {
-      const customFields = moveEntry(current.custom_fields, index, neighbour - index)
-      return { ...current, custom_fields: customFields, customFieldsInput: customFieldsToInput(customFields) }
+      if (to < 0 || to >= current.urlsInput.length || from === to) return current
+      const urlsInput = [...current.urlsInput]
+      const [moved] = urlsInput.splice(from, 1)
+      urlsInput.splice(to, 0, moved)
+      return { ...current, urlsInput }
     })
+  }
+
+  // After a keyboard move the row is drawn somewhere else; its handle keeps the focus.
+  function focusHandle(container: string, index: number) {
+    window.requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLButtonElement>(
+          `[data-reorder-container="${container}"][data-reorder-index="${index}"] .field-reorder-handle`,
+        )
+        ?.focus(),
+    )
+  }
+
+  const fieldDrag = useFieldDrag((source, to) => {
+    if (source.container === 'urls') moveUrl(source.index, to.index)
+    else applyFieldMove(source as Slot, to as Slot)
+  })
+
+  /** Template children stay in their own section: the template finds them there by key. */
+  function reorderFor(container: string, index: number, fieldType: string, pinned = false): ReorderControl {
+    return {
+      container,
+      index,
+      onKeyboardMove: (delta) => {
+        if (container === 'urls') {
+          moveUrl(index, index + delta)
+          focusHandle(container, index + delta)
+          return
+        }
+        const from = { container, index } as Slot
+        const target = keyboardTarget(form.custom_fields, fieldLists, from, delta)
+        if (!target || (pinned && target.container !== container)) return
+        applyFieldMove(from, target)
+        focusHandle(target.container, target.index)
+      },
+      onPointerDown: (event) =>
+        fieldDrag.begin(event, {
+          accepts: (target) =>
+            container === 'urls'
+              ? target === 'urls'
+              : target !== 'urls' &&
+                (pinned ? target === container : canEnter(fieldType, container as Container, target as Container)),
+          container,
+          index,
+        }),
+    }
+  }
+
+  // Reads the QR from a copied image first (the one-click handoff from an enrolment page); with nothing on
+  // the clipboard — or a webview that refuses the API — it asks for an image file, which on a phone offers the
+  // camera as well as the photo library.
+  async function scanOtpQr(index: number) {
+    let image: Blob | null = null
+    try {
+      for (const item of await navigator.clipboard.read()) {
+        const kind = item.types.find((type) => type.startsWith('image/'))
+        if (!kind) continue
+        image = await item.getType(kind)
+        break
+      }
+    } catch {
+      image = null
+    }
+    if (image) {
+      await importOtpQrImage(index, image)
+      return
+    }
+    otpFileTarget.current = index
+    otpFileInputRef.current?.click()
+  }
+
+  function fieldLabelOf(field: CustomField) {
+    return field.label.trim() || t(`vault.customFieldDefaults.${field.field_type}`)
+  }
+
+  function renderEditField(field: CustomField, index: number, container: 'login' | 'top', position: number) {
+    const label = fieldLabelOf(field)
+    const labelInput =
+      field.field_type === 'sign_in_with'
+        ? undefined
+        : {
+            onChange: (value: string) => updateCustomField(index, { label: value }),
+            placeholder: t(`vault.customFieldDefaults.${field.field_type}`),
+            value: field.label,
+          }
+    const key = `field-${container}-${field.field_type}-${index}`
+    const common = {
+      drop: fieldDrag.dropAt(container, position),
+      label,
+      labelInput,
+      onRemove: () => removeCustomField(index),
+      reorder: reorderFor(container, position, field.field_type),
+    }
+
+    if (field.field_type === 'sign_in_with') {
+      return (
+        <EditFieldRow
+          key={key}
+          {...common}
+          trailing={
+            <button className="field-text-button" onClick={openSignInPicker} type="button">
+              {t('vault.signIn.change')}
+            </button>
+          }
+        >
+          <SignInRow
+            account={
+              form.relationDraft.signInId
+                ? relationRef(form.relationDraft.signInId, items, selectedItem?.relations)
+                : null
+            }
+            accountDetail={items.find((item) => item.id === form.relationDraft.signInId)?.username}
+            provider={parseSignInProvider(field.value)}
+          />
+        </EditFieldRow>
+      )
+    }
+    if (field.field_type === 'otp') {
+      // 1Password's editor: the key itself, in lowercase groups of four while it is being edited. At rest it is
+      // dots (AGENTS.md › "The TOTP seed rests masked"); what is stored is the normalized key.
+      const focused = focusedOtpField === `otp:${index}`
+      return (
+        <EditFieldRow
+          key={key}
+          {...common}
+          trailing={<OtpScanButton label={label} onScan={() => void scanOtpQr(index)} />}
+        >
+          <input
+            aria-label={label}
+            autoComplete="off"
+            className="field-row-input is-mono"
+            onBlur={() => setFocusedOtpField('')}
+            onChange={(event) => updateCustomField(index, { value: parseOtpSecretInput(event.target.value) })}
+            onFocus={() => setFocusedOtpField(`otp:${index}`)}
+            onPaste={(event) => handleOtpPaste(index, event)}
+            placeholder={t('vault.otpSecretPlaceholder')}
+            ref={(node) => {
+              otpInputRefs.current[index] = node
+            }}
+            spellCheck={false}
+            type={focused || !field.value ? 'text' : 'password'}
+            value={focused ? formatOtpSecret(field.value) : field.value}
+          />
+        </EditFieldRow>
+      )
+    }
+    if (field.field_type === 'file') {
+      return (
+        <EditFieldRow
+          key={key}
+          {...common}
+          trailing={
+            <>
+              {field.value.startsWith('attachment://') ? (
+                <button className="field-text-button" onClick={() => openAttachment(field)} type="button">
+                  {t('vault.exportAttachment')}
+                </button>
+              ) : null}
+              <button
+                aria-label={field.value ? t('vault.changeAttachment') : t('vault.chooseAttachment')}
+                className="field-type-button"
+                onClick={() => chooseAttachmentForField(index)}
+                title={field.value ? t('vault.changeAttachment') : t('vault.chooseAttachment')}
+                type="button"
+              >
+                <Paperclip size={18} />
+              </button>
+            </>
+          }
+        >
+          <span className="field-row-value" title={field.value}>
+            {field.value ? fileNameFromPath(field.value) : t('vault.chooseAttachment')}
+          </span>
+        </EditFieldRow>
+      )
+    }
+    if (field.field_type === 'related_item') {
+      return (
+        <EditFieldRow key={key} {...common}>
+          <select
+            aria-label={label}
+            className="field-select"
+            onChange={(event) => updateCustomField(index, { value: event.target.value })}
+            value={field.value}
+          >
+            <option value="">{t('vault.chooseRelatedItem')}</option>
+            {items
+              .filter((item) => item.id !== selectedItem?.id)
+              .map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title}
+                </option>
+              ))}
+          </select>
+        </EditFieldRow>
+      )
+    }
+    if (specialFieldTypes.includes(field.field_type)) {
+      return (
+        <EditFieldRow key={key} {...common}>
+          <input
+            aria-label={label}
+            autoComplete="off"
+            className="field-row-input"
+            onChange={(event) => updateCustomField(index, { value: event.target.value })}
+            placeholder={t(fieldValuePlaceholderKey(field.field_type))}
+            spellCheck={false}
+            value={field.value}
+          />
+        </EditFieldRow>
+      )
+    }
+    return (
+      <EditFieldRow key={key} {...common}>
+        <FieldEditor
+          fieldType={field.field_type}
+          label={label}
+          measureStrength={field.field_type === 'password' ? measurePassword : undefined}
+          onChange={(value) => updateCustomField(index, { value })}
+          onGenerate={generateFieldPassword}
+          placeholder={t(fieldValuePlaceholderKey(field.field_type))}
+          value={field.value}
+        />
+      </EditFieldRow>
+    )
+  }
+
+  function renderEditSection(field: CustomField, index: number, position: number) {
+    const container = `section:${index}`
+    const children = parseSectionChildren(field.value)
+    // The category's own section: its fields empty out rather than go away, and so does the section.
+    const templateSection = children.some((child) => findTemplateField(form.item_type, child.key))
+    const title = sectionDisplayTitle(form.item_type, field, fieldLabels)
+    const drop = fieldDrag.dropAt('top', position)
+    return (
+      <div
+        className={['field-section', 'is-edit', drop ? `is-drop-${drop}` : ''].filter(Boolean).join(' ')}
+        data-reorder-container="top"
+        data-reorder-index={position}
+        key={`section-${index}`}
+      >
+        <div className="field-group is-edit">
+          <EditFieldRow
+            className="is-section-header"
+            label={title || t('vault.sectionName')}
+            labelHidden
+            onRemove={templateSection ? undefined : () => removeCustomField(index)}
+            removeLabel={t('fieldRows.removeSection')}
+            reorder={reorderFor('top', position, 'section')}
+          >
+            <input
+              aria-label={t('vault.sectionName')}
+              className="field-row-input section-name-input"
+              onChange={(event) => updateCustomField(index, { label: event.target.value })}
+              placeholder={templateSection ? title : t('vault.sectionName')}
+              spellCheck={false}
+              value={field.label}
+            />
+          </EditFieldRow>
+          {children.map((child, childIndex) => {
+            const templateField = findTemplateField(form.item_type, child.key)
+            const childLabel = child.label.trim() || t(`vault.customFieldDefaults.${child.field_type}`)
+            return (
+              <EditFieldRow
+                drop={fieldDrag.dropAt(container, childIndex)}
+                key={child.id ?? childIndex}
+                label={templateField ? childDisplayLabel(form.item_type, child, fieldLabels) : childLabel}
+                labelInput={
+                  templateField
+                    ? undefined
+                    : {
+                        onChange: (value) => updateSectionChild(index, childIndex, { label: value }),
+                        placeholder: t(`vault.customFieldDefaults.${child.field_type}`),
+                        value: child.label,
+                      }
+                }
+                // A template field is part of the category; left empty it is hidden when viewing and not
+                // stored, so there is nothing to remove.
+                onRemove={templateField ? undefined : () => removeSectionChild(index, childIndex)}
+                reorder={reorderFor(container, childIndex, child.field_type, Boolean(templateField))}
+              >
+                <FieldEditor
+                  fieldType={child.field_type}
+                  footer={
+                    child.key === 'publicKey' && form.item_type === 'ssh_key' ? (
+                      <SshFingerprintCaption label={t(sshFingerprintLabelKey)} publicKey={child.value} />
+                    ) : null
+                  }
+                  label={childLabel}
+                  measureStrength={child.field_type === 'password' ? measurePassword : undefined}
+                  meta={templateFieldMeta(templateField)}
+                  onChange={(value) => updateSectionChild(index, childIndex, { value })}
+                  onGenerate={generateFieldPassword}
+                  placeholder={t(fieldValuePlaceholderKey(child.field_type))}
+                  value={child.value}
+                />
+              </EditFieldRow>
+            )
+          })}
+          <AddRowButton
+            expanded={sectionMenuIndex === index}
+            onClick={(trigger) => toggleSectionMenu(index, trigger)}
+            zone={{ container, index: children.length }}
+          >
+            <Plus aria-hidden="true" size={16} />
+            {t('fieldRows.sectionAddMore')}
+          </AddRowButton>
+        </div>
+        {sectionMenuIndex === index ? (
+          <SectionAddMenu
+            onPick={(type) => addSectionChild(index, type)}
+            options={sectionChildOptions}
+            sheet={isMobileLayout}
+            style={sectionMenuAnchor?.style}
+          />
+        ) : null}
+      </div>
+    )
   }
 
   function addOtpField(): number {
@@ -2601,7 +2984,9 @@ function VaultWindow() {
     } else if (event.code === 'KeyC' && event.altKey && !event.shiftKey && viewOtpIndexes.length) {
       void copyFieldTotp(viewOtpIndexes[0])
     } else if (event.code === 'KeyF' && event.shiftKey && !event.altKey && viewWebsites.length) {
-      openItemWebsite(viewWebsites[0].url, features.browserExtension)
+      // The first website that may fill; a "never" site only opens.
+      const fillable = viewWebsites.find((itemUrl) => itemUrl.match_type !== 'never')
+      openItemWebsite((fillable ?? viewWebsites[0]).url, features.browserExtension && Boolean(fillable))
     } else if (event.code === 'KeyR' && plain) {
       setRevealAllSecure((current) => !current)
     } else return
@@ -3217,463 +3602,152 @@ function VaultWindow() {
 
                 <div className="form-grid onepassword-form">
                   {showCredentials ? (
-                    <div className="wide onepassword-group">
+                    <div className="wide field-group is-edit">
                       {showUsername ? (
-                        <label className="onepassword-field">
-                          {usernameLabel}
+                        <EditFieldRow label={usernameLabel}>
                           <input
+                            aria-label={usernameLabel}
                             autoComplete="off"
+                            className="field-row-input"
                             onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))}
                             spellCheck={false}
                             value={form.username}
                           />
-                        </label>
+                        </EditFieldRow>
                       ) : null}
                       {/* A "Sign in with…" login has no password of its own; the row comes back as soon as
                           one is typed somewhere (or the sign-in method is removed). */}
                       {!hasSignInField || form.password ? (
-                        <label className="onepassword-field">
-                          {passwordLabel}
-                          <span className="password-control">
-                            <input
-                              onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                              placeholder={t('vault.passwordPlaceholder')}
-                              type={showPassword ? 'text' : 'password'}
-                              value={form.password}
-                            />
-                            <button
-                              aria-label={t('vault.showPassword')}
-                              onClick={() => setShowPassword((value) => !value)}
-                              title={t('vault.showPassword')}
-                              type="button"
-                            >
-                              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                            </button>
-                            <button
-                              aria-label={t('vault.copyPassword')}
-                              onClick={copyPassword}
-                              title={t('vault.copyPassword')}
-                              type="button"
-                            >
-                              <Copy size={16} />
-                            </button>
-                            <button
-                              aria-label={t('vault.generatePassword')}
-                              onClick={handleGeneratePassword}
-                              title={t('vault.generatePassword')}
-                              type="button"
-                            >
-                              <KeyRound size={16} />
-                            </button>
-                          </span>
-                          {passwordStrength ? <PasswordStrengthMeter strength={passwordStrength} /> : null}
-                        </label>
-                      ) : null}
-                      {loginSectionFields.map(({ field, index }) => (
-                        <div
-                          className="onepassword-field login-custom-field"
-                          key={`login-field-${field.field_type}-${index}`}
+                        <EditFieldRow
+                          label={passwordLabel}
+                          trailing={
+                            <>
+                              <button
+                                aria-label={t('vault.showPassword')}
+                                aria-pressed={showPassword}
+                                className="field-type-button"
+                                onClick={() => setShowPassword((value) => !value)}
+                                title={t('vault.showPassword')}
+                                type="button"
+                              >
+                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                              </button>
+                              <button
+                                aria-label={t('vault.generatePassword')}
+                                className="field-type-button"
+                                onClick={handleGeneratePassword}
+                                title={t('vault.generatePassword')}
+                                type="button"
+                              >
+                                <KeyRound size={18} />
+                              </button>
+                            </>
+                          }
                         >
-                          {field.field_type === 'sign_in_with' ? (
-                            // The provider is chosen in the sheet, not typed, so its label is fixed too.
-                            <span className="custom-field-name-input">
-                              {t('vault.customFieldDefaults.sign_in_with')}
-                            </span>
-                          ) : (
-                            <input
-                              aria-label={t('vault.fieldLabel')}
-                              className="custom-field-name-input"
-                              onChange={(event) => updateCustomField(index, { label: event.target.value })}
-                              placeholder={t(`vault.customFieldDefaults.${field.field_type}`)}
-                              value={field.label}
-                            />
-                          )}
-                          <div className="login-custom-field-value">
-                            <div className="login-custom-field-control">
-                              {field.field_type === 'sign_in_with' ? (
-                                <div className="sign-in-edit">
-                                  <SignInRow
-                                    account={
-                                      form.relationDraft.signInId
-                                        ? relationRef(form.relationDraft.signInId, items, selectedItem?.relations)
-                                        : null
-                                    }
-                                    accountDetail={
-                                      items.find((item) => item.id === form.relationDraft.signInId)?.username
-                                    }
-                                    provider={parseSignInProvider(field.value)}
-                                  />
-                                  <button className="secondary-button" onClick={openSignInPicker} type="button">
-                                    {t('vault.signIn.change')}
-                                  </button>
-                                </div>
-                              ) : (
-                                <input
-                                  aria-label={t('vault.fieldValue')}
-                                  className="custom-field-value-input"
-                                  onBlur={() => setFocusedOtpField('')}
-                                  onChange={(event) => updateCustomField(index, { value: event.target.value })}
-                                  onFocus={() => setFocusedOtpField(`login:${index}`)}
-                                  onPaste={(event) => handleOtpPaste(index, event)}
-                                  placeholder={t(fieldValuePlaceholderKey(field.field_type))}
-                                  ref={(node) => {
-                                    otpInputRefs.current[index] = node
-                                  }}
-                                  value={field.value}
-                                  {...fieldValueInputProps(field.field_type, focusedOtpField !== `login:${index}`)}
-                                />
-                              )}
-                              {field.field_type === 'otp' ? (
-                                <OtpFieldActions
-                                  onCopy={() => copyFieldTotp(index)}
-                                  onPreview={() => previewFieldTotp(index, field.value)}
-                                  onReadQr={() => void readOtpQrFromClipboard(index)}
-                                  preview={fieldTotpPreviews[index]}
-                                  secret={field.value}
-                                />
-                              ) : null}
-                              {field.field_type === 'otp' && otpQrHint === index ? (
-                                <p className="text-callout text-text-subtle">{t('vault.readQrHint')}</p>
-                              ) : null}
-                            </div>
-                            <button
-                              aria-label={t('vault.removeField')}
-                              className="round-remove-button"
-                              onClick={() => removeCustomField(index)}
-                              title={t('vault.removeField')}
-                              type="button"
-                            >
-                              <CircleMinus size={16} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                          <input
+                            aria-label={passwordLabel}
+                            className="field-row-input"
+                            onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+                            placeholder={t('vault.passwordPlaceholder')}
+                            type={showPassword ? 'text' : 'password'}
+                            value={form.password}
+                          />
+                          {passwordStrength ? <PasswordStrengthMeter strength={passwordStrength} /> : null}
+                        </EditFieldRow>
+                      ) : null}
+                      {loginSectionFields.map(({ field, index }, position) =>
+                        renderEditField(field, index, 'login', position),
+                      )}
                       {template.otp && !loginSectionFields.some(({ field }) => field.field_type === 'otp') ? (
                         // The template's one-time password slot. Nothing is stored until a secret is typed,
                         // pasted or read from a QR code, at which point it becomes an ordinary OTP field.
-                        <div className="onepassword-field login-custom-field">
-                          <span className="custom-field-name-input">{t('vault.customFieldDefaults.otp')}</span>
-                          <div className="login-custom-field-control">
-                            <input
-                              aria-label={t('vault.customFieldDefaults.otp')}
-                              autoComplete="off"
-                              className="custom-field-value-input"
-                              onChange={(event) => {
-                                const value = event.target.value
-                                const index = addOtpField()
-                                updateCustomField(index, { value })
-                                setFocusedOtpField(`login:${index}`)
-                                window.requestAnimationFrame(() => otpInputRefs.current[index]?.focus())
-                              }}
-                              placeholder={t('vault.otpSecretPlaceholder')}
-                              spellCheck={false}
-                              type="text"
-                              value=""
+                        <EditFieldRow
+                          label={t('vault.customFieldDefaults.otp')}
+                          trailing={
+                            <OtpScanButton
+                              label={t('vault.customFieldDefaults.otp')}
+                              onScan={() => void scanOtpQr(addOtpField())}
                             />
-                            <div className="field-inline-actions">
-                              <button
-                                aria-label={t('vault.readQr')}
-                                className="icon-button ml-auto"
-                                onClick={() => void readOtpQrFromClipboard(addOtpField())}
-                                title={t('vault.readQr')}
-                                type="button"
-                              >
-                                <QrCode size={15} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
+                          }
+                        >
+                          <input
+                            aria-label={t('vault.customFieldDefaults.otp')}
+                            autoComplete="off"
+                            className="field-row-input is-mono"
+                            onChange={(event) => {
+                              const value = parseOtpSecretInput(event.target.value)
+                              const index = addOtpField()
+                              updateCustomField(index, { value })
+                              setFocusedOtpField(`otp:${index}`)
+                              window.requestAnimationFrame(() => otpInputRefs.current[index]?.focus())
+                            }}
+                            placeholder={t('vault.otpSecretPlaceholder')}
+                            spellCheck={false}
+                            type="text"
+                            value=""
+                          />
+                        </EditFieldRow>
                       ) : null}
                     </div>
                   ) : null}
                   {showWebsites ? (
-                    <div className="wide website-section onepassword-block">
-                      <div className="website-list">
-                        {form.urlsInput.map((itemUrl, index) => (
-                          <div className="website-row" key={itemUrl.id}>
-                            <div className="website-stack">
-                              <input
-                                aria-label={t('vault.urlName')}
-                                className="website-name-input"
-                                onChange={(event) => updateUrl(index, { label: event.target.value })}
-                                placeholder={t('vault.urlName')}
-                                value={itemUrl.label}
+                    <div className="wide field-group is-edit">
+                      {form.urlsInput.map((itemUrl, index) => {
+                        const label = itemUrl.label === defaultWebsiteLabel ? t('vault.website') : itemUrl.label
+                        return (
+                          <EditFieldRow
+                            drop={fieldDrag.dropAt('urls', index)}
+                            key={itemUrl.id}
+                            label={label}
+                            labelInput={{
+                              onChange: (value) =>
+                                updateUrl(index, { label: value.trim() ? value : defaultWebsiteLabel }),
+                              placeholder: t('vault.website'),
+                              value: itemUrl.label === defaultWebsiteLabel ? '' : itemUrl.label,
+                            }}
+                            onRemove={() => removeWebsite(index)}
+                            removeLabel={t('vault.removeWebsite')}
+                            reorder={form.urlsInput.length > 1 ? reorderFor('urls', index, 'url') : undefined}
+                            trailing={
+                              <AutofillBehaviorButton
+                                label={label}
+                                mode={itemUrl.match_type}
+                                onChange={(match_type) => updateUrl(index, { match_type })}
+                                url={itemUrl.url}
                               />
-                              <input
-                                aria-label={t('vault.urlAddress')}
-                                className="website-address-input"
-                                onChange={(event) => updateUrl(index, { url: event.target.value })}
-                                placeholder="https://example.com"
-                                value={itemUrl.url}
-                              />
-                              <select
-                                aria-label={t('vault.urlMatchType')}
-                                className="website-match-select"
-                                onChange={(event) =>
-                                  updateUrl(index, { match_type: event.target.value as UrlMatchType })
-                                }
-                                title={t('vault.urlMatchTypeHelp')}
-                                value={itemUrl.match_type}
-                              >
-                                <option value="domain">{t('vault.matchTypes.domain')}</option>
-                                <option value="exact">{t('vault.matchTypes.exact')}</option>
-                              </select>
-                            </div>
-                            <button
-                              aria-label={t('vault.removeWebsite')}
-                              className="round-remove-button"
-                              disabled={form.urlsInput.length <= 1}
-                              onClick={() => removeWebsite(index)}
-                              title={t('vault.removeWebsite')}
-                              type="button"
-                            >
-                              <CircleMinus size={16} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                      <button className="inline-add-button" onClick={addWebsite} type="button">
-                        <Plus size={16} />
+                            }
+                          >
+                            <input
+                              aria-label={label}
+                              autoComplete="off"
+                              className="field-row-input"
+                              inputMode="url"
+                              onChange={(event) => updateUrl(index, { url: event.target.value })}
+                              placeholder="https://example.com"
+                              spellCheck={false}
+                              value={itemUrl.url}
+                            />
+                          </EditFieldRow>
+                        )
+                      })}
+                      <AddRowButton onClick={addWebsite}>
+                        <Plus aria-hidden="true" size={16} />
                         {t('vault.addAnotherWebsite')}
-                      </button>
+                      </AddRowButton>
                     </div>
                   ) : null}
                   <div className="wide custom-fields-section">
-                    {detailCustomFields.length ? (
-                      <div className="custom-field-list">
-                        {detailCustomFields.map(({ field, index }) => (
-                          <div className="custom-field-row" key={`${field.field_type}-${index}`}>
-                            <GripVertical aria-hidden="true" className="drag-handle" size={14} />
-                            {field.field_type === 'section' ? (
-                              <div className="section-field-card">
-                                <input
-                                  aria-label={t('vault.sectionName')}
-                                  className="custom-field-name-input section-name-input"
-                                  onChange={(event) => updateCustomField(index, { label: event.target.value })}
-                                  placeholder={t('vault.sectionName')}
-                                  value={field.label}
-                                />
-                                <div className="section-child-list">
-                                  {parseSectionChildren(field.value).map((child, childIndex, children) => {
-                                    const templateField = findTemplateField(form.item_type, child.key)
-                                    const childLabel =
-                                      child.label.trim() || t(`vault.customFieldDefaults.${child.field_type}`)
-                                    return (
-                                      <div className="section-child-row" key={child.id ?? childIndex}>
-                                        <div className="custom-field-stack">
-                                          <div className="field-label-row">
-                                            <input
-                                              aria-label={t('vault.fieldLabel')}
-                                              className="custom-field-name-input"
-                                              onChange={(event) =>
-                                                updateSectionChild(index, childIndex, { label: event.target.value })
-                                              }
-                                              placeholder={t(`vault.customFieldDefaults.${child.field_type}`)}
-                                              value={child.label}
-                                            />
-                                            {templateField ? null : (
-                                              <FieldOrderButtons
-                                                canMoveDown={childIndex < children.length - 1}
-                                                canMoveUp={childIndex > 0}
-                                                label={childLabel}
-                                                onMove={(delta) => moveSectionChild(index, childIndex, delta)}
-                                              />
-                                            )}
-                                          </div>
-                                          <FieldEditor
-                                            fieldType={child.field_type}
-                                            footer={
-                                              child.key === 'publicKey' && form.item_type === 'ssh_key' ? (
-                                                <SshFingerprintCaption
-                                                  label={t(sshFingerprintLabelKey)}
-                                                  publicKey={child.value}
-                                                />
-                                              ) : null
-                                            }
-                                            label={childLabel}
-                                            measureStrength={
-                                              child.field_type === 'password' ? measurePassword : undefined
-                                            }
-                                            meta={templateFieldMeta(templateField)}
-                                            onChange={(value) => updateSectionChild(index, childIndex, { value })}
-                                            onGenerate={generateFieldPassword}
-                                            placeholder={t(fieldValuePlaceholderKey(child.field_type))}
-                                            value={child.value}
-                                          />
-                                        </div>
-                                        {templateField ? (
-                                          // A template field is part of the category; left empty it is
-                                          // hidden when viewing and not stored, so there is nothing to remove.
-                                          <span aria-hidden="true" />
-                                        ) : (
-                                          <button
-                                            aria-label={t('vault.removeField')}
-                                            className="round-remove-button"
-                                            onClick={() => removeSectionChild(index, childIndex)}
-                                            title={t('vault.removeField')}
-                                            type="button"
-                                          >
-                                            <CircleMinus size={16} />
-                                          </button>
-                                        )}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                                <button
-                                  className="inline-add-button section-add-button"
-                                  data-field-menu=""
-                                  onClick={(event) => toggleSectionMenu(index, event.currentTarget)}
-                                  type="button"
-                                >
-                                  <Plus size={16} />
-                                  {t('vault.addFieldToSection')}
-                                </button>
-                                {sectionMenuIndex === index ? (
-                                  <div className="section-add-menu" data-field-menu="" style={sectionMenuAnchor?.style}>
-                                    {sectionChildOptions.map((option) => (
-                                      <button
-                                        className="menu-option with-icon"
-                                        key={option.type}
-                                        onClick={() => addSectionChild(index, option.type)}
-                                        type="button"
-                                      >
-                                        <option.icon aria-hidden="true" size={15} />
-                                        <span className="menu-option-label">
-                                          <span>{t(option.labelKey)}</span>
-                                          {'descriptionKey' in option ? (
-                                            <small>{t(option.descriptionKey)}</small>
-                                          ) : null}
-                                        </span>
-                                      </button>
-                                    ))}
-                                  </div>
-                                ) : null}
-                              </div>
-                            ) : (
-                              <div className="custom-field-stack">
-                                <div className="field-label-row">
-                                  <input
-                                    aria-label={t('vault.fieldLabel')}
-                                    className="custom-field-name-input"
-                                    onChange={(event) => updateCustomField(index, { label: event.target.value })}
-                                    placeholder={t(`vault.customFieldDefaults.${field.field_type}`)}
-                                    value={field.label}
-                                  />
-                                  <FieldOrderButtons
-                                    canMoveDown={detailFieldIndexes.indexOf(index) < detailFieldIndexes.length - 1}
-                                    canMoveUp={detailFieldIndexes.indexOf(index) > 0}
-                                    label={field.label.trim() || t(`vault.customFieldDefaults.${field.field_type}`)}
-                                    onMove={(delta) => moveCustomField(index, delta, detailFieldIndexes)}
-                                  />
-                                </div>
-                                {!specialFieldTypes.includes(field.field_type) ? (
-                                  <FieldEditor
-                                    fieldType={field.field_type}
-                                    label={field.label.trim() || t(`vault.customFieldDefaults.${field.field_type}`)}
-                                    measureStrength={field.field_type === 'password' ? measurePassword : undefined}
-                                    onChange={(value) => updateCustomField(index, { value })}
-                                    onGenerate={generateFieldPassword}
-                                    placeholder={t(fieldValuePlaceholderKey(field.field_type))}
-                                    value={field.value}
-                                  />
-                                ) : field.field_type === 'related_item' ? (
-                                  <select
-                                    aria-label={t('vault.relatedItem')}
-                                    className="custom-field-value-input"
-                                    onChange={(event) => updateCustomField(index, { value: event.target.value })}
-                                    value={field.value}
-                                  >
-                                    <option value="">{t('vault.chooseRelatedItem')}</option>
-                                    {items
-                                      .filter((item) => item.id !== selectedItem?.id)
-                                      .map((item) => (
-                                        <option key={item.id} value={item.id}>
-                                          {item.title}
-                                        </option>
-                                      ))}
-                                  </select>
-                                ) : (
-                                  <input
-                                    aria-label={t('vault.fieldValue')}
-                                    className="custom-field-value-input"
-                                    onBlur={() => setFocusedOtpField('')}
-                                    onChange={(event) => updateCustomField(index, { value: event.target.value })}
-                                    onFocus={() => setFocusedOtpField(`more:${index}`)}
-                                    onPaste={(event) => field.field_type === 'otp' && handleOtpPaste(index, event)}
-                                    placeholder={t(fieldValuePlaceholderKey(field.field_type))}
-                                    readOnly={field.field_type === 'file'}
-                                    ref={(node) => {
-                                      if (field.field_type === 'otp') otpInputRefs.current[index] = node
-                                    }}
-                                    value={
-                                      field.field_type === 'file' && field.value
-                                        ? fileNameFromPath(field.value)
-                                        : field.value
-                                    }
-                                    {...fieldValueInputProps(field.field_type, focusedOtpField !== `more:${index}`)}
-                                  />
-                                )}
-                                {field.field_type === 'otp' ? (
-                                  <OtpFieldActions
-                                    onCopy={() => copyFieldTotp(index)}
-                                    onPreview={() => previewFieldTotp(index, field.value)}
-                                    onReadQr={() => void readOtpQrFromClipboard(index)}
-                                    preview={fieldTotpPreviews[index]}
-                                    secret={field.value}
-                                  />
-                                ) : null}
-                                {field.field_type === 'file' ? (
-                                  <div className="field-inline-actions">
-                                    <button
-                                      className="secondary-button"
-                                      onClick={() => chooseAttachmentForField(index)}
-                                      type="button"
-                                    >
-                                      <Paperclip size={16} />
-                                      {field.value ? t('vault.changeAttachment') : t('vault.chooseAttachment')}
-                                    </button>
-                                    {field.value.startsWith('attachment://') ? (
-                                      <button
-                                        className="secondary-button"
-                                        onClick={() => openAttachment(field)}
-                                        type="button"
-                                      >
-                                        {t('vault.exportAttachment')}
-                                      </button>
-                                    ) : null}
-                                    {field.value ? <small title={field.value}>{field.value}</small> : null}
-                                  </div>
-                                ) : null}
-                                {field.field_type === 'related_item' && field.value ? (
-                                  <div className="field-inline-actions related-item-preview">
-                                    <Link size={16} />
-                                    <small>{itemTitleById(items, field.value)}</small>
-                                  </div>
-                                ) : null}
-                              </div>
-                            )}
-                            {field.field_type === 'section' &&
-                            parseSectionChildren(field.value).some((child) =>
-                              findTemplateField(form.item_type, child.key),
-                            ) ? (
-                              // The category's own section: its fields empty out rather than go away.
-                              <span aria-hidden="true" />
-                            ) : (
-                              <button
-                                aria-label={t('vault.removeField')}
-                                className="round-remove-button"
-                                onClick={() => removeCustomField(index)}
-                                title={t('vault.removeField')}
-                                type="button"
-                              >
-                                <CircleMinus size={16} />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
+                    {editTopRuns.map((run) =>
+                      run.kind === 'fields' ? (
+                        <div className="field-group is-edit" key={`run-${run.entries[0]?.index}`}>
+                          {run.entries.map(({ field, index, position }) =>
+                            renderEditField(field, index, 'top', position),
+                          )}
+                        </div>
+                      ) : (
+                        renderEditSection(run.entry.field, run.entry.index, run.entry.position)
+                      ),
+                    )}
                     <div className="add-more-wrap" data-field-menu="">
                       <button
                         className={
@@ -3753,13 +3827,12 @@ function VaultWindow() {
                       ))}
                     </div>
                   ) : null}
-                  <div className="onepassword-field standalone">
-                    <span className="tag-field-label">{t('vault.tags')}</span>
-                    <div className="tag-chip-box">
-                      {tagList(form.tagsInput).map((tag) => (
-                        <span className="tag-chip" key={tag}>
-                          <span>{tag}</span>
-                          {isEditing ? (
+                  <div className="wide field-group is-edit">
+                    <EditFieldRow label={t('vault.tags')}>
+                      <div className="tag-chip-box">
+                        {tagList(form.tagsInput).map((tag) => (
+                          <span className="tag-chip" key={tag}>
+                            <span>{tag}</span>
                             <button
                               aria-label={t('vault.removeTag', { tag })}
                               className="tag-chip-remove"
@@ -3770,10 +3843,8 @@ function VaultWindow() {
                             >
                               <X size={12} />
                             </button>
-                          ) : null}
-                        </span>
-                      ))}
-                      {isEditing ? (
+                          </span>
+                        ))}
                         <input
                           aria-label={t('vault.addTag')}
                           className="tag-input"
@@ -3800,19 +3871,35 @@ function VaultWindow() {
                           placeholder={t('vault.addTag')}
                           value={tagDraft}
                         />
-                      ) : null}
-                    </div>
+                      </div>
+                    </EditFieldRow>
                   </div>
-                  <label className="wide onepassword-field onepassword-block">
-                    {t('vault.notes')}
-                    <textarea
-                      onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-                      placeholder={t('vault.notePlaceholder')}
-                      rows={3}
-                      value={form.notes}
-                    />
-                  </label>
+                  <div className="wide field-group is-edit">
+                    <EditFieldRow label={t('vault.notes')}>
+                      <textarea
+                        aria-label={t('vault.notes')}
+                        className="field-row-input field-textarea"
+                        onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+                        placeholder={t('vault.notePlaceholder')}
+                        rows={3}
+                        value={form.notes}
+                      />
+                    </EditFieldRow>
+                  </div>
                 </div>
+                <input
+                  accept="image/*"
+                  aria-hidden="true"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    event.target.value = ''
+                    if (file && otpFileTarget.current !== null) void importOtpQrImage(otpFileTarget.current, file)
+                  }}
+                  ref={otpFileInputRef}
+                  tabIndex={-1}
+                  type="file"
+                />
               </fieldset>
             </form>
           ) : (
@@ -3841,7 +3928,7 @@ function VaultWindow() {
                 </button>
               </div>
               <div className="detail-view-body">
-                {(showUsername && form.username) || form.password || viewLoginFields.length ? (
+                {(showUsername && form.username) || form.password || viewLoginFields.length || viewOtpIndexes.length ? (
                   <div className="field-group">
                     {showUsername && form.username ? (
                       <FieldView fieldType="text" label={usernameLabel} onCopy={copyFieldValue} value={form.username} />
@@ -3875,85 +3962,41 @@ function VaultWindow() {
                         />
                       ),
                     )}
-                  </div>
-                ) : null}
-                {viewOtpIndexes.length ? (
-                  <section aria-label={t('vault.twoFactorCode')} className="otp-card">
                     {viewOtpIndexes.map((index) => {
                       const field = form.custom_fields[index]
                       if (!field) return null
-                      const preview = fieldTotpPreviews[index]
-                      const revealed = Boolean(revealedTotpSecrets[index])
-                      const hasSecret = Boolean(field.value.trim())
                       return (
-                        <div className="otp-card-row" key={`otp-card-${index}`}>
-                          <div className="otp-card-main">
-                            <span className="otp-card-label">
-                              {field.label.trim() || t('vault.customFieldDefaults.otp')}
-                            </span>
-                            {preview ? (
-                              <OtpCodeButton onCopy={() => copyFieldTotp(index)} preview={preview} />
-                            ) : (
-                              <span className="otp-card-pending">{t('vault.otpCodePending')}</span>
-                            )}
-                          </div>
-                          {preview ? (
-                            <OtpCodeMenu
-                              code={preview.code}
-                              label={field.label.trim() || t('vault.customFieldDefaults.otp')}
-                              onCopy={() => void copyFieldTotp(index)}
-                            />
-                          ) : null}
-                          <button
-                            className="secondary-button"
-                            disabled={!hasSecret}
-                            onClick={() => toggleTotpSecret(index)}
-                            type="button"
-                          >
-                            {revealed ? <EyeOff size={15} /> : <Eye size={15} />}
-                            {revealed ? t('vault.hideSecret') : t('vault.revealSecret')}
-                          </button>
-                          {revealed && hasSecret ? (
-                            <div className="otp-card-secret">
-                              <code className="otp-card-secret-value">{normalizeTotpSecret(field.value)}</code>
-                              <button
-                                className="secondary-button"
-                                onClick={() => void copyTotpSecret(index)}
-                                type="button"
-                              >
-                                <Copy size={15} />
-                                {t('vault.copySecret')}
-                              </button>
-                              <button
-                                className="secondary-button"
-                                onClick={() => void copyTotpSetupLink(index)}
-                                type="button"
-                              >
-                                <Copy size={15} />
-                                {t('vault.copySetupLink')}
-                              </button>
-                              <p className="otp-card-warning">{t('vault.secretWarning')}</p>
-                            </div>
-                          ) : null}
-                        </div>
+                        <OtpFieldView
+                          key={`otp-view-${index}`}
+                          label={field.label.trim() || t('vault.customFieldDefaults.otp')}
+                          onCopy={() => void copyFieldTotp(index)}
+                          onCopySecret={() => void copyTotpSecret(index)}
+                          onCopySetupLink={() => void copyTotpSetupLink(index)}
+                          preview={fieldTotpPreviews[index]}
+                        />
                       )
                     })}
-                  </section>
+                  </div>
                 ) : null}
                 {viewWebsites.length ? (
                   <div className="field-group">
-                    {viewWebsites.map((itemUrl) => (
-                      <FieldView
-                        canFill={features.browserExtension}
-                        fieldType="url"
-                        key={itemUrl.id}
-                        label={itemUrl.label === defaultWebsiteLabel ? t('vault.website') : itemUrl.label}
-                        onCopy={copyFieldValue}
-                        onOpenUrl={openItemWebsite}
-                        value={itemUrl.url}
-                        website
-                      />
-                    ))}
+                    {viewWebsites.map((itemUrl) => {
+                      const note = autofillViewNote(t, itemUrl.match_type, itemUrl.url)
+                      return (
+                        <FieldView
+                          canFill={features.browserExtension}
+                          fieldType="url"
+                          footer={note ? <span className="field-row-note">{note}</span> : null}
+                          key={itemUrl.id}
+                          label={itemUrl.label === defaultWebsiteLabel ? t('vault.website') : itemUrl.label}
+                          onCopy={copyFieldValue}
+                          onOpenUrl={openItemWebsite}
+                          value={itemUrl.url}
+                          // "Never fill on this website" drops Open & Fill too (1Password 8.10.80); it still opens.
+                          website={itemUrl.match_type !== 'never'}
+                        />
+                      )
+                    })}
                   </div>
                 ) : null}
                 {viewSections.map(({ children, index, title }) => (

@@ -75,6 +75,10 @@
     --color-background-selected-hovered: #007aff33;
     --color-background-selected-pressed: #007aff47;
     --color-background-selected-bold: #0063e1;
+    /* Field rows (1Password 8): the hover wash of a read-only row, its menu segment, the editor's cell. */
+    --color-field-hovered: #007aff12;
+    --color-field-segment: #0000000a;
+    --color-field-edit: #0000000a;
     --color-on-selected-fill: #ffffff33;
     --color-interaction-hovered: #0000000d;
     --color-interaction-pressed: #0000001a;
@@ -315,6 +319,9 @@
     --color-background-selected-hovered: #0a84ff4d;
     --color-background-selected-pressed: #0a84ff66;
     --color-background-selected-bold: #0059d1;
+    --color-field-hovered: #0a84ff1f;
+    --color-field-segment: #ffffff0d;
+    --color-field-edit: #ffffff0d;
     --color-interaction-hovered: #ffffff14;
     --color-interaction-pressed: #ffffff24;
     --color-skeleton: #ffffff0d;
@@ -833,7 +840,6 @@
   }
 
   .toolbar button,
-  .password-control button,
   .icon-button {
     background: var(--color-background-neutral-subtle);
     border-color: var(--color-border);
@@ -841,7 +847,6 @@
   }
 
   .toolbar button:hover,
-  .password-control button:hover,
   .icon-button:hover {
     background: var(--color-background-neutral-subtle-hovered);
   }
@@ -1017,11 +1022,6 @@
     box-shadow: none;
   }
 
-  .detail-fieldset:disabled .website-name-input,
-  .detail-fieldset:disabled .custom-field-name-input {
-    color: var(--color-text-subtle);
-  }
-
   .detail-header {
     border-color: var(--color-border);
     @apply flex items-center gap-150 border-b pb-150;
@@ -1047,183 +1047,30 @@
     @apply col-span-full;
   }
 
-  .password-control {
-    @apply grid grid-cols-password gap-075;
-  }
-
-  .password-control button,
   .icon-button {
     @apply grid h-400 w-400 place-items-center;
   }
 
-  .onepassword-group,
-  .onepassword-block {
-    background: var(--color-surface-raised);
-    border-color: var(--color-border);
-    @apply overflow-hidden rounded-large border;
-  }
-
-  .onepassword-group .onepassword-field + .onepassword-field {
-    border-color: var(--color-border);
-    @apply border-t;
-  }
-
-  .onepassword-field {
-    color: var(--color-text-subtle);
-    @apply gap-075 p-150 text-body font-medium;
-  }
-
-  .onepassword-field.standalone {
-    background: var(--color-surface-raised);
-    border-color: var(--color-border);
-    @apply rounded-large border;
-  }
-
-  .onepassword-field input,
-  .onepassword-field textarea,
-  .onepassword-field select {
-    @apply h-auto min-h-300 border-0 bg-transparent p-0 text-body font-medium text-text shadow-none;
-  }
-
-  .onepassword-field textarea {
-    @apply min-h-500 resize-none;
-  }
-
-  .onepassword-field input:focus,
-  .onepassword-field textarea:focus,
-  .onepassword-field select:focus {
-    @apply border-0 shadow-none;
-  }
-
-  .onepassword-field input::placeholder,
-  .onepassword-field textarea::placeholder {
-    @apply text-text-subtlest;
-  }
-
-  .website-section,
   .custom-fields-section {
     @apply grid gap-0 rounded-none border-0 bg-transparent p-0;
-  }
-
-  .website-list,
-  .custom-field-list {
-    @apply grid gap-150;
-  }
-
-  .website-row {
-    background: var(--color-surface-raised);
-    border-color: var(--color-border);
-    @apply grid grid-cols-field items-stretch overflow-hidden rounded-large border;
-  }
-
-  .website-stack,
-  .custom-field-stack {
-    @apply grid gap-025 px-100 py-100;
-  }
-
-  .website-name-input,
-  .website-address-input,
-  .custom-field-name-input,
-  .custom-field-value-input {
-    @apply h-auto min-h-0 border-0 bg-transparent p-0 shadow-none;
-  }
-
-  .website-name-input,
-  .custom-field-name-input {
-    @apply text-body font-medium text-text-subtle;
-  }
-
-  .website-address-input,
-  .custom-field-value-input {
-    @apply text-body font-medium text-text;
-  }
-
-  .website-name-input:focus,
-  .website-address-input:focus,
-  .custom-field-name-input:focus,
-  .custom-field-value-input:focus {
-    @apply border-0 shadow-none;
-  }
-
-  .website-name-input::placeholder,
-  .website-address-input::placeholder,
-  .custom-field-name-input::placeholder,
-  .custom-field-value-input::placeholder {
-    @apply text-text-subtlest;
-  }
-
-  .website-row button,
-  .custom-field-row button {
-    @apply grid place-items-center border-0 bg-transparent text-icon-danger transition-colors;
-  }
-
-  .website-row button:hover,
-  .custom-field-row button:hover {
-    background: var(--color-background-danger);
-  }
-
-  .website-row button:disabled {
-    @apply cursor-not-allowed text-text-disabled hover:bg-transparent;
   }
 
   .round-remove-button svg {
     @apply fill-surface;
   }
 
-  .inline-add-button,
   .add-more-button {
     color: var(--color-text-brand);
     @apply inline-flex min-h-400 items-center gap-100 rounded-medium border border-transparent bg-transparent px-100 text-body font-medium transition-colors;
   }
 
-  .inline-add-button:hover,
   .add-more-button:hover {
     background: var(--color-background-brand-subtlest);
-  }
-
-  .inline-add-button {
-    @apply mt-050 justify-start;
-  }
-
-  .custom-field-row {
-    background: var(--color-surface-raised);
-    border-color: var(--color-border);
-    @apply grid grid-cols-handle-field items-stretch overflow-hidden rounded-large border;
-  }
-
-  .field-inline-actions {
-    @apply mt-100 flex flex-wrap items-center gap-100 text-body text-text-subtle;
-  }
-
-  .field-inline-actions .secondary-button {
-    @apply min-h-300 px-100 text-body;
-  }
-
-  .field-inline-actions code {
-    color: var(--color-text);
-    background: var(--color-background-neutral-subtle-hovered);
-    border-color: var(--color-border);
-    @apply min-h-300 rounded-small border px-050 py-025 text-code font-regular;
-  }
-
-  .otp-display-button {
-    --otp-progress: 1;
-    color: var(--color-text);
-    @apply flex min-h-400 items-center gap-100 rounded-full border-0 bg-transparent px-0 py-0 text-left;
-  }
-
-  .otp-display-button:hover .otp-code {
-    color: var(--color-text-brand);
   }
 
   .otp-code {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     @apply text-title-1;
-  }
-
-  .password-control input {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-weight: var(--weight-medium);
   }
 
   .otp-countdown {
@@ -1234,54 +1081,25 @@
 
   .otp-countdown-ring {
     position: relative;
-    background: conic-gradient(var(--color-icon-danger) calc(var(--otp-progress) * 1turn), var(--color-border) 0);
+    background: conic-gradient(var(--color-icon-success) calc(var(--otp-progress) * 1turn), var(--color-border) 0);
     @apply h-200 w-200 rounded-full;
+  }
+
+  /* The last seconds: the ring turns red (the number beside it says the same in words for assistive tech). */
+  .otp-countdown.is-ending .otp-countdown-ring {
+    background: conic-gradient(var(--color-icon-danger) calc(var(--otp-progress) * 1turn), var(--color-border) 0);
   }
 
   .otp-countdown-ring::after {
     position: absolute;
-    inset: var(--space-050);
+    inset: var(--space-025);
     content: "";
     background: var(--color-surface);
     border-radius: var(--radius-full);
   }
 
-  .field-inline-actions small {
-    @apply max-w-lock-panel truncate text-body;
-  }
-
-  .related-item-preview {
-    @apply text-text-brand;
-  }
-
-  .section-field-card {
-    @apply grid gap-100 px-100 py-100;
-  }
-
   .section-name-input {
     @apply text-body font-medium text-text;
-  }
-
-  .section-child-list {
-    @apply grid gap-100;
-  }
-
-  .section-child-row {
-    background: var(--color-surface);
-    border-color: var(--color-border);
-    @apply grid grid-cols-field overflow-hidden rounded-large border;
-  }
-
-  .section-child-row .custom-field-stack {
-    @apply px-100 py-075;
-  }
-
-  .section-child-row .round-remove-button {
-    @apply w-400;
-  }
-
-  .section-add-button {
-    @apply mt-0 min-h-300 justify-start px-0 text-body;
   }
 
   .section-add-menu {
@@ -1298,30 +1116,6 @@
 
   .item-search-empty {
     @apply mx-050 px-100 py-050;
-  }
-
-  .login-custom-field {
-    @apply grid gap-050;
-  }
-
-  .login-custom-field-value {
-    @apply grid grid-cols-field items-start gap-050;
-  }
-
-  .login-custom-field-control {
-    @apply grid gap-050;
-  }
-
-  .login-custom-field .round-remove-button {
-    @apply grid h-300 w-400 place-items-center border-0 bg-transparent text-icon-danger transition-colors;
-  }
-
-  .login-custom-field .round-remove-button:hover {
-    background: var(--color-background-danger);
-  }
-
-  .drag-handle {
-    @apply grid place-items-center text-body text-text-subtlest;
   }
 
   .add-more-wrap {
@@ -1784,7 +1578,6 @@
   }
 
   .toolbar button,
-  .password-control button,
   .icon-button {
     color: var(--color-icon-subtle);
     background: transparent;
@@ -1792,7 +1585,6 @@
   }
 
   .toolbar button:hover,
-  .password-control button:hover,
   .icon-button:hover {
     color: var(--color-text);
     background: var(--color-background-neutral-subtle-hovered);
@@ -2056,7 +1848,6 @@
   }
 
   .vault-add-button,
-  .password-control button,
   .icon-button {
     @apply h-350 w-350;
   }
@@ -2130,12 +1921,6 @@
     @apply mt-200 max-w-none gap-200;
   }
 
-  .onepassword-group,
-  .onepassword-block,
-  .onepassword-field.standalone,
-  .website-row,
-  .custom-field-row,
-  .section-child-row,
   .generator-output,
   .generator-controls,
   .integration-card,
@@ -2143,11 +1928,6 @@
     background: var(--color-surface-raised);
     border-color: var(--color-border);
     @apply rounded-large border shadow-none;
-  }
-
-  .onepassword-field {
-    color: var(--color-text-subtlest);
-    @apply gap-050 px-150 py-100 text-callout font-medium;
   }
 
   /* Segmented control (segmented-controls.md): a filled track, the chosen segment raised on the
@@ -2187,44 +1967,6 @@
     @apply m-0 text-callout;
   }
 
-  .otp-card {
-    background: var(--color-surface-raised);
-    border-color: var(--color-border);
-    @apply mb-150 flex max-w-content shrink-0 flex-col gap-100 rounded-large border p-150;
-  }
-
-  .otp-card-row {
-    @apply flex flex-wrap items-center gap-100;
-  }
-
-  .otp-card-main {
-    @apply flex flex-1 items-center gap-150;
-  }
-
-  .otp-card-label {
-    @apply text-body font-medium;
-  }
-
-  .otp-card-pending {
-    color: var(--color-text-subtlest);
-    @apply text-callout;
-  }
-
-  .otp-card-secret {
-    @apply flex w-full flex-wrap items-center gap-100;
-  }
-
-  .otp-card-secret-value {
-    color: var(--color-text);
-    background: var(--color-background-neutral-subtle);
-    @apply max-w-content break-all rounded-small px-100 py-050 text-code;
-  }
-
-  .otp-card-warning {
-    color: var(--color-text-subtle);
-    @apply m-0 w-full text-callout;
-  }
-
   .attachment-dropzone {
     color: var(--color-text-subtlest);
     border-color: var(--color-border-input);
@@ -2246,11 +1988,6 @@
   .nav-sublist-empty {
     color: var(--color-text-subtlest);
     @apply m-0 px-100 text-callout;
-  }
-
-  .tag-field-label {
-    color: var(--color-text);
-    @apply font-medium;
   }
 
   .tag-chip-box {
@@ -2276,46 +2013,6 @@
     @apply min-w-0 flex-1;
   }
 
-  .onepassword-field input,
-  .onepassword-field textarea,
-  .onepassword-field select,
-  .website-name-input,
-  .website-address-input,
-  .custom-field-name-input,
-  .custom-field-value-input {
-    color: var(--color-text);
-    @apply text-body font-normal;
-  }
-
-  .website-list,
-  .custom-field-list {
-    @apply gap-100;
-  }
-
-  .website-row {
-    @apply grid-cols-field;
-  }
-
-  .custom-field-row {
-    @apply grid-cols-handle-field;
-  }
-
-  .website-stack,
-  .custom-field-stack,
-  .section-field-card {
-    @apply px-100 py-075;
-  }
-
-  .website-match-select {
-    @apply h-300 w-auto self-start rounded-medium px-075 pr-300 text-callout font-normal text-text-subtle shadow-none;
-  }
-
-  .drag-handle {
-    color: var(--color-text-subtlest);
-    @apply text-callout;
-  }
-
-  .inline-add-button,
   .add-more-button {
     color: var(--color-text-brand);
     @apply min-h-400 gap-075 rounded-medium px-100 text-body font-medium;
@@ -2898,8 +2595,11 @@
     @apply grid overflow-hidden rounded-large border;
   }
 
+  /* One row for every field, read-only and editing alike (1Password 8, owner screenshots 2026-10-17): the label
+     small and tinted above the value, the trailing action area at the right edge, a hairline between rows of
+     a card. `.field-row.is-edit` (src/app/fieldRows.tsx) only adds the editor's parts further down. */
   .field-row {
-    @apply flex min-h-500 items-center gap-100 px-150 py-100;
+    @apply flex min-h-600 items-center gap-100 px-200 py-100;
   }
 
   .field-group > .field-row + .field-row,
@@ -2913,17 +2613,21 @@
   }
 
   .field-row-label {
-    color: var(--color-text-subtle);
-    @apply text-callout font-medium;
+    color: var(--color-text-brand);
+    @apply text-callout;
   }
 
   .field-row-value {
     color: var(--color-text);
-    @apply min-w-0 break-words text-body;
+    @apply min-w-0 break-words text-title-3;
+  }
+
+  .field-row-note {
+    color: var(--color-text-subtle);
+    @apply text-callout;
   }
 
   .field-row-value.is-mono,
-  .custom-field-value-input.is-mono,
   .field-caption code {
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   }
@@ -2996,20 +2700,36 @@
 
   .field-row.is-actionable:hover,
   .field-row.is-menu-open {
-    background: var(--color-background-neutral-subtle-hovered);
+    background: var(--color-field-hovered);
   }
 
   .field-row-actions {
     @apply relative;
   }
 
+  /* The primary action said in words ("Copy", "Open & Fill") in the label colour, then the menu as its own
+     segment: the full height of the row, a faint fill and a hairline on its leading edge. */
   .field-row-hint {
-    color: var(--color-text-brand);
-    @apply whitespace-nowrap px-050 text-callout font-medium opacity-0;
+    color: var(--color-text);
+    @apply whitespace-nowrap px-100 text-body font-semibold opacity-0;
+  }
+
+  .field-row:has(.field-menu-button) {
+    @apply pr-0;
+  }
+
+  .field-row-actions:has(.field-menu-button) {
+    @apply -my-100 self-stretch;
   }
 
   .field-row-actions .field-menu-button {
-    @apply opacity-0;
+    background: var(--color-field-segment);
+    border-color: var(--color-border);
+    @apply h-auto min-h-600 w-600 self-stretch rounded-none border-0 border-l opacity-0;
+  }
+
+  .field-row-actions .field-menu-button:hover {
+    background: var(--color-background-neutral-subtle-hovered);
   }
 
   .field-row:hover .field-row-hint,
@@ -3019,6 +2739,232 @@
   .field-row:focus-within .field-menu-button,
   .field-row.is-menu-open .field-menu-button {
     @apply opacity-100;
+  }
+
+  /* ── Editing ──────────────────────────────────────────────────────────────────────────────────────────
+     A card of `.field-slot`s: a handle gutter outside the card, then the cell. The cells draw the card
+     (`--color-field-edit` fill, hairlines between, the outer corners rounded), so a handle can sit outside it. */
+  .field-group.is-edit {
+    @apply overflow-visible rounded-none border-0 bg-transparent;
+  }
+
+  .field-slot {
+    @apply relative grid grid-cols-field-slot items-stretch;
+  }
+
+  .field-slot-handle {
+    @apply flex items-center justify-center;
+  }
+
+  .field-reorder-handle {
+    color: var(--color-icon-subtle);
+    touch-action: none;
+    @apply grid h-400 w-400 cursor-grab place-items-center rounded-medium border-0 bg-transparent p-0;
+  }
+
+  .field-reorder-handle:hover {
+    color: var(--color-icon);
+  }
+
+  .field-reorder-handle:active {
+    @apply cursor-grabbing;
+  }
+
+  .field-row.is-edit {
+    background: var(--color-field-edit);
+    border-color: var(--color-border);
+    @apply min-w-0 border-x;
+  }
+
+  .field-group.is-edit > .field-slot:first-child > .field-row,
+  .field-section.is-edit > .field-group > .field-slot:first-child > .field-row {
+    @apply rounded-t-large border-t;
+  }
+
+  .field-group.is-edit > .field-slot:last-child > .field-row {
+    @apply rounded-b-large border-b;
+  }
+
+  .field-group.is-edit > .field-slot + .field-slot > .field-row {
+    @apply border-t;
+  }
+
+  /* The editable label reads as the label: same size, tint swapped for the text colour so it reads as input. */
+  /* A label the user can rename reads in the secondary label colour, typed or placeholder alike (1Password
+     tints only the fixed labels). */
+  .field-row-label-input {
+    color: var(--color-text-subtle);
+    @apply h-auto min-h-0 w-full border-0 bg-transparent p-0 text-callout shadow-none;
+  }
+
+  .field-row-label-input::placeholder {
+    color: var(--color-text-subtle);
+  }
+
+  .field-row.is-edit .tag-input {
+    @apply h-auto min-h-300 border-0 bg-transparent p-0 text-title-3 shadow-none;
+  }
+
+  .field-row-input,
+  .field-row.is-edit .field-editor-row > input,
+  .field-row.is-edit .field-editor-row > textarea {
+    color: var(--color-text);
+    @apply h-auto min-h-300 w-full min-w-0 border-0 bg-transparent p-0 text-title-3 shadow-none;
+  }
+
+  .field-row-input::placeholder,
+  .field-row.is-edit .field-editor-row > input::placeholder,
+  .field-row.is-edit .field-editor-row > textarea::placeholder {
+    color: var(--color-text-subtlest);
+  }
+
+  .field-row-input.is-mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+
+  .field-row.is-edit .field-row-main {
+    @apply py-025;
+  }
+
+  .field-row.is-section-header .section-name-input {
+    @apply font-semibold;
+  }
+
+  .field-row.is-add {
+    @apply min-h-500 py-050;
+  }
+
+  .field-add-button {
+    color: var(--color-text-brand);
+    @apply inline-flex h-auto min-h-0 items-center gap-075 border-0 bg-transparent p-0 text-body;
+  }
+
+  .field-add-button:hover {
+    @apply underline;
+  }
+
+  /* Trailing buttons: the type's own (generator, autofill behaviour, QR scan), then remove in red. */
+  .field-type-button,
+  .field-editor-button,
+  .field-remove-button {
+    color: var(--color-icon-subtle);
+    @apply grid h-400 w-400 shrink-0 place-items-center rounded-medium border-0 bg-transparent p-0;
+  }
+
+  .field-type-button:hover,
+  .field-editor-button:hover {
+    color: var(--color-icon);
+    background: var(--color-background-neutral-subtle-hovered);
+  }
+
+  .field-type-button.is-customized {
+    color: var(--color-icon-brand);
+  }
+
+  .field-remove-button {
+    color: var(--color-icon-danger);
+  }
+
+  .field-remove-button:hover {
+    background: var(--color-background-neutral-subtle-hovered);
+  }
+
+  .field-text-button {
+    color: var(--color-text-brand);
+    @apply h-auto min-h-0 whitespace-nowrap border-0 bg-transparent px-100 py-050 text-body;
+  }
+
+  .field-section.is-edit {
+    @apply relative grid gap-0;
+  }
+
+  .custom-fields-section {
+    @apply grid gap-200;
+  }
+
+  /* Drag: the row being moved fades, the drop point is a 2pt accent line between rows. */
+  .field-slot.is-drop-before::before,
+  .field-slot.is-drop-after::after,
+  .field-section.is-drop-before::before,
+  .field-section.is-drop-after::after {
+    content: "";
+    background: var(--color-accent);
+    @apply pointer-events-none absolute left-500 right-0 z-10 h-025 rounded-full;
+  }
+
+  .field-slot.is-drop-before::before,
+  .field-section.is-drop-before::before {
+    @apply -top-025;
+  }
+
+  .field-slot.is-drop-after::after,
+  .field-section.is-drop-after::after {
+    @apply -bottom-025;
+  }
+
+  /* Autofill Behavior (1Password 8): a popover under the sliders button, a sheet on phones. */
+  .autofill-panel {
+    background: var(--color-surface-overlay);
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-overlay);
+    @apply z-40 grid gap-100 rounded-xlarge border p-200;
+  }
+
+  .autofill-panel-title {
+    color: var(--color-text-subtle);
+    @apply m-0 text-callout font-semibold uppercase;
+  }
+
+  .autofill-options {
+    @apply grid gap-050;
+  }
+
+  .autofill-option {
+    color: var(--color-text);
+    @apply flex cursor-pointer items-center gap-150 py-075 text-title-3;
+  }
+
+  .autofill-option input {
+    @apply m-0 h-250 w-250 shrink-0;
+  }
+
+  .autofill-option-label {
+    @apply min-w-0 flex-1;
+  }
+
+  .autofill-default-badge {
+    color: var(--color-text-inverse);
+    background: var(--color-icon-subtle);
+    @apply rounded-full px-100 py-025 text-callout font-semibold;
+  }
+
+  .autofill-scope {
+    color: var(--color-text);
+    background: var(--color-field-hovered);
+    @apply m-0 rounded-large p-200 text-body;
+  }
+
+  .autofill-sheet-layer {
+    @apply fixed inset-0 z-40 flex flex-col justify-end p-100;
+  }
+
+  .autofill-panel.is-sheet {
+    @apply relative w-full;
+  }
+
+  /* One-time password, read-only: "214 • 685" and a countdown pill. */
+  .otp-value {
+    @apply flex flex-wrap items-center gap-100;
+  }
+
+  .otp-code {
+    font-variant-numeric: tabular-nums;
+    @apply inline-flex items-center gap-075;
+  }
+
+  .otp-code-separator {
+    color: var(--color-text-subtlest);
+    @apply text-callout;
   }
 
   .field-action-menu {
@@ -3127,27 +3073,6 @@
 
   /* Item fields, editing. The section's own "Add Field" sits inside a field row, whose button rule is
      the red remove glyph's; this puts it back to an accent text button on one line. */
-  .custom-field-row .section-add-button {
-    color: var(--color-text-brand);
-    @apply inline-flex w-fit place-items-start items-center gap-050 px-050;
-  }
-
-  .custom-field-row .section-add-button:hover {
-    background: var(--color-background-brand-subtlest);
-  }
-
-  /* Item fields, editing. */
-  .field-label-row {
-    @apply flex items-center gap-050;
-  }
-
-  .field-label-row .custom-field-name-input {
-    @apply min-w-0 flex-1;
-  }
-
-  .field-order-buttons {
-    @apply flex shrink-0 items-center gap-025;
-  }
 
   .field-editor {
     @apply grid gap-050;
@@ -3160,30 +3085,6 @@
   .field-editor-row > input,
   .field-editor-row > textarea {
     @apply min-w-0 flex-1;
-  }
-
-  .field-editor-button {
-    color: var(--color-icon-subtle);
-    @apply grid h-300 w-300 shrink-0 place-items-center rounded-medium border-0 bg-transparent p-0 transition-colors;
-  }
-
-  .custom-field-row .field-editor-button,
-  .section-child-row .field-editor-button {
-    color: var(--color-icon-subtle);
-  }
-
-  .field-editor-button:hover,
-  .custom-field-row .field-editor-button:hover,
-  .section-child-row .field-editor-button:hover {
-    color: var(--color-icon);
-    background: var(--color-background-neutral-subtle-hovered);
-  }
-
-  .field-editor-button:disabled,
-  .custom-field-row .field-editor-button:disabled,
-  .section-child-row .field-editor-button:disabled {
-    color: var(--color-icon-disabled);
-    @apply cursor-default bg-transparent;
   }
 
   .field-textarea {
@@ -3311,14 +3212,6 @@
   .sign-in-row-mark {
     color: var(--color-text);
     @apply shrink-0;
-  }
-
-  .sign-in-edit {
-    @apply flex min-w-0 flex-1 items-center gap-100;
-  }
-
-  .sign-in-edit .sign-in-row {
-    @apply min-w-0 flex-1 border-0 p-0;
   }
 
   /* A picker row's leading tile: the website icon when there is one, otherwise the type glyph (or, for

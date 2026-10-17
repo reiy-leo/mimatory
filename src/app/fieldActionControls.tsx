@@ -1,4 +1,17 @@
-import { ChevronDown, Copy, ExternalLink, Eye, EyeOff, LogIn, Mail, Maximize2, Phone, X } from 'lucide-react'
+import {
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Link,
+  LogIn,
+  Mail,
+  Maximize2,
+  Phone,
+  X,
+} from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
@@ -30,6 +43,10 @@ export function fieldActionLabel(t: Translate, id: FieldActionId): string {
       return t('fieldActions.conceal')
     case 'copy':
       return t('fieldActions.copy')
+    case 'copySecret':
+      return t('fieldActions.copySecret')
+    case 'copySetupLink':
+      return t('fieldActions.copySetupLink')
     case 'largeType':
       return t('fieldActions.largeType')
     case 'open':
@@ -47,6 +64,8 @@ const actionIcons: Record<FieldActionId, ReactNode> = {
   call: <Phone size={16} />,
   conceal: <EyeOff size={16} />,
   copy: <Copy size={16} />,
+  copySecret: <KeyRound size={16} />,
+  copySetupLink: <Link size={16} />,
   largeType: <Maximize2 size={16} />,
   open: <ExternalLink size={16} />,
   openAndFill: <LogIn size={16} />,

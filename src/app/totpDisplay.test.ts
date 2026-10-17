@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   buildOtpAuthUri,
   formatOtpCode,
+  formatOtpSecret,
   getTotpProgress,
   normalizeTotpSecret,
+  otpCodeGroups,
   otpSecretFieldIndexes,
+  parseOtpSecretInput,
 } from './totpDisplay'
 
 describe('totp display helpers', () => {
@@ -44,5 +47,28 @@ describe('totp display helpers', () => {
     expect(buildOtpAuthUri({ account: '   ', issuer: '', secret: 'JBSWYDKO' })).toBe(
       'otpauth://totp/?secret=JBSWYDKO&algorithm=SHA1&digits=6&period=30',
     )
+  })
+})
+
+describe('one-time password editor formatting', () => {
+  it('groups the stored key in lowercase fours for display', () => {
+    expect(formatOtpSecret('JBSWY3DPEHPK3PXP')).toBe('jbsw y3dp ehpk 3pxp')
+    expect(formatOtpSecret('jbsw y3dp eh')).toBe('jbsw y3dp eh')
+    expect(formatOtpSecret('')).toBe('')
+  })
+
+  it('stores a typed key or a pasted setup link as normalized base32', () => {
+    expect(parseOtpSecretInput('jbsw y3dp ehpk 3pxp')).toBe('JBSWY3DPEHPK3PXP')
+    expect(parseOtpSecretInput('  jbsw\ty3dp==  ')).toBe('JBSWY3DP')
+    expect(parseOtpSecretInput('otpauth://totp/GitHub:rei?secret=jbswy3dpehpk3pxp&issuer=GitHub')).toBe(
+      'JBSWY3DPEHPK3PXP',
+    )
+    expect(parseOtpSecretInput('otpauth://totp/x')).toBe('OTPAUTH://TOTP/X')
+  })
+
+  it('splits a code into two groups', () => {
+    expect(otpCodeGroups('214685')).toEqual(['214', '685'])
+    expect(otpCodeGroups('12345678')).toEqual(['1234', '5678'])
+    expect(otpCodeGroups('abc')).toEqual(['abc'])
   })
 })

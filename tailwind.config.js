@@ -158,9 +158,9 @@ export default {
          an arbitrary track value is a number nobody chose. */
       gridTemplateColumns: {
         field: 'minmax(0,1fr) var(--space-400)',
-        'handle-field': 'var(--space-300) minmax(0,1fr) var(--space-400)',
+        /* The editor's field slot: the drag-handle gutter outside the card, then the cell. */
+        'field-slot': 'var(--space-500) minmax(0,1fr)',
         'icon-option': 'var(--space-250) minmax(0,1fr)',
-        password: 'minmax(0,1fr) repeat(3, var(--space-400))',
         settings: 'var(--measure-settings-nav) minmax(0,1fr)',
         'slider-row': 'auto minmax(var(--measure-slider-min),1fr) var(--space-1000)',
       },

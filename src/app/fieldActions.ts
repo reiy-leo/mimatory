@@ -8,7 +8,17 @@ import { canShowLargeType } from './largeType'
  * new behaviour is a rule here, never a branch in a component.
  */
 
-export type FieldActionId = 'call' | 'conceal' | 'copy' | 'largeType' | 'open' | 'openAndFill' | 'reveal' | 'sendEmail'
+export type FieldActionId =
+  | 'call'
+  | 'conceal'
+  | 'copy'
+  | 'copySecret'
+  | 'copySetupLink'
+  | 'largeType'
+  | 'open'
+  | 'openAndFill'
+  | 'reveal'
+  | 'sendEmail'
 
 export type FieldActionInput = {
   /** The item's own login website (Open & Fill applies), as opposed to a URL field inside a section. */

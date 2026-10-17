@@ -97,7 +97,7 @@ describe('design rules', () => {
     expect(styles).toMatch(/@media \(prefers-reduced-transparency: reduce\)/)
     expect(styles).toMatch(/@media \(prefers-reduced-motion: reduce\)/)
     /* Content panes never wear a material. */
-    for (const content of ['.item-list', '.detail-pane', '.onepassword-group']) {
+    for (const content of ['.item-list', '.detail-pane', '.field-group']) {
       const rule = componentCss.match(new RegExp(`\\n  \\${content} \\{[^}]*\\}`, 'g')) ?? []
       expect(rule.join('\n')).not.toContain('--material-')
     }
@@ -154,5 +154,78 @@ describe('platform skin rules', () => {
     const appleLines = `${skinTokens}\n${skinShapes}`.split('\n').filter((line) => line.includes('data-skin="apple"'))
     expect(appleLines.length).toBeGreaterThan(0)
     for (const line of appleLines) expect(line).toContain('[data-layout="mobile"]')
+  })
+})
+
+/* Owner, 2026-10-17: "要做到所有的字段样式都是统一的" / "把所有的字段的view、edit模式中的样式重构，确保样式一致". Every
+   field is one `.field-row` in both modes — `FieldView` / `OtpFieldView` read-only, `EditFieldRow` editing — and the
+   per-type row shapes that came before it stay deleted. */
+describe('one field row for every field, read-only and editing', () => {
+  const appSource = readFileSync('src/App.tsx', 'utf8')
+  const rows = readFileSync('src/app/fieldRows.tsx', 'utf8')
+  const controls = readFileSync('src/app/fieldControls.tsx', 'utf8')
+  const formStart = appSource.indexOf('<form className="detail-form"')
+  const editForm = appSource.slice(formStart, appSource.indexOf('</form>', formStart))
+  const editHelpers = appSource.slice(
+    appSource.indexOf('function renderEditField('),
+    appSource.indexOf('function addOtpField('),
+  )
+  const viewPane = appSource.slice(
+    appSource.indexOf('<div className="detail-view">'),
+    appSource.indexOf('detail-empty'),
+  )
+  const retired = [
+    'onepassword-field',
+    'onepassword-group',
+    'onepassword-block',
+    'website-row',
+    'website-stack',
+    'custom-field-row',
+    'custom-field-stack',
+    'custom-field-name-input',
+    'custom-field-value-input',
+    'section-field-card',
+    'section-child-row',
+    'login-custom-field',
+    'drag-handle',
+    'field-order-buttons',
+    'otp-card',
+    'password-control"',
+    'round-remove-button',
+  ]
+
+  it('draws the shared cell in both components', () => {
+    expect(rows).toMatch(/className=\{\['field-row', 'is-edit'/)
+    expect(controls).toMatch(/'field-row',\n\s+primary \? 'is-actionable'/)
+  })
+
+  it('keeps the retired per-type row shapes out of the form, the view and the stylesheets', () => {
+    for (const name of retired) {
+      expect(`${editForm}\n${editHelpers}`).not.toContain(name)
+      expect(viewPane).not.toContain(name)
+    }
+    const css = `${styles}\n${readFileSync('src/skin/skins.css', 'utf8')}\n${readFileSync('src/skin/mobile.css', 'utf8')}`
+    for (const name of retired.filter((entry) => entry !== 'round-remove-button' && entry !== 'password-control"')) {
+      expect(css).not.toMatch(new RegExp(`\\.${name}(?![\\w-])`))
+    }
+  })
+
+  it('renders every editable field through EditFieldRow', () => {
+    // Each value control in the form sits inside an EditFieldRow (the tag box and notes included); the only
+    // inputs outside one are the title and the hidden QR image picker.
+    const loose = `${editForm}\n${editHelpers}`
+      .split(/<EditFieldRow[\s\S]*?<\/EditFieldRow>/)
+      .join('')
+      .match(/<(?:input|textarea|select|FieldEditor)\b[^>]*>/g)
+    expect(editForm).toContain('className="title-input"')
+    expect(editForm).toContain('type="file"')
+    expect(loose?.length).toBe(2)
+  })
+
+  it('renders every read-only field through FieldView or OtpFieldView', () => {
+    const loose = viewPane.match(/<(?:input|textarea|select)\b/g) ?? []
+    expect(loose).toEqual([])
+    expect(viewPane).toContain('<FieldView')
+    expect(viewPane).toContain('<OtpFieldView')
   })
 })

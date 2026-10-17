@@ -327,7 +327,6 @@
 
 /* Cards: filled, no stroke, a 12dp corner. */
 :root[data-skin="material"] .field-group,
-:root[data-skin="material"] .onepassword-group,
 :root[data-skin="material"] .integration-card,
 :root[data-skin="material"] .security-group {
   border-color: transparent;
