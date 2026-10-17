@@ -69,6 +69,12 @@ change, so the expensive bundle belongs once at the end. The one exception is in
 
 ## Workflow
 
+- **Develop on `main`** (owner instruction, 2026-10-17): the feature branches were fast-forwarded into `main`;
+  commit and push to `main` directly from now on.
+- **Versions**: `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` (+ both lockfiles) carry
+  the same version; tag `v<version>`. Alpha tags (`v*-alpha*`) build macOS only and publish the prerelease at
+  once. A pre-release version like `0.1.0-alpha.1` is not valid for a Windows MSI or an Android versionCode —
+  set `bundle.windows.wix.version` / a numeric version before a non-alpha all-platform build.
 - **Commit and push at the end of every exchange** (owner instruction, 2026-10-08), once the tier above is
   green. Do not wait to be asked again and do not accumulate uncommitted work across turns. Stage by file
   name, never `git add -A`, and read `git status` before committing so nothing suspicious gets pushed —
@@ -241,7 +247,8 @@ Wayland; X11 is not supported.
   platform's build. So neither is set; `tauri` is pinned `>= 2.12.1`. The Mac App Store caveat still holds.
 - **CI** (no secrets): `ci.yml` (lint, typecheck, test, build, `cargo check --tests` on Linux, X11 guard);
   `build.yml` (manual or `v*` tags: macOS universal, Windows msi/nsis, Linux deb/AppImage, Android arm64 debug APK
-  via `tauri android init --ci`; a tag makes a draft **prerelease** — alpha tags too — with the APK attached);
+  via `tauri android init --ci`; a non-alpha tag makes a draft **prerelease** with the APK attached; a `v*-alpha*` tag builds macOS only and
+  publishes the prerelease);
   `ios.yml` (manual, unsigned ipa from the archive). `src-tauri/gen/{android,apple}` are generated in CI and
   ignored. Signing secrets that would be needed later (none are referenced now): Apple
   `APPLE_CERTIFICATE`/`APPLE_CERTIFICATE_PASSWORD`/`APPLE_SIGNING_IDENTITY`/`APPLE_ID`/`APPLE_PASSWORD`/

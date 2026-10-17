@@ -1,7 +1,7 @@
 # Native packages (unsigned): macOS (universal .dmg/.app), Windows (msi / nsis), Linux (AppImage / deb, Wayland
 # only), Android (debug APK, arm64). Run by hand (Actions → Build apps) or by pushing a v* tag; artifacts are
-# uploaded either way, and a tag also creates a draft prerelease (alpha tags included) with the APK attached —
-# the same flow as Mindough's build.yml. iOS is ios.yml (manual). No repository secrets are used; signing is
+# uploaded either way, and a tag creates a draft prerelease with the APK attached. Alpha tags (v*-alpha*) build
+# macOS only and publish the prerelease directly (Rei, 2026-10-17). iOS is ios.yml (manual). No repository secrets are used; signing is
 # documented in AGENTS.md "Platforms".
 name: Build apps
 
@@ -14,30 +14,38 @@ permissions:
   contents: write
 
 jobs:
+  # Alpha tags (v*-alpha*) build macOS only; every other run builds all desktop platforms and Android.
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      alpha: ${{ steps.plan.outputs.alpha }}
+    steps:
+      - id: plan
+        shell: python
+        run: |
+          import json, os
+          ref = os.environ["GITHUB_REF"]
+          alpha = ref.startswith("refs/tags/") and "-alpha" in ref
+          mac = {"name": "macOS (universal)", "os": "macos-latest", "args": "--target universal-apple-darwin",
+                 "rust-targets": "aarch64-apple-darwin,x86_64-apple-darwin", "artifact": "passless-macos",
+                 "bundle": "src-tauri/target/universal-apple-darwin/release/bundle"}
+          win = {"name": "Windows", "os": "windows-latest", "args": "", "rust-targets": "",
+                 "artifact": "passless-windows", "bundle": "src-tauri/target/release/bundle"}
+          linux = {"name": "Linux (Wayland)", "os": "ubuntu-22.04", "args": "", "rust-targets": "",
+                   "artifact": "passless-linux", "bundle": "src-tauri/target/release/bundle"}
+          include = [mac] if alpha else [mac, win, linux]
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write("matrix=" + json.dumps({"include": include}) + "\n")
+              f.write("alpha=" + ("true" if alpha else "false") + "\n")
+
   desktop:
     name: Desktop ${{ matrix.name }}
+    needs: plan
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - name: macOS (universal)
-            os: macos-latest
-            args: --target universal-apple-darwin
-            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
-            artifact: passless-macos
-            bundle: src-tauri/target/universal-apple-darwin/release/bundle
-          - name: Windows
-            os: windows-latest
-            args: ''
-            rust-targets: ''
-            artifact: passless-windows
-            bundle: src-tauri/target/release/bundle
-          - name: Linux (Wayland)
-            os: ubuntu-22.04
-            args: ''
-            rust-targets: ''
-            artifact: passless-linux
-            bundle: src-tauri/target/release/bundle
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -73,7 +81,8 @@ jobs:
           # Only a tag creates the draft Release; a manual run only uploads artifacts.
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: Passless ${{ github.ref_name }}
-          releaseDraft: true
+          # Alpha tags publish a prerelease right away; other tags stay drafts for review.
+          releaseDraft: ${{ needs.plan.outputs.alpha != 'true' }}
           prerelease: true
 
       - uses: actions/upload-artifact@v4
@@ -90,6 +99,8 @@ jobs:
 
   android:
     name: Android (debug APK)
+    needs: plan
+    if: needs.plan.outputs.alpha != 'true'
     runs-on: ubuntu-latest
     env:
       NDK_VERSION: 27.2.12479018
@@ -140,8 +151,8 @@ jobs:
   # On a tag, attach the APK to the draft Release the desktop jobs created (alpha tags too, as in Mindough).
   release-android:
     name: Attach APK to the Release
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: [desktop, android]
+    if: startsWith(github.ref, 'refs/tags/') && needs.plan.outputs.alpha != 'true'
+    needs: [plan, desktop, android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
