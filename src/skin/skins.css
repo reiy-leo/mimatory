@@ -76,7 +76,8 @@
   --material-filter: none;
 }
 
-/* NavigationView (left pane on Mica): no material, no divider; 36px items with a 4px corner, the selected
+/* Glyph rules are wrapped in :where() so a row's own text-accent-icon-* hue (tags, categories, vaults) still wins.
+   NavigationView (left pane on Mica): no material, no divider; 36px items with a 4px corner, the selected
    item a subtle fill with the 3×16 accent pill at its leading edge. */
 :root[data-skin="winui"] .sidebar,
 :root[data-skin="winui"] .settings-sidebar {
@@ -92,7 +93,7 @@
   padding-left: var(--space-150);
 }
 
-:root[data-skin="winui"] :where(.nav-item) > svg {
+:where(:root[data-skin="winui"] .nav-item) > svg {
   color: var(--color-icon);
 }
 
@@ -271,7 +272,7 @@
   border-radius: var(--radius-full);
 }
 
-:root[data-skin="material"] :where(.nav-item) > svg {
+:where(:root[data-skin="material"] .nav-item) > svg {
   color: var(--color-icon-subtle);
 }
 
