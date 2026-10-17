@@ -2952,6 +2952,31 @@
     @apply relative w-full;
   }
 
+  /* Whole-cell focus (1Password 8, owner 2026-10-17: "1p是input focus是整个field 有一个ring"):
+     the focused field's cell turns into a raised white card with a soft accent ring around label, value and
+     trailing buttons; the input inside draws nothing of its own (the composite-control exception in
+     .agent/design.md). Keyboard and pointer focus alike, so the cell always shows where typing goes. */
+  .field-row.is-edit:focus-within {
+    outline: var(--focus-ring-width) solid color-mix(in srgb, var(--color-focus-ring) 45%, transparent);
+    outline-offset: var(--focus-ring-offset);
+    background: var(--color-surface);
+    @apply relative z-10 rounded-large;
+  }
+
+  .field-row.is-edit input:focus,
+  .field-row.is-edit input:focus-visible,
+  .field-row.is-edit textarea:focus,
+  .field-row.is-edit textarea:focus-visible {
+    outline-style: none;
+    background-color: transparent;
+    border-color: transparent;
+  }
+
+  .title-input:focus,
+  .title-input:focus-visible {
+    background-color: transparent;
+  }
+
   /* One-time password, read-only: "214 • 685" and a countdown pill. */
   .otp-value {
     @apply flex flex-wrap items-center gap-100;

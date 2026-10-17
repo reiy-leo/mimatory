@@ -487,3 +487,27 @@
   background: var(--color-background-selected);
   box-shadow: none;
 }
+
+/* Edit-mode field cells (fieldRows.tsx). WinUI: a focused TextBox keeps its fill and gets the
+   2px accent underline, so the whole cell does exactly that instead of the Apple ring; the inputs inside are bare.
+   Material: a filled text field's active indicator — the same 2px bottom line in the primary colour — and its
+   label in the primary colour. */
+:root[data-skin="winui"] .field-row.is-edit input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:root[data-skin="winui"] .field-row.is-edit textarea,
+:root[data-skin="material"] .field-row.is-edit input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:root[data-skin="material"] .field-row.is-edit textarea {
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+:root[data-skin="winui"] .field-row.is-edit:focus-within,
+:root[data-skin="material"] .field-row.is-edit:focus-within {
+  outline-color: transparent;
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}
+
+:root[data-skin="material"] .field-row.is-edit:focus-within .field-row-label,
+:root[data-skin="material"] .field-row.is-edit:focus-within .field-row-label-input {
+  color: var(--color-accent);
+}
