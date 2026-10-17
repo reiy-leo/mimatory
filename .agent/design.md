@@ -1,7 +1,9 @@
 # Design rules and constraints
 
-Passless looks and behaves like a Mac app. The design system is **Apple's Human Interface Guidelines for
-macOS**, and this file is the project's binding translation of them into tokens and component rules. Build
+On the Mac, Passless looks and behaves like a Mac app: the design system there is **Apple's Human Interface
+Guidelines for macOS**, and most of this file is the project's binding translation of them into tokens and
+component rules. Since 2026-10-17 the other platforms wear their own skins (WinUI 3 on Windows, Material 3 on
+Android and Linux, Apple iOS on iPhone) — see "Per-platform skins" at the end; the macOS rules below are unchanged. Build
 UI from here; never invent a value in a component rule.
 
 | Source | What it is | Editable? |
@@ -244,3 +246,61 @@ from a shadow token; a popup colour that drifts from the app's.
   column it opens onto (the list gutter `surface-sunken`, the sidebar gutter `surface`), so it reads as part of
   that column. `cursor-col-resize` plus the base layer's focus ring are the whole affordance. `.sidebar` and
   `.item-list` carry `border-r`; `.detail-pane` deliberately has no `border-l`.
+
+
+## Per-platform skins (2026-10-17)
+
+The owner asked for every OS to get the design Mindough gives it. The mapping, detection and layout switch are in
+`AGENTS.md` "Platforms"; this section is the design half. Sources: Mindough's `apps/client/src/skin/tokens.css`
+and `skins.css` (the reference implementation), Microsoft's WinUI 3 / Windows 11 design tokens, Google's Material 3
+baseline scheme, Apple's iOS HIG.
+
+**Rules shared by every skin.** One set of components and class names; a skin changes token *values*
+(`src/skin/tokens.css`) and shapes (`src/skin/skins.css`, `src/skin/mobile.css`), never markup. No colour literal
+in a shape rule, every colour a skin sets in light also set in dark, system fonts only, Light/Dark/System stays on
+every platform, `prefers-reduced-transparency`/`-motion` still apply. All guarded by `designContract.test.ts`
+("platform skin rules"). The Apple desktop skin is `styles.css` alone.
+
+### WinUI 3 / Windows 11 (Windows)
+
+- Type: Segoe UI Variable Text, 14px body (root scaled 107.69%).
+- Colour: AccentFillColorDefault `#005fb8` light / `#60cdff` dark (black text on the dark accent); text
+  primary 89.6% / secondary 62%; captions use 58% instead of WinUI's 45% tertiary to clear 4.5:1.
+- Material: **Mica** is the window (`--color-window` #f3f3f3 / #202020 as the browser stand-in; native Mica inside
+  the app, where `data-window-material="mica"` makes the page transparent). The list and item sit on the lighter
+  content layer with an 8px rounded leading corner; flyouts are Acrylic-like (`--material-popover`), Quick Access is
+  native Acrylic.
+- Shapes: ControlCornerRadius 4, OverlayCornerRadius 8; controls carry the elevation stroke
+  (`--shadow-control`: hairline + darker bottom edge); text fields get the bottom stroke and a 2px accent underline
+  when focused; focus visual is a 2px primary-text stroke.
+- Navigation: NavigationView — no sidebar divider, 36px rows, the selected row a subtle fill plus the 3×16 accent
+  pill; the selected list row uses the same pill (not a solid accent fill). Menus hover with a subtle fill.
+  ContentDialog: 20px semibold title, command band in the window colour with equal-width buttons. ToggleSwitch:
+  outlined track with a small knob off, accent with a white knob on.
+
+### Material 3 (Android, Linux)
+
+- Type: Roboto (falls back to Noto Sans / Cantarell on Linux), 14px desktop body, 16sp on phones.
+- Colour: the M3 baseline scheme (primary `#6750a4` / `#d0bcff`, surfaces `#fef7ff`/`#f7f2fa`/`#f3edf7`, dark
+  `#141218`/`#1d1b20`/`#211f26`); selection is the tonal secondary container (`#e8def8` / `#4a4458`), never a solid
+  accent fill. Dynamic colour from the wallpaper is not wired.
+- Material: none — tonal surfaces only (`--material-filter: none`).
+- Shapes: extra-small 4 (menus, text fields), medium 12 (cards, list selection), extra-large 28 (dialogs),
+  full pills for buttons, chips, the search bar and navigation rows. Elevation level 2 for menus, 3 for dialogs and
+  the FAB; controls are flat.
+- Navigation: navigation drawer (desktop) with pill rows; outlined text fields whose outline thickens in the
+  primary colour instead of a ring; outlined secondary buttons; segmented buttons; M3 switch. Phone: top app bar
+  title, navigation bar with the 64×32 pill indicator, extended FAB for New Item, arrow-back in the item pane.
+
+### Apple iOS (iPhone)
+
+- The macOS tokens, at 17pt body (root scaled 130.77%); large title (34pt bold) over the list; plain list with
+  inset separators; translucent tab bar (icons + 10pt labels, accent when active); the item pane's navigation bar
+  has a "‹ <list>" back button and Edit as a plain accent button; New Item is a bare accent "+".
+
+### Phone layout (all skins, ≤ 760px)
+
+One pane at a time (`.app-shell[data-mobile-pane]`: list, detail, browse, settings), a bottom tab bar
+(Items / Browse / Settings), safe areas from `viewport-fit=cover`, no persistent row highlight (a tap opens the item),
+Settings panes as a scrolling chip row. Known gaps: list rows have no swipe actions; dialogs are centred cards rather
+than bottom sheets; the item pane's Edit/Save live in the top bar on every skin.

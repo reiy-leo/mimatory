@@ -2,7 +2,10 @@
 
 ## Project
 
-Tauri v2 desktop password manager. React 18 + TypeScript frontend, Rust backend with encrypted SQLite vault.
+Tauri v2 password manager for macOS, Windows, Linux (Wayland/Hyprland only), iOS and Android (owner, 2026-10-17:
+"和mindough项目一样支持macOS、Windows、iOS、Android、Linux（hyprland，不支持X11）"). React 18 + TypeScript frontend,
+Rust backend with encrypted SQLite vault. Each OS wears its own skin, the same mapping as the Mindough project —
+see "Platforms" below.
 Also ships a Manifest V3 browser extension (autofill via a local HTTP bridge on `127.0.0.1:17891`).
 
 ## Where the rules live
@@ -34,7 +37,8 @@ npm run tauri build  # Production .app — the only build where the CSP takes ef
 cd src-tauri && cargo test   # Rust unit tests (vault, storage, crypto, bridge); on Linux run with a private TMPDIR
 ```
 
-No CI, no pre-commit hooks: the gates are manual, and you run only the tier the diff needs.
+No pre-commit hooks: the gates are manual, and you run only the tier the diff needs. GitHub Actions
+(`.github/workflows/`) re-runs them on push (`ci.yml`) and packages the apps (`build.yml`, `ios.yml`; see "Platforms").
 
 **Why tiering is not bureaucracy.** This is a 6-core/12-thread Intel box with ~0.9GB free RAM, a 6GB memory
 compressor resident and 13GB left on the volume. An all-core pass does not merely run slow — macOS answers
@@ -110,7 +114,11 @@ src/                  # React frontend
   app/relativeTime.ts menuPlacement.ts itemDrafts.ts itemTemplates.ts windowPlacement.ts otpQrImport.ts
   app/itemFields.ts fieldFormats.ts fieldControls.tsx  # typed item fields: template bridge, rules, view/edit components
   app/itemRelations.ts relationControls.tsx  # parent / child / related links: draft diffing, picker rules, the row group
-  app/designContract.test.ts  # executable guard for the .agent/design.md rules
+  app/designContract.test.ts  # executable guard for the .agent/design.md rules (incl. the skin stylesheets)
+  app/platformFeatures.ts  # what exists on which platform (bridge, Quick Access, biometrics, shortcuts…)
+  app/windowChrome.ts vibrancy.ts  # settings-window chrome per platform, window theme sync, native material flag
+  skin/platform.ts runtime.ts  # platform/skin/layout detection (+ ?platform= overrides) → <html data-*>
+  skin/tokens.css skins.css mobile.css  # WinUI 3 / Material 3 token values, skin shapes, the phone layout
   test/setup.ts       # jest-dom matcher import; present but NOT wired (no test uses a matcher)
 
 src-tauri/src/        # Rust backend
@@ -119,13 +127,16 @@ src-tauri/src/        # Rust backend
   vault.rs            # VaultService: CRUD, encryption, session management
   storage.rs          # SQLite connection + schema + the 0600/0700 permission helpers
   crypto.rs           # AES-GCM + argon2 KDF
-  biometric.rs        # Touch ID via objc2-local-authentication
+  biometric.rs        # Touch ID (objc2) on macOS, tauri-plugin-biometric on iOS/Android, none elsewhere
   browser_bridge.rs   # HTTP server on 127.0.0.1:17891 for the extension
-  shell.rs            # Tray menu, ⌘⇧Space Quick Access, autostart, single instance
+  shell.rs            # Desktop only: tray, Quick Access (hotkey on macOS/Windows, `--quick-access` on Linux), autostart, single instance
   totp.rs             # TOTP code generation
   breach_check.rs     # Have I Been Pwned k-anonymity check
 
-browser-extension/    # Manifest V3 extension (not built by Vite)
+src-tauri/tauri.conf.json + tauri.{macos,windows,linux,ios,android}.conf.json  # per-platform windows (merge patch)
+src-tauri/capabilities/  # main.json (all), desktop.json, global-shortcut.json (platform-scoped)
+.github/workflows/    # ci.yml, build.yml (desktop + Android, v* tags → draft prerelease), ios.yml (manual)
+browser-extension/    # Manifest V3 extension (not built by Vite), desktop only
 ```
 
 ## Runtime, windows and shell
@@ -153,8 +164,9 @@ browser-extension/    # Manifest V3 extension (not built by Vite)
   the fallback stays `center: true` (Quick Access can be the only window up). Repositioning after creation would
   need `core:window:allow-set-position`, which is **not** in the capability file, so placement is a
   creation-time decision only.
-- **Native vibrancy (macOS)**: `app.macOSPrivateApi: true` + the `macos-private-api` tauri feature make windows
-  transparent. `main` wears `windowEffects: sidebar` (tauri.conf.json), `settings` gets `transparent` +
+- **Native vibrancy (macOS)**: `tauri.macos.conf.json` makes the main window transparent (Tauri ≥ 2.12.1 always
+  enables the private API transparency needs; the `macos-private-api` feature and `macOSPrivateApi` key are no-ops
+  there and were removed — see "Platforms"). `main` wears `windowEffects: sidebar` (tauri.macos.conf.json), `settings` gets `transparent` +
   `Effect.Sidebar` at creation in `openSettingsWindow()`, Quick Access gets `Effect::Popover` (radius 12) in
   `shell.rs`. `src/app/vibrancy.ts` sets `<html data-vibrancy="native">` only inside Tauri on macOS; the last
   `@layer components` block in `styles.css` then re-points `--material-*` to `transparent` on the source lists
@@ -166,6 +178,73 @@ browser-extension/    # Manifest V3 extension (not built by Vite)
   `run_on_main_thread`** — macOS forbids building a webview from the global-shortcut callback's thread.
 - **`tauri-plugin-single-instance` hardcodes `/tmp/{app_id}_si.sock`** with no `HOME`/`TMPDIR` override, so you
   cannot start a throwaway instance while a `tauri dev` one holds the socket.
+
+## Platforms
+
+Owner ruling 2026-10-17: the app ships on macOS, Windows, iOS, Android and Linux, each in the design language
+Mindough (`/workspace/projects/33c2c799-…/repo`, `apps/client/src/skin/`) gives it. Linux means Hyprland on
+Wayland; X11 is not supported.
+
+| Platform | Skin (`<html data-skin>`) | Window | Navigation |
+|---|---|---|---|
+| macOS | Apple (macOS HIG) — the base `styles.css`, unchanged | Overlay title bar + sidebar vibrancy (`tauri.macos.conf.json`) | Sidebar · list · detail |
+| Windows | WinUI 3 / Windows 11 | Native title bar over Mica (`tauri.windows.conf.json`), Acrylic Quick Access | NavigationView sidebar · list · detail |
+| Linux | Material 3 (Mindough maps Linux to Material) | No decorations (Hyprland), opaque page | Navigation drawer · list · detail |
+| iOS | Apple (iOS) | One window, safe areas | Tab bar: Items / Browse / Settings, list → item push |
+| Android | Material 3 | One window, safe areas | Navigation bar + extended FAB, list → item |
+
+- **Detection** (`src/skin/platform.ts`, Mindough's `platform.ts`): user agent, iPadOS by touch points; skin by
+  platform; **layout by width only** — at ≤ 760px every platform gets the phone layout (`data-layout="mobile"`),
+  which is also what a narrow Hyprland tile or Windows snap shows. `src/skin/runtime.ts` writes
+  `data-platform` / `data-skin` / `data-layout` on `<html>` before the first render and keeps `data-layout` in step
+  with resizes (`usePlatformState()` for React). Debug overrides, never persisted: `?platform=windows`,
+  `?skin=material`, `?layout=mobile` (the screenshot harness uses `?platform=`).
+- **Skins are CSS only** (`src/skin/tokens.css` values per skin × light/dark, `skins.css` shapes,
+  `mobile.css` the phone layout), imported after `styles.css` in `main.tsx`. Components and class names are shared;
+  a skin re-points the existing tokens and adjusts shapes with `:root[data-skin="x"] .class` selectors. **The Apple
+  desktop skin is `styles.css` alone** — nothing in `src/skin/` may target `data-skin="apple"` outside
+  `[data-layout="mobile"]` (the design contract checks it), so macOS renders exactly as before. Body size comes from
+  scaling the root font size (every size is rem): WinUI/Material 14px, iOS phone 17pt, Android phone 16sp.
+- **Features per platform** are one table, `src/app/platformFeatures.ts` (`featuresFor`): the browser-extension
+  bridge, Quick Access, launch at login, the settings *window*, attachments (rfd) are desktop-only; biometrics are
+  Touch ID on macOS, `tauri-plugin-biometric` on iOS/Android, none on Windows/Linux; ⌘ on Apple platforms, Ctrl
+  elsewhere (`isPrimaryModifier`, `shortcutLabel`). Ask the table, never test a platform name inline. On phones
+  Settings is a tab (`<SettingsWindow embedded />`), not a window.
+- **Rust side**: `#[cfg(desktop)]` gates `shell.rs` (tray, Quick Access, autostart, single instance), the bridge
+  thread and rfd; their crates are desktop-only targets in `Cargo.toml`. The global hotkey crate is macOS/Windows
+  only (`Ctrl+Shift+Space` on Windows, `⌘⇧Space` on macOS). On iOS/Android the vault lives in Tauri's
+  `app_data_dir()` (`storage::set_app_data_directory`; `dirs::data_dir()` is `None` on Android) and decrypted
+  attachment copies go under it, not `temp_dir()`. Android uses rustls for the breach check (native-tls would need
+  a cross-built OpenSSL). Capabilities are split: `main.json` (all), `desktop.json` (autostart, positioner),
+  `global-shortcut.json` (macOS, Windows) — a permission for a crate the target does not link fails tauri-build,
+  which skips capabilities whose `platforms` exclude the target.
+- **Linux is Wayland-only.** `tauri` is built with `default-features = false` and the defaults minus `x11`, which
+  drops wry/tao's `x11-dl` and `gdkx11` (ci.yml fails if they return); GTK itself still contains an X11 backend
+  (a system library, not ours to remove). At startup `require_wayland()` (lib.rs) exits with a message when
+  `WAYLAND_DISPLAY` is unset and pins `GDK_BACKEND=wayland` so XWayland never wins. Windows are undecorated
+  (`tauri.linux.conf.json`, min 480×420 so the app tiles; below 760px it switches to the phone layout) and the
+  settings window brings its own close button + Escape. Wayland gives an app no global hotkeys, so Quick Access is
+  summoned by the compositor: `bind = SUPER SHIFT, SPACE, exec, passless --quick-access` — the single-instance
+  plugin forwards the flag and the running app toggles the panel (a first launch with the flag opens it too).
+  Positioning a window is ignored under Wayland; a Hyprland rule such as
+  `windowrulev2 = float, title:^(Passless Quick Access)$` floats the panel.
+- **Per-platform Tauri config** is JSON Merge Patch on `tauri.conf.json`: **arrays replace**, so each
+  `tauri.<platform>.conf.json` carries the whole `windows` entry. The bundle identifier `app.passless.desktop` is
+  the same on every platform (changing it would move existing desktop vaults' data directory).
+- **`macOSPrivateApi` is gone.** In Tauri 2.12.1 the `macos-private-api` feature is a documented no-op (the private
+  APIs are always on) and the config key only feeds tauri-build's feature check, which compares the merged
+  per-platform config against `[dependencies] tauri` features — a macOS-only value would fail every other
+  platform's build. So neither is set; `tauri` is pinned `>= 2.12.1`. The Mac App Store caveat still holds.
+- **CI** (no secrets): `ci.yml` (lint, typecheck, test, build, `cargo check --tests` on Linux, X11 guard);
+  `build.yml` (manual or `v*` tags: macOS universal, Windows msi/nsis, Linux deb/AppImage, Android arm64 debug APK
+  via `tauri android init --ci`; a tag makes a draft **prerelease** — alpha tags too — with the APK attached);
+  `ios.yml` (manual, unsigned ipa from the archive). `src-tauri/gen/{android,apple}` are generated in CI and
+  ignored. Signing secrets that would be needed later (none are referenced now): Apple
+  `APPLE_CERTIFICATE`/`APPLE_CERTIFICATE_PASSWORD`/`APPLE_SIGNING_IDENTITY`/`APPLE_ID`/`APPLE_PASSWORD`/
+  `APPLE_TEAM_ID` (notarized macOS, App Store iOS), Windows code-signing cert, Android
+  keystore (`ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_KEY_BASE64`) for a release APK.
+- **Screenshots**: the Playwright harness in `work/pwt/shoot-platforms.mjs` (outside the repo, never committed)
+  loads `?platform=<p>` at 1280×800 for desktop and 390×844 for phones, light and dark.
 
 ## Vault security
 

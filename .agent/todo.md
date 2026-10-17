@@ -51,6 +51,25 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 - **Template field placeholders are generic** ("Value") except card number, email, URL and month/year; a
   per-field example placeholder in the template data would be cheap if wanted.
 
+- **Multiplatform (2026-10-17) — never run outside Chromium.** Windows/Linux/iOS/Android skins and the phone layout
+  were checked only as Vite + Chromium screenshots with `?platform=` (work/screens/platforms/). Unverified: native
+  Mica on Windows (main + settings) and Acrylic Quick Access, the Windows title bar following the in-app theme
+  (`setTheme`), Segoe UI Variable / Roboto rendering, Hyprland behaviour (undecorated tiling, `passless
+  --quick-access`, the refusal without `WAYLAND_DISPLAY`), any iOS/Android build (no SDKs here: `tauri ios/android
+  init` was not run; CI generates the projects), `tauri-plugin-biometric` on a phone, safe areas on a notch,
+  clipboard copy and its 90-second clear in WKWebView/Android WebView (a backgrounded phone may suspend the timer),
+  and `cargo check` for the macOS, Windows, iOS and Android targets (only Linux was compiled).
+- **Windows Hello is not implemented** (owner allowed skipping it if not small): it needs a WinRT
+  `UserConsentVerifier` binding (`windows` crate) plus a decision about whether it may stand in for the master
+  password the way Touch ID does. Windows and Linux offer the master password only.
+- **Attachments are desktop-only.** rfd has no iOS/Android backend; `tauri-plugin-dialog` could pick files there
+  (Android returns content URIs that the vault's path-based `attach_file_to_item` cannot read yet).
+- **needs-owner-decision — Phone details not taken from Mindough yet**: swipe actions on list rows, bottom sheets
+  for dialogs (iOS) / full-screen dialogs (Material), Android dynamic colour, an iPad split-view layout beyond the
+  desktop grid it gets today.
+- **Linux autostart** writes an XDG autostart entry, which Hyprland ignores unless the user runs something like
+  `dex`/uwsm; `exec-once = passless` is the Hyprland way. Not changed.
+
 ## Never yet seen in a running app
 
 - Item relations (2026-10-15): the parent / child / related sections, the picker sheet and the disabled Delete
@@ -86,6 +105,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-17 | Multiplatform: Apple / WinUI 3 / Material 3 skins and a phone layout (Mindough's mapping), platform feature gating, per-platform Tauri configs, desktop-only shell crates, Wayland-only Linux (tauri without `x11`, `WAYLAND_DISPLAY` required), biometrics via tauri-plugin-biometric on phones, CI (`ci.yml`, `build.yml`, `ios.yml`) | `AGENTS.md` Platforms; `design.md` Per-platform skins |
 | 2026-10-17 | Item relations design approved by the owner as built ("这种是完全正确的"): Delete/Move refused while an item has any link (parent included); Move refused rather than carrying links across vaults; wording 上级项 / 子项 / 关联项 (en Parent Item / Child Items / Related Items, ja 親項目 / 子項目 / 関連項目); no child-count badge on list rows; `relations_ciphertext` NULL-vs-ciphertext presence signal accepted | `AGENTS.md` item relations |
 | 2026-10-14 | UI restyled to Apple design (macOS HIG): semantic system colours with real light **and** dark values (closes the "dark palette is owed" item), SF type scale, macOS radii/materials/focus ring, System appearance by default; Atlassian `DESIGN.md` and `.write-technical-spec/` deleted | `.agent/design.md` |
 | 2026-10-10 | Documentation split: engineering rules stay here in `AGENTS.md`, design constraints moved to `.agent/design.md`, all task state to this file | The three files |
