@@ -9,14 +9,6 @@
 		"positioner:allow-move-window",
 		"positioner:allow-set-tray-icon-state"
 	],
-	"platforms": [
-		"macOS",
-		"windows",
-		"linux"
-	],
-	"windows": [
-		"main",
-		"settings",
-		"quick-access"
-	]
+	"platforms": ["macOS", "windows", "linux"],
+	"windows": ["main", "settings", "quick-access"]
 }

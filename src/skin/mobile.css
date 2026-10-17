@@ -1,0 +1,375 @@
+/*
+ * The phone layout (`<html data-layout="mobile">`: any window 760px wide or less — every phone, and a narrow
+ * tiled or snapped desktop window). One pane at a time, chosen by `.app-shell[data-mobile-pane]` (App.tsx):
+ * the item list, the open item, the sidebar as a Browse page, or Settings, with a bottom tab bar to switch —
+ * Mindough's phone layout. iOS (Apple skin) gets a large title, a translucent tab bar and a navigation bar
+ * with a "‹ Back" text button; Android (Material skin) gets a top app bar, a navigation bar with the pill
+ * indicator and an extended FAB for New Item. Safe areas come from `viewport-fit=cover` (index.html).
+ * Colours only from tokens (src/skin/tokens.css).
+ */
+
+/* Phone-only parts are absent from the desktop layout. */
+.mobile-list-title,
+.mobile-back-button,
+.mobile-tabbar,
+.mobile-settings {
+  display: none;
+}
+
+:root[data-layout="mobile"] body {
+  overscroll-behavior: none;
+}
+
+:root[data-layout="mobile"] .app-shell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100dvh;
+}
+
+:root[data-layout="mobile"] .app-shell > .sidebar,
+:root[data-layout="mobile"] .app-shell > .column-resize-handle,
+:root[data-layout="mobile"] .app-shell > .top-search-bar,
+:root[data-layout="mobile"] .app-shell > .item-list,
+:root[data-layout="mobile"] .app-shell > .detail-pane {
+  display: none;
+}
+
+:root[data-layout="mobile"] .app-shell[data-mobile-pane="list"] > .top-search-bar {
+  display: grid;
+}
+
+:root[data-layout="mobile"] .app-shell[data-mobile-pane="list"] > .item-list,
+:root[data-layout="mobile"] .app-shell[data-mobile-pane="detail"] > .detail-pane,
+:root[data-layout="mobile"] .app-shell[data-mobile-pane="browse"] > .sidebar,
+:root[data-layout="mobile"] .app-shell[data-mobile-pane="settings"] > .mobile-settings {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ───────── The list pane ───────── */
+:root[data-layout="mobile"] .top-search-bar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-100);
+  min-height: 0;
+  padding: calc(env(safe-area-inset-top) + var(--space-100)) var(--space-200) var(--space-100);
+  border-bottom-color: transparent;
+}
+
+:root[data-layout="mobile"] .top-search-box {
+  max-width: none;
+}
+
+:root[data-layout="mobile"] .item-list {
+  padding: 0 var(--space-200) var(--space-200);
+  border: 0;
+}
+
+:root[data-layout="mobile"] .mobile-list-title {
+  display: block;
+  margin: var(--space-050) 0 var(--space-100);
+  color: var(--color-text);
+}
+
+:root[data-layout="mobile"] .sync-state {
+  padding: 0;
+  margin: 0 0 var(--space-100);
+}
+
+/* Tapping a row opens it, so no row stays highlighted in the list. */
+:root[data-layout="mobile"] .item-row.active,
+:root[data-layout="mobile"] .item-row.active:hover {
+  color: var(--color-text);
+  background: transparent;
+}
+
+:root[data-layout="mobile"] .item-row.active::before {
+  content: none;
+}
+
+:root[data-layout="mobile"] .item-row.active strong {
+  color: var(--color-text);
+}
+
+:root[data-layout="mobile"] .item-row.active small,
+:root[data-layout="mobile"] .item-row.active .row-star {
+  color: var(--color-text-subtlest);
+}
+
+:root[data-layout="mobile"] .item-row.active .item-icon {
+  color: var(--color-text-brand);
+  background: var(--color-background-selected);
+}
+
+/* ───────── The item pane ───────── */
+:root[data-layout="mobile"] .detail-pane {
+  padding: 0 var(--space-200);
+  border: 0;
+}
+
+:root[data-layout="mobile"] .detail-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex-wrap: nowrap;
+  padding-top: calc(env(safe-area-inset-top) + var(--space-100));
+  background: var(--color-surface-sunken);
+}
+
+:root[data-layout="mobile"] .mobile-back-button {
+  display: inline-flex;
+  gap: var(--space-050);
+  align-items: center;
+  min-width: 0;
+  min-height: var(--space-500);
+  padding: 0 var(--space-100) 0 0;
+  margin-right: auto;
+  color: var(--color-text-brand);
+  background: transparent;
+  border: 0;
+}
+
+:root[data-layout="mobile"] .mobile-back-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The type pill would crowd the bar on a phone; the header under it names the type already. */
+:root[data-layout="mobile"] .detail-topbar .type-display,
+:root[data-layout="mobile"] .detail-topbar .unsaved-hint {
+  display: none;
+}
+
+:root[data-layout="mobile"] .detail-header {
+  max-width: none;
+}
+
+/* ───────── Browse (the sidebar as a page) ───────── */
+:root[data-layout="mobile"] .sidebar {
+  height: auto;
+  padding: calc(env(safe-area-inset-top) + var(--space-150)) var(--space-200) var(--space-200);
+  border-right: 0;
+}
+
+:root[data-layout="mobile"] .sidebar-scroll {
+  overflow: visible;
+}
+
+/* ───────── Settings (the settings view, one column) ───────── */
+:root[data-layout="mobile"] .mobile-settings {
+  padding-top: env(safe-area-inset-top);
+  background: var(--color-surface-sunken);
+}
+
+:root[data-layout="mobile"] .mobile-settings .settings-shell {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+  overflow: visible;
+}
+
+:root[data-layout="mobile"] .mobile-settings .settings-sidebar {
+  min-height: 0;
+  padding: var(--space-150) var(--space-200) 0;
+  background: transparent;
+  border-right: 0;
+}
+
+:root[data-layout="mobile"] .mobile-settings .settings-title {
+  display: none;
+}
+
+/* The panes become a scrolling row of chips above the content. */
+:root[data-layout="mobile"] .mobile-settings .settings-tabs {
+  display: flex;
+  gap: var(--space-100);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+:root[data-layout="mobile"] .mobile-settings .settings-tabs button {
+  flex: none;
+  padding-right: var(--space-150);
+  padding-left: var(--space-150);
+  border: var(--border-width-default) solid var(--color-border);
+  border-radius: var(--radius-full);
+}
+
+:root[data-layout="mobile"] .mobile-settings .settings-tabs button::before {
+  content: none;
+}
+
+:root[data-layout="mobile"] .mobile-settings .settings-content {
+  max-height: none;
+  padding: var(--space-200);
+  overflow: visible;
+}
+
+/* ───────── The tab bar ───────── */
+:root[data-layout="mobile"] .mobile-tabbar {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--material-toolbar);
+  border-top: var(--border-width-default) solid var(--color-border);
+  -webkit-backdrop-filter: var(--material-filter);
+  backdrop-filter: var(--material-filter);
+}
+
+:root[data-layout="mobile"] .mobile-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-025);
+  align-items: center;
+  justify-content: center;
+  min-height: var(--space-600);
+  color: var(--color-text-subtlest);
+  background: transparent;
+  border: 0;
+}
+
+:root[data-layout="mobile"] .mobile-tab.active {
+  color: var(--color-accent);
+}
+
+:root[data-layout="mobile"] .mobile-tab-icon {
+  display: grid;
+  place-items: center;
+}
+
+/* ═════════════ iOS (Apple skin) ═════════════ */
+:root[data-layout="mobile"][data-skin="apple"] .mobile-list-title {
+  font-size: 1.625rem;
+  font-weight: var(--weight-bold);
+  line-height: 2rem;
+}
+
+:root[data-layout="mobile"][data-skin="apple"] .item-list,
+:root[data-layout="mobile"][data-skin="apple"] .top-search-bar {
+  background: var(--color-surface);
+}
+
+/* Plain list with inset separators, like Mail. */
+:root[data-layout="mobile"][data-skin="apple"] .rows {
+  gap: 0;
+}
+
+:root[data-layout="mobile"][data-skin="apple"] .item-row {
+  padding-right: 0;
+  padding-left: 0;
+  border-radius: 0;
+}
+
+:root[data-layout="mobile"][data-skin="apple"] .item-row + .item-row {
+  box-shadow: inset 0 var(--border-width-default) 0 var(--color-border);
+}
+
+:root[data-layout="mobile"][data-skin="apple"] .item-row:hover {
+  background: transparent;
+}
+
+/* The New Item action sits in the navigation bar as a plain accent button. */
+:root[data-layout="mobile"][data-skin="apple"] .top-new-item-button {
+  padding: 0 var(--space-050);
+  color: var(--color-text-brand);
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-layout="mobile"][data-skin="apple"] .detail-topbar {
+  background: var(--material-toolbar);
+  -webkit-backdrop-filter: var(--material-filter);
+  backdrop-filter: var(--material-filter);
+}
+
+:root[data-layout="mobile"][data-skin="apple"] .detail-topbar .top-edit-button {
+  color: var(--color-text-brand);
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-layout="mobile"][data-skin="apple"] .sidebar {
+  background: var(--color-surface-sunken);
+}
+
+:root[data-layout="mobile"][data-skin="apple"] .mobile-tab-label {
+  font-size: 0.5rem;
+  font-weight: var(--weight-medium);
+  line-height: 0.75rem;
+}
+
+/* ═════════════ Android (Material skin) ═════════════ */
+:root[data-layout="mobile"][data-skin="material"] .mobile-list-title,
+:root[data-layout="mobile"][data-skin="winui"] .mobile-list-title {
+  font-size: 1.125rem;
+  font-weight: var(--weight-regular);
+  line-height: 1.5rem;
+}
+
+:root[data-layout="mobile"][data-skin="material"] .item-list,
+:root[data-layout="mobile"][data-skin="material"] .top-search-bar,
+:root[data-layout="mobile"][data-skin="material"] .detail-pane,
+:root[data-layout="mobile"][data-skin="material"] .detail-topbar {
+  background: var(--color-surface);
+}
+
+/* Extended FAB above the navigation bar. */
+:root[data-layout="mobile"][data-skin="material"] .top-new-item-button {
+  position: fixed;
+  right: var(--space-200);
+  bottom: calc(env(safe-area-inset-bottom) + 4.25rem + var(--space-200));
+  z-index: 3;
+  min-height: 2.75rem;
+  padding: 0 var(--space-250);
+  border-radius: var(--radius-large);
+  box-shadow: var(--shadow-sheet);
+}
+
+:root[data-layout="mobile"][data-skin="material"] .item-list {
+  padding-bottom: 6rem;
+}
+
+:root[data-layout="mobile"][data-skin="material"] .mobile-back-button {
+  color: var(--color-text);
+}
+
+/* Navigation bar: 80dp, the active icon inside a 64×32 pill in the secondary container. */
+:root[data-layout="mobile"][data-skin="material"] .mobile-tabbar {
+  background: var(--color-surface-overlay);
+  border-top-color: transparent;
+}
+
+:root[data-layout="mobile"][data-skin="material"] .mobile-tab {
+  gap: var(--space-050);
+  min-height: 4.25rem;
+  color: var(--color-text-subtle);
+}
+
+:root[data-layout="mobile"][data-skin="material"] .mobile-tab-icon {
+  width: 3.25rem;
+  height: 1.625rem;
+  border-radius: var(--radius-full);
+}
+
+:root[data-layout="mobile"][data-skin="material"] .mobile-tab.active {
+  color: var(--color-text);
+}
+
+:root[data-layout="mobile"][data-skin="material"] .mobile-tab.active .mobile-tab-icon {
+  color: var(--color-text-selected);
+  background: var(--color-background-selected);
+}
+
+:root[data-layout="mobile"][data-skin="material"] .mobile-tab-label {
+  font-size: 0.625rem;
+  font-weight: var(--weight-medium);
+  line-height: 0.875rem;
+}
+
+:root[data-layout="mobile"][data-skin="material"] .mobile-tab.active .mobile-tab-label {
+  font-weight: var(--weight-semibold);
+}

@@ -1,12 +1,12 @@
 import { emit, listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { Effect, EffectState } from '@tauri-apps/api/window'
 import {
   AlertCircle,
   AlignLeft,
   Archive,
   ArchiveRestore,
+  ArrowLeft,
   BadgeCheck,
   Braces,
   Calendar,
@@ -36,6 +36,7 @@ import {
   IdCard,
   Inbox,
   KeyRound,
+  LayoutGrid,
   Link,
   Link2,
   LogIn,
@@ -127,6 +128,7 @@ import { getLockScreenVariant, shouldShowTouchIdUnlock } from './app/lockScreen'
 import { getMenuAnchorStyle, type MenuAnchor } from './app/menuPlacement'
 import { type NavigationItem, navigationItems } from './app/navigation'
 import { clipboardImageFile, otpSecretFromQrImage } from './app/otpQrImport'
+import { featuresFor, isPrimaryModifier, quickAccessKeys, shortcutLabel } from './app/platformFeatures'
 import { RelationSection } from './app/relationControls'
 import { formatItemTimestamp } from './app/relativeTime'
 import {
@@ -188,8 +190,10 @@ import {
   vaultApi,
   type WatchtowerReport,
 } from './app/vaultApi'
+import { settingsWindowChrome, syncWindowTheme } from './app/windowChrome'
 import { getTopLeftCenteredOver } from './app/windowPlacement'
 import appIcon from './assets/app-icon.png'
+import { currentPlatformState, usePlatformState } from './skin/runtime'
 
 type VaultMode = 'loading' | 'setup' | 'locked' | 'unlocked'
 type CategoryItemType = (typeof categoryItems)[number]['itemType']
@@ -805,6 +809,13 @@ function VaultWindow() {
   const [mode, setMode] = useState<VaultMode>('loading')
   const [items, setItems] = useState<LoginItem[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // The phone layout (src/skin/platform.ts: any window ≤ 760px, so every phone) shows one pane at a time:
+  // the item list, the item, the sidebar as a Browse page, or Settings, switched by a bottom tab bar.
+  const { layout, platform } = usePlatformState()
+  const features = featuresFor(platform)
+  const isMobileLayout = layout === 'mobile'
+  const [mobileTab, setMobileTab] = useState<'browse' | 'items' | 'settings'>('items')
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [vaults, setVaults] = useState<VaultSummary[]>([])
   const [activeVaultId, setActiveVaultId] = useState('personal')
   const [itemListWidth, setItemListWidth] = useState(itemListWidthLimits.default)
@@ -915,6 +926,7 @@ function VaultWindow() {
 
   useEffect(() => {
     localStorage.setItem('passless-theme', theme)
+    syncWindowTheme(theme, currentPlatformState().platform)
     return applyTheme(theme)
   }, [theme])
 
@@ -1010,7 +1022,7 @@ function VaultWindow() {
   useEffect(() => {
     if (mode !== 'unlocked') return
     const handleShortcut = (event: KeyboardEvent) => {
-      if (!event.metaKey) return
+      if (!isPrimaryModifier(event, currentPlatformState().platform)) return
       const key = event.key.toLowerCase()
       if (key === ',') {
         event.preventDefault()
@@ -1562,6 +1574,8 @@ function VaultWindow() {
   }
 
   function handleNewItem(itemType: CategoryItemType) {
+    setMobileDetailOpen(true)
+    setMobileTab('items')
     setSelectedId(null)
     setForm(buildDraftForm(itemType))
     setShowPassword(false)
@@ -1763,6 +1777,7 @@ function VaultWindow() {
     setActiveNavigation('vaults')
     setSelectedId(itemId)
     setTopSearch('')
+    setMobileDetailOpen(true)
   }
   // A gutter drag measures from where the drag began rather than accumulating, so a column stops at
   // its own limits instead of drifting once the cursor has run past them.
@@ -2570,6 +2585,11 @@ function VaultWindow() {
   // `parent` is what puts the two windows on the same macOS Space and keeps them travelling together.
   async function openSettingsWindow() {
     setError(null)
+    // Phones have one window: Settings is a tab in it.
+    if (!featuresFor(currentPlatformState().platform).settingsWindow) {
+      setMobileTab('settings')
+      return
+    }
     try {
       const existing = await WebviewWindow.getByLabel('settings')
       if (existing) {
@@ -2594,9 +2614,7 @@ function VaultWindow() {
         alwaysOnTop: true,
         // `center` is applied last, so passing it with an explicit position would throw the position away.
         center: position === null,
-        decorations: true,
         height: settingsWindowSize.height,
-        hiddenTitle: true,
         minHeight: 560,
         minWidth: 760,
         parent: mainWindow ?? undefined,
@@ -2604,12 +2622,10 @@ function VaultWindow() {
         shadow: true,
         skipTaskbar: true,
         title: 'Passless Settings',
-        titleBarStyle: 'overlay',
-        // Native sidebar material behind the settings sidebar; the content pane stays opaque in CSS.
-        transparent: true,
         url: '/?view=settings',
         width: settingsWindowSize.width,
-        windowEffects: { effects: [Effect.Sidebar], state: EffectState.FollowsWindowActiveState },
+        // Title bar and window material per platform (macOS: overlay + sidebar vibrancy, as before).
+        ...settingsWindowChrome(currentPlatformState().platform),
         x: position?.x,
         y: position?.y,
       })
@@ -2628,6 +2644,8 @@ function VaultWindow() {
       securityPreferences.unlockUsingTouchId,
       securityPreferences.unlockWithMacPassword,
     )
+    const biometricLabel =
+      features.biometrics === 'touch-id' ? t('lock.unlockWithTouchId') : t('lock.unlockWithBiometrics')
     if (lockVariant === 'compact-unlock') {
       return (
         <main className="lock-screen compact-lock-screen" data-tauri-drag-region>
@@ -2659,10 +2677,10 @@ function VaultWindow() {
               </button>
               {showTouchIdUnlock ? (
                 <button
-                  aria-label={t('lock.unlockWithTouchId')}
+                  aria-label={biometricLabel}
                   className="compact-unlock-icon-button"
                   onClick={handleBiometricUnlock}
-                  title={t('lock.unlockWithTouchId')}
+                  title={biometricLabel}
                   type="button"
                 >
                   <Fingerprint size={16} strokeWidth={1.5} />
@@ -2707,7 +2725,7 @@ function VaultWindow() {
             </button>
             {mode === 'locked' && showTouchIdUnlock ? (
               <button className="secondary-button" onClick={handleBiometricUnlock} type="button">
-                {t('lock.unlockWithTouchId')}
+                {biometricLabel}
               </button>
             ) : null}
           </form>
@@ -2759,13 +2777,30 @@ function VaultWindow() {
     })
   }
 
+  // Which single pane the phone layout shows. The item pane only counts as open while there is an item or
+  // a draft to show, so deleting or archiving the open item lands back on the list.
+  const mobilePane =
+    mobileTab === 'items' ? (mobileDetailOpen && (selectedItem || composing) ? 'detail' : 'list') : mobileTab
+
   return (
     <main
       className="app-shell"
+      data-mobile-pane={isMobileLayout ? mobilePane : undefined}
       style={{ '--item-list-width': `${itemListWidth}px`, '--sidebar-width': `${sidebarWidth}px` } as CSSProperties}
     >
       <h1 className="sr-only">{t('landmarks.vaultItems')}</h1>
-      <aside aria-label={t('landmarks.primaryNavigation')} className="sidebar" data-tauri-drag-region="deep">
+      {/* On a phone the sidebar is the Browse tab: picking any row there goes back to the list it filters. */}
+      <aside
+        aria-label={t('landmarks.primaryNavigation')}
+        className="sidebar"
+        data-tauri-drag-region="deep"
+        onClick={(event) => {
+          if (isMobileLayout && (event.target as Element).closest('.nav-item')) {
+            setMobileDetailOpen(false)
+            setMobileTab('items')
+          }
+        }}
+      >
         <div className="brand">
           <div className="brand-mark is-artwork">
             <img alt="" src={appIcon} />
@@ -2936,6 +2971,8 @@ function VaultWindow() {
       </header>
 
       <section aria-label={t('landmarks.vaultItems')} className="item-list">
+        {/* The phone layout's large title (iOS) / top app bar title (Material); the desktop shows none. */}
+        <h2 className="mobile-list-title">{listTitle}</h2>
         <div className="sync-state">
           {error ? <AlertCircle size={16} /> : <ShieldCheck size={16} />}
           <span>{error ?? databaseLabel}</span>
@@ -2985,7 +3022,10 @@ function VaultWindow() {
                 <button
                   className={item.id === selectedId ? 'item-row active' : 'item-row'}
                   key={item.id}
-                  onClick={() => setSelectedId(item.id)}
+                  onClick={() => {
+                    setSelectedId(item.id)
+                    setMobileDetailOpen(true)
+                  }}
                   onContextMenu={(event) => openItemRowMenu(event, item)}
                   type="button"
                 >
@@ -3019,6 +3059,20 @@ function VaultWindow() {
         {/* Everything the pane can do to the item lives in its top-right corner: the type is the only
             thing named on the left, and the row under the fields went with it. */}
         <div className="detail-topbar" data-tauri-drag-region="deep">
+          {isMobileLayout ? (
+            <button
+              aria-label={t('mobile.back')}
+              className="mobile-back-button"
+              onClick={() => {
+                if (isEditing) handleCancelEdit()
+                setMobileDetailOpen(false)
+              }}
+              type="button"
+            >
+              {platform === 'ios' || platform === 'macos' ? <ChevronLeft size={22} /> : <ArrowLeft size={20} />}
+              <span>{listTitle}</span>
+            </button>
+          ) : null}
           {selectedItem || composing ? <span className="type-display">{t(`itemTypes.${form.item_type}`)}</span> : null}
           <div className="detail-topbar-actions">
             {isEditing && hasUnsavedChanges ? <span className="unsaved-hint">{t('vault.unsavedChanges')}</span> : null}
@@ -3534,24 +3588,26 @@ function VaultWindow() {
                       </button>
                       {showAddMore ? (
                         <div className="add-more-menu" style={addMoreMenuAnchor?.style}>
-                          {addMoreOptions.map((option) => (
-                            <button
-                              className={
-                                option.type === 'section' || option.type === 'file'
-                                  ? 'menu-option with-icon separated'
-                                  : 'menu-option with-icon'
-                              }
-                              key={option.type}
-                              onClick={() => addCustomField(option.type)}
-                              type="button"
-                            >
-                              <option.icon aria-hidden="true" size={15} />
-                              <span className="menu-option-label">
-                                <span>{t(option.labelKey)}</span>
-                                {'descriptionKey' in option ? <small>{t(option.descriptionKey)}</small> : null}
-                              </span>
-                            </button>
-                          ))}
+                          {addMoreOptions
+                            .filter((option) => option.type !== 'file' || features.attachments)
+                            .map((option) => (
+                              <button
+                                className={
+                                  option.type === 'section' || option.type === 'file'
+                                    ? 'menu-option with-icon separated'
+                                    : 'menu-option with-icon'
+                                }
+                                key={option.type}
+                                onClick={() => addCustomField(option.type)}
+                                type="button"
+                              >
+                                <option.icon aria-hidden="true" size={15} />
+                                <span className="menu-option-label">
+                                  <span>{t(option.labelKey)}</span>
+                                  {'descriptionKey' in option ? <small>{t(option.descriptionKey)}</small> : null}
+                                </span>
+                              </button>
+                            ))}
                           {relationMenuOptions.map((option, index) => (
                             <button
                               className={index === 0 ? 'menu-option with-icon separated' : 'menu-option with-icon'}
@@ -3568,7 +3624,7 @@ function VaultWindow() {
                         </div>
                       ) : null}
                     </div>
-                    {isEditing ? (
+                    {isEditing && features.attachments ? (
                       <div className={isDraggingFiles ? 'attachment-dropzone is-active' : 'attachment-dropzone'}>
                         <Paperclip aria-hidden="true" size={15} />
                         <span>{isDraggingFiles ? t('vault.dropToAttachHere') : t('vault.dropToAttach')}</span>
@@ -3894,6 +3950,44 @@ function VaultWindow() {
             out of the pane — a banner only the detail form can carry would never be read. */}
         {operationMessage ? <div className="success-banner mt-300 max-w-content">{operationMessage}</div> : null}
       </section>
+
+      {/* Phone layout only: Settings as a tab of the one window, and the tab bar that switches panes
+          (iOS tab bar / Material navigation bar — the shapes are in src/skin/mobile.css). */}
+      {isMobileLayout ? (
+        <>
+          {mobileTab === 'settings' ? (
+            <section aria-label={t('settings.title')} className="mobile-settings">
+              <SettingsWindow embedded />
+            </section>
+          ) : null}
+          <nav aria-label={t('mobile.tabs')} className="mobile-tabbar">
+            {(
+              [
+                ['items', KeyRound, 'mobile.items'],
+                ['browse', LayoutGrid, 'mobile.browse'],
+                ['settings', Cog, 'settings.title'],
+              ] as const
+            ).map(([tab, Icon, labelKey]) => (
+              <button
+                aria-current={mobileTab === tab ? 'page' : undefined}
+                className={mobileTab === tab ? 'mobile-tab active' : 'mobile-tab'}
+                key={tab}
+                onClick={() => {
+                  // Tapping the tab you are on goes back to its root, as both platforms do.
+                  if (tab === 'items' && mobileTab === 'items') setMobileDetailOpen(false)
+                  setMobileTab(tab)
+                }}
+                type="button"
+              >
+                <span className="mobile-tab-icon">
+                  <Icon size={22} />
+                </span>
+                <span className="mobile-tab-label">{t(labelKey)}</span>
+              </button>
+            ))}
+          </nav>
+        </>
+      ) : null}
       {/* Every item type is created from here, because the type decides which fields the draft opens
           with — the old flow defaulted to a login and let the dropdown convert it afterwards, and the
           dropdown is gone. The grid is the sidebar's own category list, in the sidebar's own order. */}
@@ -4404,8 +4498,19 @@ const settingsTabs: SettingsTab[] = [
   'shortcuts',
 ]
 
-function SettingsWindow() {
+/**
+ * Settings: its own window on desktop, a tab of the one window on phones (`embedded`). What a pane offers
+ * follows `featuresFor(platform)` — no extension pairing, launch-at-login or keyboard shortcuts on a phone, no
+ * Touch ID rows off the Mac.
+ */
+function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
   const { t } = useTranslation()
+  const { platform } = usePlatformState()
+  const features = featuresFor(platform)
+  const visibleSettingsTabs = settingsTabs.filter(
+    (id) => (id !== 'browser' || features.browserExtension) && (id !== 'shortcuts' || features.keyboardShortcuts),
+  )
+  const quickAccess = quickAccessKeys(platform)
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
   const [status, setStatus] = useState<AppStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -4433,6 +4538,7 @@ function SettingsWindow() {
 
   useEffect(() => {
     localStorage.setItem('passless-theme', theme)
+    syncWindowTheme(theme, currentPlatformState().platform)
     return applyTheme(theme)
   }, [theme])
 
@@ -4571,9 +4677,23 @@ function SettingsWindow() {
   }
 
   const locked = status ? !status.unlocked : true
+  // Linux windows have no title bar (Hyprland), so the settings window offers its own way out: a close
+  // button and Escape.
+  const ownCloseButton = features.undecoratedWindows && !embedded
+
+  useEffect(() => {
+    if (!ownCloseButton) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') void getCurrentWebviewWindow().close()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [ownCloseButton])
+
+  const Shell = embedded ? 'div' : 'main'
 
   return (
-    <main className="settings-shell" data-tauri-drag-region>
+    <Shell className="settings-shell" data-tauri-drag-region>
       <aside className="settings-sidebar h-full" data-tauri-drag-region="deep">
         <div className="settings-title">
           <div className="brand-mark">
@@ -4585,7 +4705,7 @@ function SettingsWindow() {
           </div>
         </div>
         <nav aria-label={t('landmarks.settingsSections')} className="settings-tabs">
-          {settingsTabs.map((id) => (
+          {visibleSettingsTabs.map((id) => (
             <button
               className={activeTab === id ? 'active' : ''}
               key={id}
@@ -4604,6 +4724,17 @@ function SettingsWindow() {
             <h1>{t(settingsTabLabels[activeTab])}</h1>
             <p>{locked ? t('settings.lockedHint') : t('settings.unlockedHint')}</p>
           </div>
+          {ownCloseButton ? (
+            <button
+              aria-label={t('common.close')}
+              className="icon-button settings-close-button"
+              onClick={() => void getCurrentWebviewWindow().close()}
+              title={t('common.close')}
+              type="button"
+            >
+              <X size={16} />
+            </button>
+          ) : null}
         </header>
 
         {error ? <div className="error-banner">{error}</div> : null}
@@ -4625,18 +4756,20 @@ function SettingsWindow() {
                 </select>
               </label>
             </div>
-            <div className="integration-card">
-              <h2>{t('settings.autostart')}</h2>
-              <p>{t('settings.autostartDescription')}</p>
-              <label className="checkbox-row">
-                <input
-                  checked={autostartEnabled}
-                  onChange={(event) => void updateAutostart(event.target.checked)}
-                  type="checkbox"
-                />
-                {t('settings.autostart')}
-              </label>
-            </div>
+            {features.autostart ? (
+              <div className="integration-card">
+                <h2>{t('settings.autostart')}</h2>
+                <p>{t('settings.autostartDescription')}</p>
+                <label className="checkbox-row">
+                  <input
+                    checked={autostartEnabled}
+                    onChange={(event) => void updateAutostart(event.target.checked)}
+                    type="checkbox"
+                  />
+                  {t('settings.autostart')}
+                </label>
+              </div>
+            ) : null}
             <div className="integration-card">
               <h2>{t('settings.vaultStatus')}</h2>
               <div className="watchtower-grid">
@@ -4680,7 +4813,7 @@ function SettingsWindow() {
           </div>
         ) : null}
 
-        {activeTab === 'browser' ? (
+        {activeTab === 'browser' && features.browserExtension ? (
           <div className="settings-section">
             <div className="integration-card">
               <h2>{t('integrations.browserExtension')}</h2>
@@ -4842,22 +4975,29 @@ function SettingsWindow() {
           <div className="settings-section">
             <div className="security-group">
               <h2>{t('security.unlock')}</h2>
-              <label className="security-check-row">
-                <input
-                  checked={securityPreferences.unlockUsingTouchId}
-                  onChange={(event) => updateSecurityPreference('unlockUsingTouchId', event.target.checked)}
-                  type="checkbox"
-                />
-                {t('security.unlockUsingTouchId')}
-              </label>
-              <label className="security-check-row">
-                <input
-                  checked={securityPreferences.unlockWithMacPassword}
-                  onChange={(event) => updateSecurityPreference('unlockWithMacPassword', event.target.checked)}
-                  type="checkbox"
-                />
-                {t('security.unlockWithMacPassword')}
-              </label>
+              {/* The phones keep the same preference key: it means "biometric unlock" wherever it exists. */}
+              {features.biometrics ? (
+                <label className="security-check-row">
+                  <input
+                    checked={securityPreferences.unlockUsingTouchId}
+                    onChange={(event) => updateSecurityPreference('unlockUsingTouchId', event.target.checked)}
+                    type="checkbox"
+                  />
+                  {features.biometrics === 'touch-id'
+                    ? t('security.unlockUsingTouchId')
+                    : t('security.unlockUsingBiometrics')}
+                </label>
+              ) : null}
+              {features.biometrics === 'touch-id' ? (
+                <label className="security-check-row">
+                  <input
+                    checked={securityPreferences.unlockWithMacPassword}
+                    onChange={(event) => updateSecurityPreference('unlockWithMacPassword', event.target.checked)}
+                    type="checkbox"
+                  />
+                  {t('security.unlockWithMacPassword')}
+                </label>
+              ) : null}
               <label className="security-inline-row">
                 <span>{t('security.unlockWithDevice')}</span>
                 <select
@@ -4968,11 +5108,12 @@ function SettingsWindow() {
               <p>{t('shortcuts.description')}</p>
               <div className="shortcut-list">
                 {[
-                  ['⌘ ,', 'shortcuts.openSettings'],
-                  ['⌘ N', 'shortcuts.newItem'],
-                  ['⌘ F', 'shortcuts.focusSearch'],
-                  ['⌘ K', 'shortcuts.lockVault'],
-                  ['⌘ ⇧ Space', 'shortcuts.quickAccess'],
+                  [shortcutLabel('mod+,', platform), 'shortcuts.openSettings'],
+                  [shortcutLabel('mod+n', platform), 'shortcuts.newItem'],
+                  [shortcutLabel('mod+f', platform), 'shortcuts.focusSearch'],
+                  [shortcutLabel('mod+k', platform), 'shortcuts.lockVault'],
+                  // Linux: the compositor owns global keys, so the row names the command to bind.
+                  ...(quickAccess ? [[quickAccess, 'shortcuts.quickAccess']] : []),
                 ].map(([keys, label]) => (
                   <div className="shortcut-row" key={keys}>
                     <kbd>{keys}</kbd>
@@ -4984,7 +5125,7 @@ function SettingsWindow() {
           </div>
         ) : null}
       </section>
-    </main>
+    </Shell>
   )
 }
 

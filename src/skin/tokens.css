@@ -1,0 +1,345 @@
+/*
+ * Platform skins: token values. The Apple skin is the base in src/styles.css `:root` (macOS HIG) and needs
+ * nothing here; this file re-points the same token NAMES for the other two skins Mindough uses —
+ * WinUI 3 / Windows 11 (Windows) and Material 3 (Android, Linux). Component rules never change per skin
+ * for colour: they keep reading `var(--color-*)`, and src/skin/skins.css only changes shapes.
+ *
+ * Selectors: `:root[data-skin="x"]` (light) and `:root[data-skin="x"][data-theme="dark"]` (dark). The light
+ * block has the same specificity as the base dark block and comes later, so every colour a skin sets in
+ * light it must also set in dark — src/app/designContract.test.ts checks that.
+ *
+ * Type scale: every size in tailwind.config.js is in rem, so a skin sets the body size by scaling the root:
+ * WinUI and Material desktop read 14px body text (Segoe UI Variable Text / Roboto Body Medium), the phone
+ * layouts 17pt (iOS Body) and 16sp (Material Body Large). The 4/8 grid scales with it.
+ */
+
+/* ───────────────────── Windows 11 (WinUI 3, Fluent 2 for Windows) ───────────────────── */
+:root[data-skin="winui"] {
+  --color-text: #000000e4;
+  --color-text-subtle: #0000009e;
+  --color-text-subtlest: #00000094;
+  --color-text-disabled: #0000005c;
+  --color-text-selected: #000000e4;
+  --color-text-selected-subtle: #0000009e;
+  --color-text-inverse: #ffffff;
+  --color-text-brand: #005fb8;
+  --color-icon: #000000e4;
+  --color-icon-subtle: #0000009e;
+  --color-icon-subtlest: #00000094;
+  --color-icon-selected: #005fb8;
+  --color-icon-brand: #005fb8;
+
+  /* Accent: the default Windows accent (AccentFillColorDefault). */
+  --color-accent: #005fb8;
+  --color-link: #005fb8;
+  --color-link-pressed: #003e92;
+  --color-border-focused: #005fb8;
+  --color-border-selected: #005fb8;
+  /* Focus visual: the 2px primary-text stroke outside the control, not the accent. */
+  --color-focus-ring: #000000e4;
+
+  /* Mica (window), the content layer on it, cards, and the solid flyout fallback. With native Mica the window
+     colour is replaced by the material itself (skins.css, data-window-material="mica"). */
+  --color-window: #f3f3f3;
+  --color-sidebar: #f3f3f3;
+  --color-surface: #ffffff80;
+  --color-surface-sunken: #f9f9f980;
+  --color-surface-raised: #ffffffb3;
+  --color-surface-overlay: #f9f9f9;
+
+  --color-border: #0000000f;
+  --color-border-bold: #00000029;
+  --color-border-input: #0000000f;
+  --color-background-input: #ffffffb3;
+  --color-background-input-hovered: #f9f9f980;
+  --color-background-input-pressed: #ffffff;
+  --color-background-control: #ffffffb3;
+  --color-background-control-pressed: #f9f9f980;
+  --color-background-neutral-subtle-hovered: #00000009;
+  --color-background-neutral-subtle-pressed: #00000006;
+  /* NavigationView / ListView selection: a subtle fill plus the accent pill (skins.css). */
+  --color-background-selected: #00000009;
+  --color-background-selected-hovered: #0000000f;
+  --color-background-selected-bold: #00000009;
+  --color-background-brand-bold: #005fb8;
+  --color-background-brand-bold-hovered: #1a6fc0;
+  --color-background-brand-bold-pressed: #3381c8;
+  --color-background-brand-subtlest: #005fb814;
+  --color-on-selected-fill: #005fb81a;
+  --color-blanket: #0000004d;
+
+  --color-text-danger: #c42b1c;
+  --color-icon-danger: #c42b1c;
+  --color-background-danger: #c42b1c14;
+  --color-background-danger-bold: #c42b1c;
+  --color-text-success: #0f7b0f;
+  --color-icon-success: #0f7b0f;
+  --color-text-warning: #9d5d00;
+  --color-icon-warning: #9d5d00;
+
+  --material-sidebar: transparent;
+  --material-toolbar: transparent;
+  --material-popover: #fcfcfcf2;
+  --material-sheet: #ffffff;
+  --material-filter: saturate(125%) blur(30px);
+
+  /* ControlCornerRadius 4, OverlayCornerRadius 8. */
+  --radius-small: 0.25rem;
+  --radius-medium: 0.25rem;
+  --radius-large: 0.5rem;
+  --radius-xlarge: 0.5rem;
+  --radius-xxlarge: 0.5rem;
+
+  --focus-ring-width: 0.125rem;
+  --focus-ring-offset: 0.0625rem;
+
+  /* Control elevation border (the darker bottom stroke), flyout shadow, ContentDialog shadow. */
+  --shadow-control: inset 0 0 0 1px #0000000f, inset 0 -1px 0 #00000029;
+  --shadow-overlay: 0 8px 16px #00000024, 0 0 0 1px #0000000f;
+  --shadow-sheet: 0 32px 64px #00000038, 0 2px 21px #0000002e, 0 0 0 1px #0000000f;
+  --shadow-track: inset 0 0 0 1px #00000072;
+
+  --measure-sidebar: 248px;
+  font-family:
+    "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", "Yu Gothic UI", system-ui,
+    sans-serif;
+  font-size: 107.6923%;
+}
+
+:root[data-skin="winui"][data-theme="dark"] {
+  --color-text: #ffffff;
+  --color-text-subtle: #ffffffc8;
+  --color-text-subtlest: #ffffff9e;
+  --color-text-disabled: #ffffff5d;
+  --color-text-selected: #ffffff;
+  --color-text-selected-subtle: #ffffffc8;
+  /* Text on the light-blue dark accent is black (TextOnAccentFillColorPrimary). */
+  --color-text-inverse: #000000;
+  --color-text-brand: #99ebff;
+  --color-icon: #ffffff;
+  --color-icon-subtle: #ffffffc8;
+  --color-icon-subtlest: #ffffff9e;
+  --color-icon-selected: #60cdff;
+  --color-icon-brand: #60cdff;
+
+  --color-accent: #60cdff;
+  --color-link: #99ebff;
+  --color-link-pressed: #60cdff;
+  --color-border-focused: #60cdff;
+  --color-border-selected: #60cdff;
+  --color-focus-ring: #ffffff;
+
+  --color-window: #202020;
+  --color-sidebar: #202020;
+  --color-surface: #3a3a3a4d;
+  --color-surface-sunken: #3a3a3a4d;
+  --color-surface-raised: #ffffff0d;
+  --color-surface-overlay: #2c2c2c;
+
+  --color-border: #ffffff12;
+  --color-border-bold: #ffffff29;
+  --color-border-input: #ffffff12;
+  --color-background-input: #ffffff0f;
+  --color-background-input-hovered: #ffffff15;
+  --color-background-input-pressed: #1e1e1e;
+  --color-background-control: #ffffff0f;
+  --color-background-control-pressed: #ffffff15;
+  --color-background-neutral-subtle-hovered: #ffffff0f;
+  --color-background-neutral-subtle-pressed: #ffffff0a;
+  --color-background-selected: #ffffff0f;
+  --color-background-selected-hovered: #ffffff15;
+  --color-background-selected-bold: #ffffff0f;
+  --color-background-brand-bold: #60cdff;
+  --color-background-brand-bold-hovered: #5ab9e6;
+  --color-background-brand-bold-pressed: #52a5cc;
+  --color-background-brand-subtlest: #60cdff14;
+  --color-on-selected-fill: #60cdff24;
+  --color-blanket: #0000008a;
+
+  --color-text-danger: #ff99a4;
+  --color-icon-danger: #ff99a4;
+  --color-background-danger: #ff99a41f;
+  --color-background-danger-bold: #c42b1c;
+  --color-text-success: #6ccb5f;
+  --color-icon-success: #6ccb5f;
+  --color-text-warning: #fce100;
+  --color-icon-warning: #fce100;
+
+  --material-popover: #2c2c2cf2;
+  --material-sheet: #2b2b2b;
+
+  --shadow-control: inset 0 0 0 1px #ffffff12, inset 0 1px 0 #ffffff17;
+  --shadow-overlay: 0 8px 16px #00000066, 0 0 0 1px #00000033;
+  --shadow-sheet: 0 32px 64px #00000094, 0 2px 21px #0000007a, 0 0 0 1px #00000033;
+  --shadow-track: inset 0 0 0 1px #ffffff8b;
+}
+
+/* ───────────────────────── Material 3 (Android, Linux) ───────────────────────── */
+/* The M3 baseline scheme (Mindough's palette); dynamic colour from the Android wallpaper is not wired. */
+:root[data-skin="material"] {
+  --color-text: #1d1b20;
+  --color-text-subtle: #49454f;
+  --color-text-subtlest: #49454f;
+  --color-text-disabled: #1d1b2061;
+  /* on-secondary-container: list and nav selection is the tonal secondary container, not a solid fill. */
+  --color-text-selected: #1d192b;
+  --color-text-selected-subtle: #49454f;
+  --color-text-inverse: #ffffff;
+  --color-text-brand: #6750a4;
+  --color-icon: #1d1b20;
+  --color-icon-subtle: #49454f;
+  --color-icon-subtlest: #49454f;
+  --color-icon-selected: #1d192b;
+  --color-icon-brand: #6750a4;
+
+  --color-accent: #6750a4;
+  --color-link: #6750a4;
+  --color-link-pressed: #4f378b;
+  --color-border-focused: #6750a4;
+  --color-border-selected: #6750a4;
+  --color-focus-ring: #6750a4;
+
+  /* surface, surface-container-low / -container / -container-high */
+  --color-window: #f7f2fa;
+  --color-sidebar: #f7f2fa;
+  --color-surface: #fef7ff;
+  --color-surface-sunken: #fef7ff;
+  --color-surface-raised: #f3edf7;
+  --color-surface-overlay: #f3edf7;
+
+  /* outline-variant / outline */
+  --color-border: #cac4d0;
+  --color-border-bold: #79747e;
+  --color-border-input: #79747e;
+  --color-background-input: #fef7ff;
+  --color-background-input-hovered: #fef7ff;
+  --color-background-input-pressed: #fef7ff;
+  --color-background-control: #fef7ff;
+  --color-background-control-pressed: #ece6f0;
+  --color-background-neutral-subtle-hovered: #1d1b2014;
+  --color-background-neutral-subtle-pressed: #1d1b201f;
+  --color-background-selected: #e8def8;
+  --color-background-selected-hovered: #ddd2ee;
+  --color-background-selected-bold: #e8def8;
+  --color-background-brand-bold: #6750a4;
+  --color-background-brand-bold-hovered: #7259b0;
+  --color-background-brand-bold-pressed: #7d65b8;
+  --color-background-brand-subtlest: #6750a414;
+  --color-on-selected-fill: #6750a41f;
+  --color-blanket: #00000052;
+
+  --color-text-danger: #b3261e;
+  --color-icon-danger: #b3261e;
+  --color-background-danger: #b3261e14;
+  --color-background-danger-bold: #b3261e;
+  --color-text-success: #386a20;
+  --color-icon-success: #386a20;
+  --color-text-warning: #7d5700;
+  --color-icon-warning: #7d5700;
+
+  /* No glass in Material: tonal surfaces only. */
+  --material-sidebar: #f7f2fa;
+  --material-toolbar: #fef7ff;
+  --material-popover: #f3edf7;
+  --material-sheet: #ece6f0;
+  --material-filter: none;
+
+  /* Shape scale: extra-small 4, small 8, medium 12, large 16, extra-large 28. */
+  --radius-small: 0.25rem;
+  --radius-medium: 0.5rem;
+  --radius-large: 0.75rem;
+  --radius-xlarge: 1.75rem;
+  --radius-xxlarge: 1.75rem;
+
+  --focus-ring-width: 0.1875rem;
+  --focus-ring-offset: 0.125rem;
+
+  /* Elevation levels 0 (controls are flat), 2 (menus) and 3 (dialogs). */
+  --shadow-control: none;
+  --shadow-overlay: 0 2px 6px 2px #00000026, 0 1px 2px #0000004d;
+  --shadow-sheet: 0 4px 8px 3px #00000026, 0 1px 3px #0000004d;
+  --shadow-track: inset 0 0 0 2px #79747e;
+
+  --measure-sidebar: 248px;
+  font-family: Roboto, "Noto Sans", "Noto Sans CJK SC", "Noto Sans CJK JP", Cantarell, system-ui, sans-serif;
+  font-size: 107.6923%;
+}
+
+:root[data-skin="material"][data-theme="dark"] {
+  --color-text: #e6e0e9;
+  --color-text-subtle: #cac4d0;
+  --color-text-subtlest: #cac4d0;
+  --color-text-disabled: #e6e0e961;
+  --color-text-selected: #e8def8;
+  --color-text-selected-subtle: #cac4d0;
+  --color-text-inverse: #381e72;
+  --color-text-brand: #d0bcff;
+  --color-icon: #e6e0e9;
+  --color-icon-subtle: #cac4d0;
+  --color-icon-subtlest: #cac4d0;
+  --color-icon-selected: #e8def8;
+  --color-icon-brand: #d0bcff;
+
+  --color-accent: #d0bcff;
+  --color-link: #d0bcff;
+  --color-link-pressed: #e8def8;
+  --color-border-focused: #d0bcff;
+  --color-border-selected: #d0bcff;
+  --color-focus-ring: #d0bcff;
+
+  --color-window: #1d1b20;
+  --color-sidebar: #1d1b20;
+  --color-surface: #141218;
+  --color-surface-sunken: #141218;
+  --color-surface-raised: #211f26;
+  --color-surface-overlay: #211f26;
+
+  --color-border: #49454f;
+  --color-border-bold: #938f99;
+  --color-border-input: #938f99;
+  --color-background-input: #141218;
+  --color-background-input-hovered: #141218;
+  --color-background-input-pressed: #141218;
+  --color-background-control: #141218;
+  --color-background-control-pressed: #2b2930;
+  --color-background-neutral-subtle-hovered: #e6e0e914;
+  --color-background-neutral-subtle-pressed: #e6e0e91f;
+  --color-background-selected: #4a4458;
+  --color-background-selected-hovered: #554f63;
+  --color-background-selected-bold: #4a4458;
+  --color-background-brand-bold: #d0bcff;
+  --color-background-brand-bold-hovered: #d8c6ff;
+  --color-background-brand-bold-pressed: #ddd0ff;
+  --color-background-brand-subtlest: #d0bcff14;
+  --color-on-selected-fill: #d0bcff29;
+  --color-blanket: #00000080;
+
+  --color-text-danger: #f2b8b5;
+  --color-icon-danger: #f2b8b5;
+  --color-background-danger: #f2b8b51f;
+  --color-background-danger-bold: #8c1d18;
+  --color-text-success: #9cd67d;
+  --color-icon-success: #9cd67d;
+  --color-text-warning: #f5bd5c;
+  --color-icon-warning: #f5bd5c;
+
+  --material-sidebar: #1d1b20;
+  --material-toolbar: #141218;
+  --material-popover: #211f26;
+  --material-sheet: #2b2930;
+
+  --shadow-overlay: 0 2px 6px 2px #00000026, 0 1px 2px #0000004d;
+  --shadow-sheet: 0 4px 8px 3px #00000026, 0 1px 3px #0000004d;
+  --shadow-track: inset 0 0 0 2px #938f99;
+}
+
+/* ───────────────────────── Phone layout type scale ───────────────────────── */
+/* iOS Body is 17pt and Material Body Large 16sp; the desktop 13/14 would be too small to tap and read. */
+:root[data-layout="mobile"][data-skin="apple"] {
+  font-size: 130.7692%;
+}
+
+:root[data-layout="mobile"][data-skin="material"],
+:root[data-layout="mobile"][data-skin="winui"] {
+  font-size: 123.0769%;
+}

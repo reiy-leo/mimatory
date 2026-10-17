@@ -13,9 +13,7 @@
 				"transparent": true,
 				"width": 1180,
 				"windowEffects": {
-					"effects": [
-						"sidebar"
-					],
+					"effects": ["sidebar"],
 					"state": "followsWindowActiveState"
 				}
 			}

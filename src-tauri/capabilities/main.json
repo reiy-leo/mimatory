@@ -16,9 +16,5 @@
 		"opener:allow-open-url",
 		"core:window:allow-set-theme"
 	],
-	"windows": [
-		"main",
-		"settings",
-		"quick-access"
-	]
+	"windows": ["main", "settings", "quick-access"]
 }

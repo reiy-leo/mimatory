@@ -295,6 +295,7 @@ const resources = {
         unlock: 'Unlock',
         unlockDescription: 'Enter your master password to decrypt your local vault.',
         unlockTitle: 'Unlock Your Vault',
+        unlockWithBiometrics: 'Unlock with Biometrics',
         unlockWithTouchId: 'Unlock with Touch ID',
       },
       messages: {
@@ -318,6 +319,12 @@ const resources = {
         sharedPassword: 'Password copied to the clipboard',
         updatedTag: 'Updated the tag {{name}}',
         updatedVault: 'Updated the vault {{name}}',
+      },
+      mobile: {
+        back: 'Back',
+        browse: 'Browse',
+        items: 'Items',
+        tabs: 'Sections',
       },
       nav: {
         archived: 'Archived',
@@ -374,6 +381,7 @@ const resources = {
         lockWhenDeviceLocks: 'Lock when device locks or sleeps',
         requireAccountPassword: 'Require account password:',
         unlock: 'Unlock',
+        unlockUsingBiometrics: 'Unlock using biometrics',
         unlockUsingTouchId: 'Unlock using Touch ID',
         unlockWithDevice: 'Unlock with device:',
         unlockWithMacPassword: 'Unlock app with Mac password',
@@ -983,6 +991,7 @@ const resources = {
         unlock: '解除',
         unlockDescription: 'マスターパスワードを入力してローカル保管庫を復号します。',
         unlockTitle: '保管庫を解除',
+        unlockWithBiometrics: '生体認証で解除',
         unlockWithTouchId: 'Touch ID で解除',
       },
       messages: {
@@ -1006,6 +1015,12 @@ const resources = {
         sharedPassword: 'パスワードをクリップボードにコピーしました',
         updatedTag: 'タグ {{name}} を更新しました',
         updatedVault: '保管庫 {{name}} を更新しました',
+      },
+      mobile: {
+        back: '戻る',
+        browse: 'ブラウズ',
+        items: '項目',
+        tabs: 'セクション',
       },
       nav: {
         archived: 'アーカイブ済み',
@@ -1062,6 +1077,7 @@ const resources = {
         lockWhenDeviceLocks: 'デバイスのロックまたはスリープ時にロック',
         requireAccountPassword: 'アカウントパスワードを要求：',
         unlock: '解除',
+        unlockUsingBiometrics: '生体認証で解除',
         unlockUsingTouchId: 'Touch ID で解除',
         unlockWithDevice: 'デバイスで解除：',
         unlockWithMacPassword: 'Mac パスワードでアプリを解除',
@@ -1667,6 +1683,7 @@ const resources = {
         unlock: '解锁',
         unlockDescription: '输入主密码以解密你的本地保险库。',
         unlockTitle: '解锁保险库',
+        unlockWithBiometrics: '使用生物识别解锁',
         unlockWithTouchId: '使用 Touch ID 解锁',
       },
       messages: {
@@ -1690,6 +1707,12 @@ const resources = {
         sharedPassword: '密码已复制到剪贴板',
         updatedTag: '已更新标签 {{name}}',
         updatedVault: '已更新保险库 {{name}}',
+      },
+      mobile: {
+        back: '返回',
+        browse: '浏览',
+        items: '项目',
+        tabs: '分区',
       },
       nav: {
         archived: '已归档',
@@ -1745,6 +1768,7 @@ const resources = {
         lockWhenDeviceLocks: '设备锁定或睡眠时锁定',
         requireAccountPassword: '要求账户密码：',
         unlock: '解锁',
+        unlockUsingBiometrics: '使用生物识别解锁',
         unlockUsingTouchId: '使用 Touch ID 解锁',
         unlockWithDevice: '使用设备解锁：',
         unlockWithMacPassword: '使用 Mac 密码解锁 App',

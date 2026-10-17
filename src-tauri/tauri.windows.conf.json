@@ -11,9 +11,7 @@
 				"transparent": true,
 				"width": 1180,
 				"windowEffects": {
-					"effects": [
-						"mica"
-					]
+					"effects": ["mica"]
 				}
 			}
 		]

@@ -1,0 +1,472 @@
+/*
+ * Platform skins: shapes. The Apple skin is the base in src/styles.css; these rules change only what WinUI 3
+ * (Windows 11) and Material 3 (Android, Linux) draw differently — the same split Mindough's skins.css makes.
+ * Colours come from src/skin/tokens.css: no hex or rgb() here (src/app/designContract.test.ts).
+ * Selectors are `:root[data-skin="x"] .class`, which outranks the single-class base rules without !important.
+ * Rules shared by the desktop layouts only sit under `[data-layout="desktop"]`; the phone layout is in
+ * src/skin/mobile.css.
+ */
+
+/* ═════════════════════ Every non-Apple skin ═════════════════════ */
+
+/* No traffic lights to clear: the sidebars start at the top, and the toolbar strip is the skin's own height. */
+:root[data-skin="winui"],
+:root[data-skin="material"] {
+  --measure-titlebar: 48px;
+}
+
+:root[data-skin="material"] {
+  --measure-titlebar: 56px;
+}
+
+:root[data-skin="winui"] .sidebar,
+:root[data-skin="material"] .sidebar,
+:root[data-skin="winui"] .settings-sidebar,
+:root[data-skin="material"] .settings-sidebar {
+  padding-top: var(--space-150);
+}
+
+:root[data-skin="winui"] .settings-content,
+:root[data-skin="material"] .settings-content {
+  padding-top: var(--space-300);
+}
+
+/* A Linux settings window has no title bar (Hyprland), so its header carries a close button. */
+.settings-close-button {
+  margin-left: auto;
+}
+
+:root .settings-header:has(.settings-close-button) {
+  display: flex;
+  gap: var(--space-100);
+  align-items: flex-start;
+}
+
+/* ═════════════════════ Windows 11 / WinUI 3 ═════════════════════ */
+
+/* Mica: the window itself is the material. In a browser the token colour stands in for it; inside the
+   Windows app (data-window-material="mica", src/app/vibrancy.ts) the page stops painting it. */
+:root[data-skin="winui"] body,
+:root[data-skin="winui"] .app-shell,
+:root[data-skin="winui"] .settings-shell,
+:root[data-skin="winui"] .lock-screen {
+  background-color: var(--color-window);
+}
+
+:root[data-window-material="mica"] body,
+:root[data-window-material="mica"] #root,
+:root[data-window-material="mica"] .app-shell,
+:root[data-window-material="mica"] .settings-shell,
+:root[data-window-material="mica"] .lock-screen {
+  background-color: transparent;
+}
+
+:root[data-window-material="mica"] .quick-access-shell {
+  --material-popover: transparent;
+  --material-filter: none;
+}
+
+/* NavigationView (left pane on Mica): no material, no divider; 36px items with a 4px corner, the selected
+   item a subtle fill with the 3×16 accent pill at its leading edge. */
+:root[data-skin="winui"] .sidebar,
+:root[data-skin="winui"] .settings-sidebar {
+  border-right-color: transparent;
+}
+
+:root[data-skin="winui"] .nav-item,
+:root[data-skin="winui"] .settings-tabs button {
+  position: relative;
+  gap: var(--space-150);
+  min-height: var(--space-400);
+  padding-right: var(--space-150);
+  padding-left: var(--space-150);
+}
+
+:root[data-skin="winui"] :where(.nav-item) > svg {
+  color: var(--color-icon);
+}
+
+:root[data-skin="winui"] .nav-item.active::before,
+:root[data-skin="winui"] .settings-tabs button.active::before,
+:root[data-skin="winui"] .item-row.active::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 0.1875rem;
+  height: var(--space-200);
+  margin-top: calc(var(--space-200) / -2);
+  content: "";
+  background: var(--color-accent);
+  border-radius: var(--radius-full);
+}
+
+:root[data-skin="winui"] .sidebar-section-title {
+  font-size: 0.8125rem;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+}
+
+/* The content layer: a lighter sheet over Mica with a rounded leading corner, where the list and the item
+   live (WinUI's NavigationView content area). */
+:root[data-skin="winui"][data-layout="desktop"] .item-list {
+  border-top: var(--border-width-default) solid var(--color-border);
+  border-left: var(--border-width-default) solid var(--color-border);
+  border-top-left-radius: var(--radius-large);
+}
+
+:root[data-skin="winui"][data-layout="desktop"] .detail-pane {
+  border-top: var(--border-width-default) solid var(--color-border);
+}
+
+:root[data-skin="winui"] .top-search-bar {
+  border-bottom-color: transparent;
+}
+
+:root[data-skin="winui"] .item-row {
+  position: relative;
+  border-radius: var(--radius-medium);
+}
+
+:root[data-skin="winui"] .item-icon {
+  border-radius: var(--radius-medium);
+}
+
+/* TextBox / AutoSuggestBox: control fill, hairline stroke, the darker bottom stroke; 2px accent underline
+   while focused. */
+:root[data-skin="winui"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:root[data-skin="winui"] textarea,
+:root[data-skin="winui"] .top-search-box,
+:root[data-skin="winui"] .compact-password-control {
+  background-color: var(--color-background-input);
+  border-color: var(--color-border-input);
+  box-shadow: inset 0 -1px 0 var(--color-text-subtlest);
+}
+
+:root[data-skin="winui"] .top-search-box input,
+:root[data-skin="winui"] .compact-password-control input {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+:root[data-skin="winui"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+:root[data-skin="winui"] textarea:focus,
+:root[data-skin="winui"] .top-search-box:focus-within,
+:root[data-skin="winui"] .compact-password-control:focus-within {
+  background-color: var(--color-background-input-pressed);
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}
+
+:root[data-skin="winui"] .top-search-box input:focus,
+:root[data-skin="winui"] .compact-password-control input:focus {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+/* Buttons: the control fill with the elevation stroke (--shadow-control); the accent button keeps it. */
+:root[data-skin="winui"] .primary-button,
+:root[data-skin="winui"] .top-new-item-button,
+:root[data-skin="winui"] .secondary-button,
+:root[data-skin="winui"] .top-edit-button,
+:root[data-skin="winui"] .danger-button,
+:root[data-skin="winui"] .state-row-button {
+  font-weight: var(--weight-regular);
+  border-radius: var(--radius-medium);
+}
+
+/* MenuFlyout / ContentDialog: Acrylic-ish flyouts with an 8px corner and 4px rows. */
+:root[data-skin="winui"] .menu-option {
+  border-radius: var(--radius-small);
+}
+
+:root[data-skin="winui"] .confirm-dialog {
+  padding: var(--space-300);
+  overflow: hidden;
+  background: var(--material-sheet);
+}
+
+:root[data-skin="winui"] .confirm-dialog h2 {
+  font-size: 1.25rem;
+  font-weight: var(--weight-semibold);
+  line-height: 1.75rem;
+}
+
+/* The ContentDialog command area: a band in the window colour, buttons sharing the width. */
+:root[data-skin="winui"] .confirm-actions {
+  padding: var(--space-300);
+  margin: var(--space-300) calc(var(--space-300) * -1) calc(var(--space-300) * -1);
+  background: var(--color-window);
+  border-top: var(--border-width-default) solid var(--color-border);
+}
+
+:root[data-skin="winui"] .confirm-actions > button {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+/* ToggleSwitch: an outlined 40×20 track with a small dark knob when off, the accent with a white knob when
+   on. */
+:root[data-skin="winui"] .checkbox-row input[type="checkbox"],
+:root[data-skin="winui"] .security-check-row input[type="checkbox"] {
+  background: transparent;
+  box-shadow: var(--shadow-track);
+}
+
+:root[data-skin="winui"] .checkbox-row input[type="checkbox"]::before,
+:root[data-skin="winui"] .security-check-row input[type="checkbox"]::before {
+  background: var(--color-text-subtle);
+  box-shadow: none;
+  transform: scale(0.75);
+}
+
+:root[data-skin="winui"] .checkbox-row input[type="checkbox"]:checked,
+:root[data-skin="winui"] .security-check-row input[type="checkbox"]:checked {
+  background: var(--color-accent);
+  box-shadow: none;
+}
+
+:root[data-skin="winui"] .checkbox-row input[type="checkbox"]:checked::before,
+:root[data-skin="winui"] .security-check-row input[type="checkbox"]:checked::before {
+  background: var(--color-text-inverse);
+  transform: translateX(var(--space-150)) scale(0.85);
+}
+
+/* Segmented control: the selected segment raised on the card fill with an accent underline. */
+:root[data-skin="winui"] .segmented-control .segment-button[aria-pressed="true"] {
+  background: var(--color-surface-overlay);
+  box-shadow:
+    var(--shadow-control),
+    inset 0 -2px 0 var(--color-accent);
+}
+
+/* ═════════════════════ Material 3 ═════════════════════ */
+
+/* Navigation drawer: tonal container, 56dp pill rows, the active row in the secondary container. */
+:root[data-skin="material"] .sidebar,
+:root[data-skin="material"] .settings-sidebar {
+  border-right-color: transparent;
+}
+
+:root[data-skin="material"] .nav-item,
+:root[data-skin="material"] .settings-tabs button {
+  gap: var(--space-150);
+  min-height: 3.25rem;
+  padding-right: var(--space-200);
+  padding-left: var(--space-200);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-full);
+}
+
+:root[data-skin="material"] :where(.nav-item) > svg {
+  color: var(--color-icon-subtle);
+}
+
+:root[data-skin="material"] .nav-item.active,
+:root[data-skin="material"] .settings-tabs button.active {
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-selected);
+}
+
+:root[data-skin="material"] .sidebar-section-title {
+  padding-left: var(--space-200);
+  font-size: 0.8125rem;
+  font-weight: var(--weight-medium);
+  color: var(--color-text-subtle);
+}
+
+:root[data-skin="material"] .item-list,
+:root[data-skin="material"] .detail-pane {
+  border-color: transparent;
+}
+
+/* Search bar: a full pill on the container-high tone. */
+:root[data-skin="material"] .top-search-bar {
+  border-bottom-color: transparent;
+}
+
+:root[data-skin="material"] .top-search-box {
+  height: var(--space-600);
+  padding-right: var(--space-200);
+  padding-left: var(--space-200);
+  background-color: var(--color-surface-overlay);
+  border-radius: var(--radius-full);
+}
+
+/* Lists: 56dp+ rows, circular leading avatars, the selected row a rounded secondary container. */
+:root[data-skin="material"] .item-row {
+  min-height: 3.5rem;
+  padding-right: var(--space-150);
+  padding-left: var(--space-150);
+  border-radius: var(--radius-large);
+}
+
+:root[data-skin="material"] .item-icon,
+:root[data-skin="material"] .large-icon {
+  border-radius: var(--radius-full);
+}
+
+:root[data-skin="material"] .item-row.active .item-icon {
+  color: var(--color-text-inverse);
+  background: var(--color-accent);
+}
+
+/* Cards: filled, no stroke, a 12dp corner. */
+:root[data-skin="material"] .field-group,
+:root[data-skin="material"] .onepassword-group,
+:root[data-skin="material"] .integration-card,
+:root[data-skin="material"] .security-group {
+  border-color: transparent;
+}
+
+/* Buttons: full pills, 40dp; filled for the default action, outlined for the rest. */
+:root[data-skin="material"] .primary-button,
+:root[data-skin="material"] .top-new-item-button,
+:root[data-skin="material"] .secondary-button,
+:root[data-skin="material"] .top-edit-button,
+:root[data-skin="material"] .danger-button,
+:root[data-skin="material"] .state-row-button {
+  min-height: var(--space-500);
+  padding-right: var(--space-300);
+  padding-left: var(--space-300);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-full);
+}
+
+:root[data-skin="material"] .secondary-button,
+:root[data-skin="material"] .top-edit-button,
+:root[data-skin="material"] .danger-button,
+:root[data-skin="material"] .state-row-button {
+  color: var(--color-text-brand);
+  background: transparent;
+  border: var(--border-width-default) solid var(--color-border-bold);
+}
+
+:root[data-skin="material"] .danger-button,
+:root[data-skin="material"] .state-row-button.danger {
+  color: var(--color-text-danger);
+}
+
+/* Outlined text fields: the outline thickens to 2dp in the primary colour instead of a separate ring. */
+:root[data-skin="material"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:root[data-skin="material"] textarea,
+:root[data-skin="material"] select,
+:root[data-skin="material"] .compact-password-control {
+  border-color: var(--color-border-input);
+  border-radius: var(--radius-small);
+}
+
+:root[data-skin="material"] .compact-password-control {
+  border-radius: var(--radius-full);
+}
+
+:root[data-skin="material"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visible,
+:root[data-skin="material"] textarea:focus-visible,
+:root[data-skin="material"] select:focus-visible {
+  outline-color: transparent;
+  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+:root[data-skin="material"] .top-search-box input,
+:root[data-skin="material"] .compact-password-control input {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* Menus: a 4dp container, 48dp rows, the hover a state layer rather than an accent fill. */
+:root[data-skin="material"] .top-search-results,
+:root[data-skin="material"] .add-more-menu,
+:root[data-skin="material"] .section-add-menu,
+:root[data-skin="material"] .item-search-list {
+  padding: var(--space-100) 0;
+  border-color: transparent;
+  border-radius: var(--radius-small);
+}
+
+:root[data-skin="material"] .menu-option {
+  min-height: var(--space-500);
+  padding-right: var(--space-150);
+  padding-left: var(--space-150);
+  border-radius: 0;
+}
+
+:root[data-skin="material"] .menu-option:hover,
+:root[data-skin="material"] .menu-option:focus-visible,
+:root[data-skin="material"] .top-search-results button:hover {
+  color: var(--color-text);
+  background: var(--color-background-neutral-subtle-hovered);
+}
+
+:root[data-skin="material"] .menu-option:hover svg,
+:root[data-skin="material"] .menu-option:hover small,
+:root[data-skin="material"] .top-search-results button:hover small {
+  color: var(--color-text-subtle);
+}
+
+:root[data-skin="material"] .menu-option.is-danger:hover,
+:root[data-skin="material"] .menu-option.is-danger:hover svg {
+  color: var(--color-text-danger);
+}
+
+/* Dialogs: a 28dp corner on container-high, headline-small title, actions trailing. */
+:root[data-skin="material"] .confirm-dialog {
+  padding: var(--space-300);
+  border-color: transparent;
+}
+
+:root[data-skin="material"] .confirm-dialog h2 {
+  font-size: 1.375rem;
+  font-weight: var(--weight-regular);
+  line-height: 1.75rem;
+}
+
+/* Switch: a 52×32 track, outlined with a small knob when off, primary with a large on-primary knob when on. */
+:root[data-skin="material"] .checkbox-row input[type="checkbox"],
+:root[data-skin="material"] .security-check-row input[type="checkbox"] {
+  background: var(--color-surface-overlay);
+  box-shadow: var(--shadow-track);
+}
+
+:root[data-skin="material"] .checkbox-row input[type="checkbox"]::before,
+:root[data-skin="material"] .security-check-row input[type="checkbox"]::before {
+  background: var(--color-border-bold);
+  box-shadow: none;
+  transform: scale(0.65);
+}
+
+:root[data-skin="material"] .checkbox-row input[type="checkbox"]:checked,
+:root[data-skin="material"] .security-check-row input[type="checkbox"]:checked {
+  background: var(--color-accent);
+  box-shadow: none;
+}
+
+:root[data-skin="material"] .checkbox-row input[type="checkbox"]:checked::before,
+:root[data-skin="material"] .security-check-row input[type="checkbox"]:checked::before {
+  background: var(--color-text-inverse);
+  transform: translateX(var(--space-150)) scale(0.9);
+}
+
+/* Segmented buttons: an outlined pill row, the chosen segment in the secondary container. */
+:root[data-skin="material"] .segmented-control {
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  border: var(--border-width-default) solid var(--color-border-bold);
+  border-radius: var(--radius-full);
+}
+
+:root[data-skin="material"] .segmented-control .segment-button {
+  min-height: var(--space-500);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:root[data-skin="material"] .segmented-control .segment-button + .segment-button {
+  border-left: var(--border-width-default) solid var(--color-border-bold);
+}
+
+:root[data-skin="material"] .segmented-control .segment-button[aria-pressed="true"] {
+  color: var(--color-text-selected);
+  background: var(--color-background-selected);
+  box-shadow: none;
+}

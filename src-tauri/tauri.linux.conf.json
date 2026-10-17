@@ -13,9 +13,6 @@
 		]
 	},
 	"bundle": {
-		"targets": [
-			"deb",
-			"appimage"
-		]
+		"targets": ["deb", "appimage"]
 	}
 }
