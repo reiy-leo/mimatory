@@ -2,6 +2,7 @@ mod biometric;
 mod breach_check;
 mod browser_bridge;
 mod crypto;
+mod favicon;
 #[cfg(desktop)]
 mod shell;
 mod storage;
@@ -10,13 +11,14 @@ mod vault;
 
 use breach_check::BreachCheckResult;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::State;
 use totp::TotpCode;
 use vault::{
-    generate_password, CustomField, LoginItem, LoginItemInput, LoginItemUpdate, PasswordGeneratorOptions,
+    generate_password, CachedSiteIcon, CustomField, LoginItem, LoginItemInput, LoginItemUpdate, PasswordGeneratorOptions,
     PasswordStrength, Session, Tag, VaultError, VaultService, VaultSummary, WatchtowerReport,
 };
 
@@ -337,6 +339,92 @@ fn unlink_related_items(id: String, other_id: String, state: State<AppState>) ->
     service
         .unlink_related_items(&session, &id, &other_id)
         .map_err(String::from)
+}
+
+/// Sets or clears the account an item signs in with ("Sign in with Google" → the Google login).
+#[tauri::command]
+fn set_item_sign_in(
+    id: String,
+    account_id: Option<String>,
+    state: State<AppState>,
+) -> Result<(), String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service
+        .set_item_sign_in(&session, &id, account_id.as_deref())
+        .map_err(String::from)
+}
+
+/// `auto` shows the website icon, `letter` keeps the letter tile.
+#[tauri::command]
+fn set_item_icon_mode(id: String, mode: String, state: State<AppState>) -> Result<(), String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service.set_item_icon_mode(&session, &id, &mode).map_err(String::from)
+}
+
+/// The cached website icons for these sites. Never touches the network: a site missing from the
+/// answer has never been fetched, and the frontend decides whether to (the setting, the item).
+#[tauri::command]
+fn cached_site_icons(
+    domains: Vec<String>,
+    state: State<AppState>,
+) -> Result<HashMap<String, CachedSiteIcon>, String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    let domains: Vec<String> = domains
+        .iter()
+        .filter_map(|domain| favicon::normalize_domain(domain).ok())
+        .take(500)
+        .collect();
+    service.cached_site_icons(&session, &domains).map_err(String::from)
+}
+
+/// Fetches one site's icon from the site itself (see favicon.rs for every rule it follows) and
+/// caches it, or the miss, encrypted. `force` skips a fresh cache entry ("Refresh Icon"). Async and
+/// on a blocking thread, so a slow site never holds up the window.
+#[tauri::command]
+async fn fetch_site_icon(
+    domain: String,
+    force: bool,
+    state: State<'_, AppState>,
+) -> Result<Option<String>, String> {
+    let session = current_session(&state)?;
+    let domain = favicon::normalize_domain(&domain).map_err(|error| error.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || -> Result<Option<String>, String> {
+        if !force {
+            let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+            let service = VaultService::new(connection);
+            let cached = service
+                .cached_site_icons(&session, std::slice::from_ref(&domain))
+                .map_err(String::from)?;
+            if let Some(entry) = cached.get(&domain).filter(|entry| entry.fresh) {
+                return Ok(entry.icon.clone());
+            }
+        }
+        // Unreachable and icon-less sites are both remembered as a miss, so neither is asked again
+        // on every list render; the miss expires sooner than an icon does.
+        let png = favicon::fetch_site_icon(&domain, &favicon::FetchPolicy::strict()).unwrap_or(None);
+        let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+        let mut service = VaultService::new(connection);
+        service
+            .store_site_icon(&session, &domain, png.as_deref())
+            .map_err(String::from)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// Forgets every cached website icon (the "Download website icons" setting was turned off).
+#[tauri::command]
+fn clear_site_icons(state: State<AppState>) -> Result<(), String> {
+    current_session(&state)?;
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    service.clear_site_icons().map_err(String::from)
 }
 
 #[tauri::command]
@@ -660,6 +748,11 @@ pub fn run() {
             set_item_parent,
             link_related_items,
             unlink_related_items,
+            set_item_sign_in,
+            set_item_icon_mode,
+            cached_site_icons,
+            fetch_site_icon,
+            clear_site_icons,
             list_tags,
             update_tag,
             delete_tag,

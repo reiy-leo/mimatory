@@ -24,6 +24,25 @@ const MATCH_TYPE_EXACT: &str = "exact";
 const MATCH_TYPE_DOMAIN: &str = "domain";
 /// The field type older builds used to point at another item before links were real.
 const LEGACY_RELATED_FIELD: &str = "related_item";
+/// "Sign in with…": the field's value names the provider (`google`, …, or a name the user typed);
+/// the account it signs in with is the `sign_in` link in the relation record. Builds before
+/// 2026-10-17 stored the other item's id in the value instead — `migrate_legacy_sign_in_fields`.
+const SIGN_IN_WITH_FIELD: &str = "sign_in_with";
+/// The providers the app draws a mark for. Anything else in the field is a provider name.
+const SIGN_IN_PROVIDERS: &[(&str, &[&str])] = &[
+    ("google", &["google.com", "gmail.com"]),
+    ("apple", &["apple.com", "icloud.com"]),
+    ("github", &["github.com"]),
+    ("microsoft", &["microsoft.com", "live.com", "outlook.com", "office.com"]),
+    ("facebook", &["facebook.com"]),
+    ("x", &["x.com", "twitter.com"]),
+];
+pub const ICON_MODE_AUTO: &str = "auto";
+pub const ICON_MODE_LETTER: &str = "letter";
+/// How long a fetched icon is trusted before the app asks the site again, and how long a site
+/// with no icon (or that could not be reached) is left alone.
+const SITE_ICON_FRESH_DAYS: i64 = 30;
+const SITE_ICON_MISS_DAYS: i64 = 3;
 
 const GENERATOR_MODE_PASSPHRASE: &str = "passphrase";
 const GENERATOR_MODE_PIN: &str = "pin";
@@ -94,6 +113,25 @@ pub struct LoginItem {
     /// asks for it, and an item with none leaves the key out of the payload entirely.
     #[serde(default, skip_serializing_if = "ItemRelations::is_empty")]
     pub relations: ItemRelations,
+    /// `auto` (the website icon when there is one) or `letter`. Left out of the payload for `auto`.
+    #[serde(default = "default_icon_mode", skip_serializing_if = "is_auto_icon_mode")]
+    pub icon_mode: String,
+}
+
+fn default_icon_mode() -> String {
+    ICON_MODE_AUTO.to_string()
+}
+
+fn is_auto_icon_mode(mode: &str) -> bool {
+    mode == ICON_MODE_AUTO
+}
+
+/// One cached website icon as the frontend reads it: a PNG data URL, or `None` for a remembered
+/// miss, and whether it is recent enough not to ask the site again.
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct CachedSiteIcon {
+    pub icon: Option<String>,
+    pub fresh: bool,
 }
 
 /// What the detail pane needs to draw one linked item and navigate to it. `archived` is shown
@@ -113,11 +151,22 @@ pub struct ItemRelations {
     pub parent: Option<RelatedItemRef>,
     pub children: Vec<RelatedItemRef>,
     pub related: Vec<RelatedItemRef>,
+    /// The account this item signs in with ("Sign in with Google" → the Google login). Directed,
+    /// like a parent: stored on this item only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sign_in_with: Option<RelatedItemRef>,
+    /// The other way round: the items that sign in with this one. Resolved, never stored.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub signs_in_to: Vec<RelatedItemRef>,
 }
 
 impl ItemRelations {
     pub fn is_empty(&self) -> bool {
-        self.parent.is_none() && self.children.is_empty() && self.related.is_empty()
+        self.parent.is_none()
+            && self.children.is_empty()
+            && self.related.is_empty()
+            && self.sign_in_with.is_none()
+            && self.signs_in_to.is_empty()
     }
 }
 
@@ -130,11 +179,15 @@ struct RelationRecord {
     parent: Option<String>,
     #[serde(default)]
     related: Vec<String>,
+    /// The item this one signs in with (schema 4 era; an older build reading the record ignores
+    /// the key, and drops it if it rewrites that item's links).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sign_in: Option<String>,
 }
 
 impl RelationRecord {
     fn is_empty(&self) -> bool {
-        self.parent.is_none() && self.related.is_empty()
+        self.parent.is_none() && self.related.is_empty() && self.sign_in.is_none()
     }
 }
 
@@ -281,6 +334,8 @@ pub enum VaultError {
     ItemHasRelations,
     #[error("this item has linked items; remove those links before moving it to another vault")]
     ItemRelationsBlockMove,
+    #[error("unknown icon mode")]
+    InvalidIconMode,
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
     #[error("crypto error: {0}")]
@@ -368,6 +423,7 @@ impl VaultService {
         self.migrate_legacy_tags(&session)?;
         self.migrate_standalone_passkeys(&session)?;
         self.migrate_legacy_related_fields(&session)?;
+        self.migrate_legacy_sign_in_fields(&session)?;
         Ok(session)
     }
 
@@ -458,9 +514,14 @@ impl VaultService {
                 favorite: source.favorite,
             },
         )?;
+        if source.icon_mode != ICON_MODE_AUTO {
+            self.set_item_icon_mode(session, &created.id, &source.icon_mode)?;
+        }
         if attachments.is_empty() {
             self.record_event("duplicate_item", &format!("Duplicated item {item_id}"))?;
-            return Ok(created);
+            return Ok(self
+                .get_login_item(session, &created.id)?
+                .expect("duplicated login item should be readable"));
         }
 
         let mut custom_fields = source.custom_fields.clone();
@@ -734,6 +795,7 @@ impl VaultService {
         self.migrate_legacy_tags(&session)?;
         self.migrate_standalone_passkeys(&session)?;
         self.migrate_legacy_related_fields(&session)?;
+        self.migrate_legacy_sign_in_fields(&session)?;
         Ok(session)
     }
 
@@ -1503,6 +1565,36 @@ impl VaultService {
         Ok(())
     }
 
+    /// Records (or with `None`, clears) the account an item signs in with. It is a link like the
+    /// others: same vault, never itself, and either end refuses Delete and Move while it stands.
+    pub fn set_item_sign_in(
+        &mut self,
+        session: &Session,
+        item_id: &str,
+        account_id: Option<&str>,
+    ) -> Result<(), VaultError> {
+        if !self.linkable_item_exists(session, item_id)? {
+            return Err(VaultError::RelationItemNotFound);
+        }
+        if let Some(account_id) = account_id {
+            if account_id == item_id {
+                return Err(VaultError::RelationSelf);
+            }
+            if !self.linkable_item_exists(session, account_id)? {
+                return Err(VaultError::RelationItemNotFound);
+            }
+        }
+        let mut record = self.relation_record(session, item_id)?;
+        let next = account_id.map(str::to_string);
+        if record.sign_in == next {
+            return Ok(());
+        }
+        record.sign_in = next;
+        self.write_relation_record(session, item_id, &record)?;
+        self.record_event("relate_item", &format!("Set the sign-in account of item {item_id}"))?;
+        Ok(())
+    }
+
     /// Whether the item has any link the user can see — a dangling id (its counterpart gone) does
     /// not count, because nothing in the app could remove it and it would block deleting forever.
     fn has_relations(&self, session: &Session, item_id: &str) -> Result<bool, VaultError> {
@@ -1628,17 +1720,27 @@ impl VaultService {
                     relations.related.push(related);
                 }
             }
+            if let Some(sign_in_id) = &record.sign_in {
+                relations.sign_in_with = self.relation_ref(session, sign_in_id)?;
+            }
         }
-        for (child_id, record) in index {
+        for (other_id, record) in index {
             if record.parent.as_deref() == Some(item_id) {
-                if let Some(child) = self.relation_ref(session, child_id)? {
+                if let Some(child) = self.relation_ref(session, other_id)? {
                     relations.children.push(child);
                 }
             }
+            if record.sign_in.as_deref() == Some(item_id) {
+                if let Some(user) = self.relation_ref(session, other_id)? {
+                    relations.signs_in_to.push(user);
+                }
+            }
         }
-        relations
-            .children
-            .sort_by(|left, right| left.title.to_lowercase().cmp(&right.title.to_lowercase()));
+        let by_title = |left: &RelatedItemRef, right: &RelatedItemRef| {
+            left.title.to_lowercase().cmp(&right.title.to_lowercase())
+        };
+        relations.children.sort_by(by_title);
+        relations.signs_in_to.sort_by(by_title);
         Ok(relations)
     }
 
@@ -1707,6 +1809,141 @@ impl VaultService {
         Ok(())
     }
 
+    /// Builds before 2026-10-17 kept another item's *id* in a "Sign in with" field. Each one that
+    /// still names a live item of this vault becomes the item's `sign_in` link, and the field keeps
+    /// the provider instead: a known one when the linked item's address or title says which
+    /// (google.com → `google`), otherwise the linked item's title as the provider name. A field
+    /// whose target is gone is left alone, like the related-item migration does.
+    fn migrate_legacy_sign_in_fields(&mut self, session: &Session) -> Result<(), VaultError> {
+        let mut statement = self
+            .connection
+            .prepare("SELECT id FROM items WHERE vault_id = ?1 AND trashed = 0")?;
+        let ids = statement
+            .query_map([&session.vault_id], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        drop(statement);
+
+        for id in ids {
+            let Some(item) = self.get_login_item(session, &id)? else {
+                continue;
+            };
+            let mut fields = item.custom_fields.clone();
+            let mut changed = false;
+            for field in fields.iter_mut() {
+                let target = field.value.trim().to_string();
+                if field.field_type != SIGN_IN_WITH_FIELD
+                    || target.is_empty()
+                    || target == id
+                    || Uuid::parse_str(&target).is_err()
+                    || !self.linkable_item_exists(session, &target)?
+                {
+                    continue;
+                }
+                let Some(account) = self.get_login_item(session, &target)? else {
+                    continue;
+                };
+                if self.relation_record(session, &id)?.sign_in.is_none() {
+                    self.set_item_sign_in(session, &id, Some(&target))?;
+                }
+                field.value = sign_in_provider_for(&account)
+                    .map(str::to_string)
+                    .unwrap_or_else(|| account.title.trim().to_string());
+                changed = true;
+            }
+            if changed {
+                self.replace_login_fields(
+                    session,
+                    &id,
+                    &item.username,
+                    &item.password,
+                    &item.notes,
+                    &fields,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Sets how the item's tile is drawn: `auto` or `letter`.
+    pub fn set_item_icon_mode(
+        &mut self,
+        session: &Session,
+        item_id: &str,
+        mode: &str,
+    ) -> Result<(), VaultError> {
+        if mode != ICON_MODE_AUTO && mode != ICON_MODE_LETTER {
+            return Err(VaultError::InvalidIconMode);
+        }
+        let changed = self.connection.execute(
+            "UPDATE items SET icon_mode = ?1 WHERE id = ?2 AND vault_id = ?3",
+            params![mode, item_id, session.vault_id],
+        )?;
+        if changed == 0 {
+            return Err(VaultError::VaultNotFound);
+        }
+        Ok(())
+    }
+
+    /// The cached icons for these sites, keyed by the site as asked. A site never fetched is left
+    /// out of the map, which is how the caller knows to fetch it.
+    pub fn cached_site_icons(
+        &self,
+        session: &Session,
+        domains: &[String],
+    ) -> Result<HashMap<String, CachedSiteIcon>, VaultError> {
+        let now = Utc::now();
+        let mut found = HashMap::new();
+        for domain in domains {
+            let row = self
+                .connection
+                .query_row(
+                    "SELECT icon_ciphertext, fetched_at FROM site_icons WHERE domain_hash = ?1",
+                    [site_icon_hash(&session.key, domain)],
+                    |row| Ok((row.get::<_, Option<Vec<u8>>>(0)?, row.get::<_, String>(1)?)),
+                )
+                .optional()?;
+            let Some((blob, fetched_at)) = row else {
+                continue;
+            };
+            let icon = blob
+                .map(|blob| decrypt_string_from_blob(&session.key, &blob))
+                .transpose()?;
+            let age_days = chrono::DateTime::parse_from_rfc3339(&fetched_at)
+                .map(|at| (now - at.with_timezone(&Utc)).num_days())
+                .unwrap_or(i64::MAX);
+            let limit = if icon.is_some() { SITE_ICON_FRESH_DAYS } else { SITE_ICON_MISS_DAYS };
+            found.insert(domain.clone(), CachedSiteIcon { fresh: age_days < limit, icon });
+        }
+        Ok(found)
+    }
+
+    /// Stores a fetched icon (a PNG) or, with `None`, remembers that the site had none.
+    pub fn store_site_icon(
+        &mut self,
+        session: &Session,
+        domain: &str,
+        png: Option<&[u8]>,
+    ) -> Result<Option<String>, VaultError> {
+        let data_url = png.map(|png| format!("data:image/png;base64,{}", BASE64.encode(png)));
+        let blob = data_url
+            .as_deref()
+            .map(|value| encrypt_string_to_blob(&session.key, value))
+            .transpose()?;
+        self.connection.execute(
+            "INSERT INTO site_icons (domain_hash, icon_ciphertext, fetched_at) VALUES (?1, ?2, ?3)
+             ON CONFLICT(domain_hash) DO UPDATE SET
+               icon_ciphertext = excluded.icon_ciphertext, fetched_at = excluded.fetched_at",
+            params![site_icon_hash(&session.key, domain), blob, Utc::now().to_rfc3339()],
+        )?;
+        Ok(data_url)
+    }
+
+    /// Forgets every cached icon (the setting was turned off).
+    pub fn clear_site_icons(&mut self) -> Result<(), VaultError> {
+        self.connection.execute("DELETE FROM site_icons", [])?;
+        Ok(())
+    }
+
     fn list_login_items_by_archive_state(
         &self,
         session: &Session,
@@ -1738,7 +1975,7 @@ impl VaultService {
         let row = self
             .connection
             .query_row(
-                "SELECT item_type, title_ciphertext, favorite, updated_at FROM items
+                "SELECT item_type, title_ciphertext, favorite, updated_at, icon_mode FROM items
                  WHERE id = ?1 AND vault_id = ?2",
                 params![id, session.vault_id],
                 |row| {
@@ -1747,12 +1984,13 @@ impl VaultService {
                         row.get::<_, Vec<u8>>(1)?,
                         row.get::<_, i64>(2)?,
                         row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
                     ))
                 },
             )
             .optional()?;
 
-        let Some((item_type, title_ciphertext, favorite, updated_at)) = row else {
+        let Some((item_type, title_ciphertext, favorite, updated_at, icon_mode)) = row else {
             return Ok(None);
         };
 
@@ -1784,6 +2022,7 @@ impl VaultService {
             favorite: favorite == 1,
             updated_at,
             relations: ItemRelations::default(),
+            icon_mode,
         }))
     }
 
@@ -2220,6 +2459,50 @@ fn tag_name_hash(key: &VaultKey, name: &str) -> Vec<u8> {
         .expect("a 32 byte vault key is always a valid HMAC key for sha1");
     mac.update(name.to_lowercase().as_bytes());
     mac.finalize().into_bytes().to_vec()
+}
+
+/// Keyed blind index for the icon cache, separated from tag hashes by its prefix so the same
+/// string can never collide across the two tables. Lowercased: a host name is case-insensitive.
+fn site_icon_hash(key: &VaultKey, domain: &str) -> Vec<u8> {
+    let mut mac = Hmac::<Sha1>::new_from_slice(key)
+        .expect("a 32 byte vault key is always a valid HMAC key for sha1");
+    mac.update(b"site-icon:");
+    mac.update(domain.trim().to_lowercase().as_bytes());
+    mac.finalize().into_bytes().to_vec()
+}
+
+/// Which known provider an account item belongs to, from its addresses first and its title second.
+fn sign_in_provider_for(account: &LoginItem) -> Option<&'static str> {
+    let hosts: Vec<String> = normalized_urls(&account.website, &account.urls)
+        .iter()
+        .filter_map(|url| host_of(&url.url))
+        .collect();
+    for (provider, domains) in SIGN_IN_PROVIDERS {
+        let host_hit = hosts.iter().any(|host| {
+            domains
+                .iter()
+                .any(|domain| host == domain || host.ends_with(&format!(".{domain}")))
+        });
+        if host_hit {
+            return Some(provider);
+        }
+    }
+    let title = account.title.to_lowercase();
+    SIGN_IN_PROVIDERS
+        .iter()
+        .map(|(provider, _)| *provider)
+        .find(|provider| *provider != "x" && title.contains(provider))
+}
+
+/// The provider a "Sign in with" field names, as the browser extension is told it: a known id
+/// (`google`) or the name the user typed. `None` when the item has no such field.
+pub fn sign_in_provider_of(item: &LoginItem) -> Option<String> {
+    item.custom_fields
+        .iter()
+        .find(|field| field.field_type == SIGN_IN_WITH_FIELD && !field.value.trim().is_empty())
+        .map(|field| field.value.trim().to_string())
+        // A pre-migration value is another item's id, which the extension has no use for.
+        .filter(|value| Uuid::parse_str(value).is_err())
 }
 
 const PASSKEY_ITEM_TYPE: &str = "passkey";
@@ -4465,6 +4748,171 @@ mod tests {
 
         service.unlock("master-password").expect("a second unlock changes nothing");
         assert_eq!(listed_relations(&service, &session, &target).related.len(), 1);
+
+        let _ = std::fs::remove_file(path);
+    }
+    fn sign_in_field(value: &str) -> CustomField {
+        CustomField { label: String::new(), value: value.into(), field_type: "sign_in_with".into() }
+    }
+
+    #[test]
+    fn a_sign_in_account_is_a_link_both_ends_see_and_that_blocks_delete_and_move() {
+        let (path, mut service, session) = relation_service("relations-sign-in");
+        let google = create_titled(&mut service, &session, "Google");
+        let mut input = login_input("Figma", vec![]);
+        input.custom_fields = vec![sign_in_field("google")];
+        let figma = service.create_login_item(&session, input).expect("figma").id;
+        let notion = create_titled(&mut service, &session, "Notion");
+
+        assert!(matches!(
+            service.set_item_sign_in(&session, &figma, Some(&figma)),
+            Err(VaultError::RelationSelf)
+        ));
+        assert!(matches!(
+            service.set_item_sign_in(&session, &figma, Some("missing")),
+            Err(VaultError::RelationItemNotFound)
+        ));
+        service.set_item_sign_in(&session, &figma, Some(&google)).expect("sign in should link");
+        service.set_item_sign_in(&session, &notion, Some(&google)).expect("sign in should link");
+
+        let figma_relations = listed_relations(&service, &session, &figma);
+        assert_eq!(figma_relations.sign_in_with.map(|item| item.title), Some("Google".to_string()));
+        assert_eq!(ref_titles(&listed_relations(&service, &session, &google).signs_in_to), vec!["Figma", "Notion"]);
+
+        // Stored encrypted with the other links, never as a readable id.
+        let blob: Vec<u8> = service
+            .connection
+            .query_row("SELECT relations_ciphertext FROM items WHERE id = ?1", [&figma], |row| row.get(0))
+            .expect("record");
+        assert!(!String::from_utf8_lossy(&blob).contains(&google));
+
+        let work = service.create_vault(&session, "Work").expect("vault should create");
+        for id in [&figma, &google] {
+            assert!(matches!(service.trash_item(&session, id), Err(VaultError::ItemHasRelations)));
+            assert!(matches!(
+                service.move_login_item(&session, id, &work.id),
+                Err(VaultError::ItemRelationsBlockMove)
+            ));
+        }
+
+        // The bridge sees the provider through the field and nothing about the linked account.
+        let bridged = service.list_live_items(&session, None).expect("live");
+        let bridged_figma = bridged.iter().find(|item| item.id == figma).expect("figma");
+        assert_eq!(sign_in_provider_of(bridged_figma), Some("google".to_string()));
+        assert!(bridged_figma.relations.is_empty());
+
+        service.set_item_sign_in(&session, &figma, None).expect("clear");
+        service.set_item_sign_in(&session, &notion, None).expect("clear");
+        assert!(listed_relations(&service, &session, &google).is_empty());
+        service.trash_item(&session, &google).expect("free once nothing signs in with it");
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn unlock_turns_legacy_sign_in_item_ids_into_a_provider_and_a_link() {
+        let (path, mut service, session) = relation_service("relations-sign-in-legacy");
+        let mut google_input = login_input("My account", vec![]);
+        google_input.website = "https://accounts.google.com".into();
+        let google = service.create_login_item(&session, google_input).expect("google").id;
+        let okta = create_titled(&mut service, &session, "Company Okta");
+        let gone = Uuid::new_v4().to_string();
+
+        let mut input = login_input("Figma", vec![]);
+        input.custom_fields = vec![sign_in_field(&google)];
+        let figma = service.create_login_item(&session, input).expect("figma").id;
+        let mut input = login_input("Wiki", vec![]);
+        input.custom_fields = vec![sign_in_field(&okta)];
+        let wiki = service.create_login_item(&session, input).expect("wiki").id;
+        let mut input = login_input("Old", vec![]);
+        input.custom_fields = vec![sign_in_field(&gone), sign_in_field("github")];
+        let old = service.create_login_item(&session, input).expect("old").id;
+
+        let session = service.unlock("master-password").expect("unlock should migrate");
+        let items = service.list_login_items(&session, None).expect("items");
+        let find = |id: &str| items.iter().find(|item| item.id == id).expect("listed").clone();
+
+        let figma_item = find(&figma);
+        assert_eq!(figma_item.custom_fields, vec![sign_in_field("google")]);
+        assert_eq!(figma_item.relations.sign_in_with.map(|item| item.id), Some(google.clone()));
+        let wiki_item = find(&wiki);
+        assert_eq!(wiki_item.custom_fields, vec![sign_in_field("Company Okta")]);
+        assert_eq!(wiki_item.relations.sign_in_with.map(|item| item.id), Some(okta.clone()));
+        let old_item = find(&old);
+        assert_eq!(old_item.custom_fields, vec![sign_in_field(&gone), sign_in_field("github")]);
+        assert!(old_item.relations.is_empty());
+        assert_eq!(sign_in_provider_of(&old_item), None, "a dangling id is not a provider");
+
+        service.unlock("master-password").expect("a second unlock changes nothing");
+        assert_eq!(ref_titles(&listed_relations(&service, &session, &google).signs_in_to), vec!["Figma"]);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn site_icons_are_cached_by_a_keyed_hash_and_encrypted() {
+        let (path, mut service, session) = relation_service("site-icons");
+        let domains = vec!["github.com".to_string(), "nothing.example".to_string(), "new.example".to_string()];
+        let png = b"\x89PNG fake bytes";
+        let stored = service.store_site_icon(&session, "GitHub.com", Some(png)).expect("store");
+        assert_eq!(stored, Some(format!("data:image/png;base64,{}", BASE64.encode(png))));
+        service.store_site_icon(&session, "nothing.example", None).expect("store miss");
+
+        let cached = service.cached_site_icons(&session, &domains).expect("cache");
+        assert_eq!(cached.get("github.com"), Some(&CachedSiteIcon { icon: stored.clone(), fresh: true }));
+        assert_eq!(cached.get("nothing.example"), Some(&CachedSiteIcon { icon: None, fresh: true }));
+        assert!(!cached.contains_key("new.example"), "never fetched means absent");
+
+        // Neither the site name nor the icon is readable in the file.
+        let rows: Vec<(Vec<u8>, Option<Vec<u8>>)> = service
+            .connection
+            .prepare("SELECT domain_hash, icon_ciphertext FROM site_icons")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(rows.len(), 2);
+        for (hash, icon) in &rows {
+            assert!(!String::from_utf8_lossy(hash).contains("github"));
+            if let Some(icon) = icon {
+                assert!(!String::from_utf8_lossy(icon).contains("base64,"));
+            }
+        }
+
+        // An old entry is still shown but marked stale, so the app asks the site again.
+        service
+            .connection
+            .execute("UPDATE site_icons SET fetched_at = '2020-01-01T00:00:00+00:00'", [])
+            .unwrap();
+        let stale = service.cached_site_icons(&session, &domains).expect("cache");
+        assert_eq!(stale.get("github.com").map(|icon| icon.fresh), Some(false));
+        assert!(stale.get("github.com").and_then(|icon| icon.icon.clone()).is_some());
+
+        service.clear_site_icons().expect("clear");
+        assert!(service.cached_site_icons(&session, &domains).expect("cache").is_empty());
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn an_item_can_keep_its_letter_tile_and_a_duplicate_keeps_the_choice() {
+        let (path, mut service, session) = relation_service("icon-mode");
+        let id = create_titled(&mut service, &session, "Bank");
+        let listed = |service: &VaultService| {
+            service.list_login_items(&session, None).unwrap().into_iter().find(|item| item.id == id).unwrap()
+        };
+        assert_eq!(listed(&service).icon_mode, "auto");
+        assert!(!serde_json::to_string(&listed(&service)).unwrap().contains("icon_mode"));
+
+        service.set_item_icon_mode(&session, &id, "letter").expect("letter");
+        assert_eq!(listed(&service).icon_mode, "letter");
+        assert!(matches!(
+            service.set_item_icon_mode(&session, &id, "emoji"),
+            Err(VaultError::InvalidIconMode)
+        ));
+        let copy = service.duplicate_login_item(&session, &id, "Bank copy").expect("duplicate");
+        assert_eq!(copy.icon_mode, "letter");
 
         let _ = std::fs::remove_file(path);
     }

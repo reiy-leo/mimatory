@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-const CURRENT_SCHEMA_VERSION: i64 = 3;
+const CURRENT_SCHEMA_VERSION: i64 = 4;
 
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -154,7 +154,19 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
             archived_by_vault INTEGER NOT NULL DEFAULT 0,
             /* The item's parent and related-item links (schema 3), encrypted JSON of ids under the
                vault key; NULL for an item with none. */
-            relations_ciphertext BLOB
+            relations_ciphertext BLOB,
+            /* Schema 4: 'auto' shows the website icon when there is one, 'letter' keeps the letter
+               tile. Plaintext like `favorite`: a two-state display choice, no content. */
+            icon_mode TEXT NOT NULL DEFAULT 'auto'
+        );
+
+        /* Schema 4: website icons, one row per site for every vault (they share one key). The site is
+           a keyed blind index (HMAC under the vault key), the icon a normalised PNG encrypted under
+           it, so the file names no site. A NULL icon is a remembered miss, retried after a while. */
+        CREATE TABLE IF NOT EXISTS site_icons (
+            domain_hash BLOB PRIMARY KEY NOT NULL,
+            icon_ciphertext BLOB,
+            fetched_at TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS tags (
@@ -284,6 +296,13 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
 
     if !has_column(connection, "items", "relations_ciphertext")? {
         connection.execute("ALTER TABLE items ADD COLUMN relations_ciphertext BLOB", [])?;
+    }
+
+    if !has_column(connection, "items", "icon_mode")? {
+        connection.execute(
+            "ALTER TABLE items ADD COLUMN icon_mode TEXT NOT NULL DEFAULT 'auto'",
+            [],
+        )?;
     }
 
     connection.execute(
@@ -637,7 +656,71 @@ mod tests {
         let schema_version: String = connection
             .query_row("SELECT value FROM meta WHERE key = 'schema_version'", [], |row| row.get(0))
             .expect("schema version should exist");
-        assert_eq!(schema_version, "3");
+        assert_eq!(schema_version, CURRENT_SCHEMA_VERSION.to_string());
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn initialize_database_adds_icon_mode_and_the_site_icon_cache_to_a_version_three_database() {
+        let (temp_dir, database_path) = temp_database("site-icons");
+        fs::create_dir_all(&temp_dir).expect("temp dir should exist");
+
+        {
+            let connection = Connection::open(&database_path).expect("database should open");
+            connection.execute_batch("
+                CREATE TABLE meta (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+                CREATE TABLE vaults (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name_ciphertext BLOB NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    icon TEXT NOT NULL DEFAULT 'vault',
+                    color TEXT NOT NULL DEFAULT '',
+                    archived INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE TABLE items (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    vault_id TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+                    item_type TEXT NOT NULL,
+                    title_ciphertext BLOB NOT NULL,
+                    favorite INTEGER NOT NULL DEFAULT 0,
+                    archived INTEGER NOT NULL DEFAULT 0,
+                    trashed INTEGER NOT NULL DEFAULT 0,
+                    deleted_at TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    archived_by_vault INTEGER NOT NULL DEFAULT 0,
+                    relations_ciphertext BLOB
+                );
+                INSERT INTO vaults (id, name_ciphertext, created_at, updated_at)
+                VALUES ('personal', x'05', '2026-01-01', '2026-01-01');
+                INSERT INTO items (
+                    id, vault_id, item_type, title_ciphertext, created_at, updated_at,
+                    relations_ciphertext
+                ) VALUES ('kept-item', 'personal', 'login', x'06', '2026-01-01', '2026-01-02', x'07');
+                INSERT INTO meta (key, value) VALUES ('schema_version', '3');
+            ").expect("version three tables should build");
+        }
+
+        initialize_database(&database_path).expect("database should upgrade");
+        initialize_database(&database_path).expect("upgrading twice should be harmless");
+
+        let connection = Connection::open(&database_path).expect("database should reopen");
+        assert!(table_names(&connection).contains(&"site_icons".to_string()));
+        let (mode, relations): (String, Option<Vec<u8>>) = connection
+            .query_row(
+                "SELECT icon_mode, relations_ciphertext FROM items WHERE id = 'kept-item'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("the existing item should survive the upgrade");
+        assert_eq!(mode, "auto");
+        assert_eq!(relations, Some(vec![7]));
+        let schema_version: String = connection
+            .query_row("SELECT value FROM meta WHERE key = 'schema_version'", [], |row| row.get(0))
+            .expect("schema version should exist");
+        assert_eq!(schema_version, "4");
 
         let _ = fs::remove_dir_all(temp_dir);
     }

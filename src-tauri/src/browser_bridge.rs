@@ -1,6 +1,7 @@
 use crate::storage;
 use crate::vault::{
-    default_match_type, ItemUrl, LoginItem, LoginItemInput, LoginItemUpdate, Session, VaultService,
+    default_match_type, sign_in_provider_of, ItemUrl, LoginItem, LoginItemInput, LoginItemUpdate,
+    Session, VaultService,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
@@ -29,6 +30,25 @@ struct PasskeyEventRequest {
     origin: String,
     rp_id: String,
     user_name: String,
+}
+
+/// A match as the extension receives it: the item exactly as before, plus the provider of a
+/// "Sign in with…" item (`google`, …, or the name the user typed) so the popup can say "Sign in
+/// with Google" instead of filling a password. Only the provider crosses — never the linked
+/// account item, its title or its username.
+#[derive(Serialize)]
+struct BridgeMatch {
+    #[serde(flatten)]
+    item: LoginItem,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sign_in_with: Option<String>,
+}
+
+impl From<LoginItem> for BridgeMatch {
+    fn from(item: LoginItem) -> Self {
+        let sign_in_with = sign_in_provider_of(&item);
+        Self { item, sign_in_with }
+    }
 }
 
 #[derive(Serialize)]
@@ -150,12 +170,13 @@ fn tokens_match(provided: &str, expected: &str) -> bool {
         == 0
 }
 
-fn list_matches(session: &SharedSession, origin: &str) -> Result<Vec<LoginItem>, String> {
+fn list_matches(session: &SharedSession, origin: &str) -> Result<Vec<BridgeMatch>, String> {
     let session = current_session(session)?;
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let service = VaultService::new(connection);
     service
         .list_login_items_for_origin(&session, origin)
+        .map(|items| items.into_iter().map(BridgeMatch::from).collect())
         .map_err(|error| error.to_string())
 }
 
@@ -269,7 +290,40 @@ fn with_cors(response: Response<std::io::Cursor<Vec<u8>>>) -> Response<std::io::
 
 #[cfg(test)]
 mod tests {
-    use super::tokens_match;
+    use super::{tokens_match, BridgeMatch};
+    use crate::vault::{CustomField, LoginItem};
+
+    fn item(fields: Vec<CustomField>) -> LoginItem {
+        LoginItem {
+            id: "id".into(),
+            item_type: "login".into(),
+            title: "Figma".into(),
+            username: "rei@example.com".into(),
+            password: String::new(),
+            website: "https://figma.com".into(),
+            urls: vec![],
+            notes: String::new(),
+            tags: vec![],
+            custom_fields: fields,
+            favorite: false,
+            updated_at: String::new(),
+            relations: Default::default(),
+            icon_mode: "auto".into(),
+        }
+    }
+
+    #[test]
+    fn a_sign_in_with_match_tells_the_extension_the_provider_only() {
+        let field = CustomField { label: String::new(), value: "google".into(), field_type: "sign_in_with".into() };
+        let json = serde_json::to_value(BridgeMatch::from(item(vec![field]))).unwrap();
+        assert_eq!(json["sign_in_with"], "google");
+        assert_eq!(json["title"], "Figma");
+        assert!(json.get("relations").is_none());
+        assert!(json.get("icon_mode").is_none());
+
+        let plain = serde_json::to_value(BridgeMatch::from(item(vec![]))).unwrap();
+        assert!(plain.get("sign_in_with").is_none());
+    }
 
     #[test]
     fn pairing_tokens_must_match_completely() {
