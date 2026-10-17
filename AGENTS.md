@@ -29,7 +29,7 @@ npm run dev          # Vite dev server on :1430 (Tauri launches this automatical
 npm run build        # tailwindcss (extension CSS) → tsc → vite build
 npm run build:css    # Tailwind-compiles src/styles.css only, to /tmp — proves a token resolves
 npm run typecheck    # tsc --noEmit only, without the bundle
-npm run test         # Vitest, all 25 files (node environment; fork pool capped at 2)
+npm run test         # Vitest, all 28 files (node environment; fork pool capped at 2)
 npm run test:design  # Only src/app/designContract.test.ts — the Apple-design token/CSS/className guard
 npm run lint:fix     # biome check --write (JS/TS, CSS, JSON)
 npm run tauri dev    # Full desktop app (frontend + Rust backend)
@@ -113,6 +113,7 @@ src/                  # React frontend
   app/itemTags.ts sidebarHighlights.ts securityPreferences.ts lockScreen.ts totpDisplay.ts
   app/relativeTime.ts menuPlacement.ts itemDrafts.ts itemTemplates.ts windowPlacement.ts otpQrImport.ts
   app/itemFields.ts fieldFormats.ts fieldControls.tsx  # typed item fields: template bridge, rules, view/edit components
+  app/fieldActions.ts fieldActionControls.tsx largeType.ts clipboard.ts  # 1Password-style field actions: per-type primary + menu, action sheet, Large Type, the one clipboard writer
   app/itemRelations.ts relationControls.tsx  # parent / child / related / sign-in links: draft diffing, picker rules, the row group
   app/siteIcons.ts itemIcon.tsx  # website icons: which sites to ask, the window's icon store, the item tile
   app/signInProviders.ts signInControls.tsx providerMarks.tsx  # "Sign in with…": field rules, sheet + row, bundled marks
@@ -523,6 +524,28 @@ Wayland; X11 is not supported.
   username/password columns still show them when an older item has data there. Select values are stored as
   option ids, labelled `itemTemplates.options.<set>.<id>`; an unknown stored value stays selectable as itself.
   Validation hints (`fieldHints.*`) appear on blur and never block saving.
+
+- **Field actions follow 1Password 8** (2026-10-17, owner: "检查一下所有字段在view和edit中是否和1password交互逻辑一致").
+  The comparison table lives outside the repo (`work/field-audit.md`). Rules: a read-only row *is* its primary
+  action — a transparent `.field-row-primary` button behind the content (a button cannot hold the strength meter's
+  blocks), so trailing buttons stay their own targets; `fieldActions()` decides primary + menu by type alone
+  (website = Open & Fill on desktop / Open on phones, URL in a section = Open, everything else = Copy; Reveal,
+  Send Email, Call, Show in Large Type as the type allows). The menu is self-contained (`FieldActionMenu`, portal,
+  own capture-phase outside-pointer/Escape listeners), so it needs no flag in `VaultWindow`'s dismiss effect; in
+  the phone layout it renders as an action sheet opened by long press, whose release click is swallowed so a long
+  press never also copies. The view's eye button is gone — Reveal is in the menu and ⌘R/Ctrl+R toggles every
+  secure field (`revealAllSecure`, reset per item and on Edit). Item shortcuts are read through a ref
+  (`itemShortcutRef`) so one listener always sees the item on screen; they ignore text fields, dialogs and menus,
+  and ⇧⌘F no longer also focuses search. **Every clipboard write goes through `copyText`** (`clipboard.ts`):
+  secrets — passwords, concealed fields, card numbers, OTP codes, OTP seeds and setup links — honour the 90-second
+  clear, plain values do not; Quick Access reads the setting fresh from localStorage at copy time.
+  **Open & Fill has no channel into the browser**, so it rides the URL: `openAndFillUrl` appends
+  `#passless-fill=<item id>` (a *fragment*, never sent to the server — 1Password's query parameter breaks some
+  sites), skipped when the URL already has a fragment (hash-routed apps). `content.js` strips it with
+  `history.replaceState`, then fills **that** item through the ordinary origin-scoped `/fill` (an id from another
+  site finds no match), retrying for ~5s while a late sign-in form renders. No bridge endpoint was added. The page's
+  own scripts can read the item id before it is stripped — an opaque UUID, accepted. Large Type colours digits in
+  the link blue and symbols in red as 1Password does (documented exception in `.agent/design.md`).
 
 ## Testing and verification
 

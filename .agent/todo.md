@@ -85,6 +85,20 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 - **Website icon cache is never pruned** for sites no item names any more (rows are tiny and unreadable; only
   the setting's off switch clears it).
 
+- **Field actions (2026-10-17) — unverified and remaining.** Checked only in Vite + Chromium against the stub
+  (work/screens/fields/: macOS light+dark, Windows, Android). Never seen: Open & Fill end-to-end (the opener plugin
+  with a fragment URL, the extension stripping `#passless-fill` and filling — content.js was never run in a browser),
+  ⌘R/⌘C in WKWebView (⌘R must not reach a reload), long press in a real Android/iOS WebView (and whether the
+  WebView's own text-selection/context gesture fights it), `mailto:`/`tel:` from the menu, the 90-second clear in
+  Quick Access's hidden window. Not done, 1Password has them: password history (needs storage), hold Option to
+  reveal (needs a setting), drag-to-reorder fields, the generator as a popover beside the field, changing a field's
+  type after adding it, per-website autofill behaviour UI (`match_type` is stored), Markdown in notes, SSH private
+  key export, date expiry alerts.
+- **needs-owner-decision — field actions.** (1) 1Password clears *every* copied value after 90 s; Passless clears
+  secrets only (kept). (2) Quick Access ↵ copies the password; in 1Password ↵ is Open & Fill (kept). (3) The view's
+  always-visible eye was removed in favour of the menu + ⌘R, as 1Password does — restore it if a one-click reveal is
+  wanted. (4) A URL field inside a section opens on click (1Password's docs only say "copy or open").
+
 ## Never yet seen in a running app
 
 - Item relations (2026-10-15): the parent / child / related sections, the picker sheet and the disabled Delete
@@ -120,6 +134,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-17 | 1Password-style field actions: row = primary action, per-type menu / phone action sheet, Show in Large Type, Open & Fill via the extension, item and Quick Access copy shortcuts, ⌘R, one clipboard helper (OTP and Quick Access copies now cleared) | `AGENTS.md` Field actions; `design.md` exceptions |
 | 2026-10-17 | Website icons fetched from the site itself and cached encrypted (schema 4), Sign in with… (provider field + `sign_in` link, picker, row, reverse list, extension hint) | `AGENTS.md` Website icons, Sign in with… |
 | 2026-10-17 | Multiplatform: Apple / WinUI 3 / Material 3 skins and a phone layout (Mindough's mapping), platform feature gating, per-platform Tauri configs, desktop-only shell crates, Wayland-only Linux (tauri without `x11`, `WAYLAND_DISPLAY` required), biometrics via tauri-plugin-biometric on phones, CI (`ci.yml`, `build.yml`, `ios.yml`) | `AGENTS.md` Platforms; `design.md` Per-platform skins |
 | 2026-10-17 | Item relations design approved by the owner as built ("这种是完全正确的"): Delete/Move refused while an item has any link (parent included); Move refused rather than carrying links across vaults; wording 上级项 / 子项 / 关联项 (en Parent Item / Child Items / Related Items, ja 親項目 / 子項目 / 関連項目); no child-count badge on list rows; `relations_ciphertext` NULL-vs-ciphertext presence signal accepted | `AGENTS.md` item relations |

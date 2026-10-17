@@ -248,6 +248,13 @@ from a shadow token; a popup colour that drifts from the app's.
   `.item-list` carry `border-r`; `.detail-pane` deliberately has no `border-l`.
 
 
+- **Show in Large Type colours digits and symbols** (`.large-type-cell.is-digit` in `text-brand`, `.is-symbol` in
+  `text-danger`): 1Password's convention, so a reader can tell `0`/`O` and `l`/`|` apart at a glance. Red here is not
+  a status — an exception to "one colour means one thing", acceptable because every tile also carries its class in
+  its accessible name and a legend sits under the tiles. Tile and glyph size come from `--measure-large-type-*`.
+- **A read-only field row highlights on hover** (`.field-row.is-actionable:hover`, quaternary fill) because the
+  whole row is a button (copy / Open & Fill); its trailing hint is link-coloured text, not a push button.
+
 ## Per-platform skins (2026-10-17)
 
 The owner asked for every OS to get the design Mindough gives it. The mapping, detection and layout switch are in
