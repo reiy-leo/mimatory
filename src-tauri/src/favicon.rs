@@ -9,7 +9,8 @@
 //! - https only, the default port only; a redirect has to stay on https too.
 //! - Every hop's host is resolved here first, and the request is pinned to the addresses that were
 //!   checked (`resolve_to_addrs`), so a DNS answer cannot change between the check and the connect.
-//!   Loopback, private, link-local, CGNAT, multicast and unspecified addresses are refused.
+//!   Loopback, private, link-local, CGNAT, multicast and unspecified addresses are refused. A
+//!   system proxy, when one is configured, makes the connection instead; the check still runs here.
 //! - No cookies (reqwest keeps none unless told to), no referrer, a short timeout, at most
 //!   `MAX_REDIRECTS` hops and a byte cap on every body (`HTML_CAP`, `ICON_CAP`).
 //! - The icon must announce an image content type (or none / octet-stream) *and* start with the
@@ -68,6 +69,10 @@ pub struct FetchPolicy {
     /// Pin every host to this address instead of resolving it (tests only).
     pub resolve_override: Option<SocketAddr>,
     pub timeout: Duration,
+    /// Go through the proxy the system (or the environment) configures. On in production, because
+    /// a user behind one reaches no site otherwise; the address check above still runs on this
+    /// side first. Off in the tests, whose server a proxy could not reach.
+    pub system_proxy: bool,
 }
 
 impl FetchPolicy {
@@ -77,6 +82,7 @@ impl FetchPolicy {
             allow_private: false,
             resolve_override: None,
             timeout: Duration::from_secs(8),
+            system_proxy: true,
         }
     }
 }
@@ -202,7 +208,11 @@ fn get(start: &Url, cap: usize, accept: &str, policy: &FetchPolicy) -> Result<Fe
         let host = url.host_str().ok_or(FaviconError::InvalidDomain)?.to_string();
         let port = url.port_or_known_default().ok_or(FaviconError::InvalidDomain)?;
         let addresses = resolve_checked(&host, port, policy)?;
-        let client = reqwest::blocking::Client::builder()
+        let mut builder = reqwest::blocking::Client::builder();
+        if !policy.system_proxy {
+            builder = builder.no_proxy();
+        }
+        let client = builder
             .redirect(reqwest::redirect::Policy::none())
             .timeout(policy.timeout)
             .connect_timeout(Duration::from_secs(5))
@@ -590,6 +600,7 @@ mod tests {
             allow_private: true,
             resolve_override: Some(address),
             timeout: Duration::from_secs(5),
+            system_proxy: false,
         }
     }
 
