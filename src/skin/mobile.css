@@ -115,7 +115,8 @@
   top: 0;
   z-index: 2;
   flex-wrap: nowrap;
-  padding-top: calc(env(safe-area-inset-top) + var(--space-100));
+  padding: calc(env(safe-area-inset-top) + var(--space-100)) var(--space-200) var(--space-100);
+  margin: 0 calc(var(--space-200) * -1);
   background: var(--color-surface-sunken);
 }
 
@@ -148,6 +149,12 @@
   max-width: none;
 }
 
+/* A phone is narrow: codes and the strength caption must not break mid-value. */
+:root[data-layout="mobile"] .otp-code,
+:root[data-layout="mobile"] .password-strength-label {
+  white-space: nowrap;
+}
+
 /* ───────── Browse (the sidebar as a page) ───────── */
 :root[data-layout="mobile"] .sidebar {
   height: auto;
@@ -156,7 +163,12 @@
 }
 
 :root[data-layout="mobile"] .sidebar-scroll {
+  flex: none;
   overflow: visible;
+}
+
+:root[data-layout="mobile"] .sidebar-footer {
+  flex: none;
 }
 
 /* ───────── Settings (the settings view, one column) ───────── */
@@ -272,12 +284,19 @@
   background: transparent;
 }
 
-/* The New Item action sits in the navigation bar as a plain accent button. */
+/* The New Item action sits in the navigation bar as a bare accent "+" (the label stays for VoiceOver). */
 :root[data-layout="mobile"][data-skin="apple"] .top-new-item-button {
+  gap: 0;
   padding: 0 var(--space-050);
+  font-size: 0;
   color: var(--color-text-brand);
   background: transparent;
   box-shadow: none;
+}
+
+:root[data-layout="mobile"][data-skin="apple"] .top-new-item-button svg {
+  width: var(--space-300);
+  height: var(--space-300);
 }
 
 :root[data-layout="mobile"][data-skin="apple"] .detail-topbar {

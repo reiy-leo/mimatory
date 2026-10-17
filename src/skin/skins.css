@@ -1,7 +1,7 @@
 /*
  * Platform skins: shapes. The Apple skin is the base in src/styles.css; these rules change only what WinUI 3
  * (Windows 11) and Material 3 (Android, Linux) draw differently — the same split Mindough's skins.css makes.
- * Colours come from src/skin/tokens.css: no hex or rgb() here (src/app/designContract.test.ts).
+ * Colours come from src/skin/tokens.css: no colour literals here (src/app/designContract.test.ts).
  * Selectors are `:root[data-skin="x"] .class`, which outranks the single-class base rules without !important.
  * Rules shared by the desktop layouts only sit under `[data-layout="desktop"]`; the phone layout is in
  * src/skin/mobile.css.
@@ -17,6 +17,16 @@
 
 :root[data-skin="material"] {
   --measure-titlebar: 56px;
+}
+
+:root[data-skin="winui"][data-layout="desktop"] .app-shell,
+:root[data-skin="material"][data-layout="desktop"] .app-shell {
+  /* The column widths App.tsx drags and stores are in px for the 13pt Apple type; these skins read 14px
+     with roomier rows, so the same stored widths open proportionally wider. */
+  grid-template-columns:
+    calc(var(--sidebar-width, var(--measure-sidebar)) * 1.12) var(--measure-resizer)
+    calc(var(--item-list-width, var(--measure-item-list-default)) * 1.2) var(--measure-resizer)
+    minmax(0, 1fr);
 }
 
 :root[data-skin="winui"] .sidebar,
@@ -142,9 +152,12 @@
   box-shadow: inset 0 -1px 0 var(--color-text-subtlest);
 }
 
-:root[data-skin="winui"] .top-search-box input,
-:root[data-skin="winui"] .compact-password-control input {
+:root[data-skin="winui"] .top-search-box input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:root[data-skin="winui"]
+  .compact-password-control
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
   background-color: transparent;
+  border-color: transparent;
   box-shadow: none;
 }
 
@@ -156,8 +169,10 @@
   box-shadow: inset 0 -2px 0 var(--color-accent);
 }
 
-:root[data-skin="winui"] .top-search-box input:focus,
-:root[data-skin="winui"] .compact-password-control input:focus {
+:root[data-skin="winui"] .top-search-box input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+:root[data-skin="winui"]
+  .compact-password-control
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus {
   background-color: transparent;
   box-shadow: none;
 }
@@ -366,8 +381,10 @@
   box-shadow: inset 0 0 0 1px var(--color-accent);
 }
 
-:root[data-skin="material"] .top-search-box input,
-:root[data-skin="material"] .compact-password-control input {
+:root[data-skin="material"] .top-search-box input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:root[data-skin="material"]
+  .compact-password-control
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
   border-color: transparent;
   box-shadow: none;
 }

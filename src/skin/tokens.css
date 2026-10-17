@@ -99,7 +99,6 @@
   --shadow-sheet: 0 32px 64px #00000038, 0 2px 21px #0000002e, 0 0 0 1px #0000000f;
   --shadow-track: inset 0 0 0 1px #00000072;
 
-  --measure-sidebar: 248px;
   font-family:
     "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", "Yu Gothic UI", system-ui,
     sans-serif;
@@ -260,7 +259,6 @@
   --shadow-sheet: 0 4px 8px 3px #00000026, 0 1px 3px #0000004d;
   --shadow-track: inset 0 0 0 2px #79747e;
 
-  --measure-sidebar: 248px;
   font-family: Roboto, "Noto Sans", "Noto Sans CJK SC", "Noto Sans CJK JP", Cantarell, system-ui, sans-serif;
   font-size: 107.6923%;
 }

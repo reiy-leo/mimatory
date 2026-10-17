@@ -110,3 +110,44 @@ describe('design rules', () => {
     }
   })
 })
+
+/* The platform skins (src/skin/): tokens.css holds the per-skin values, skins.css and mobile.css only shapes. */
+const skinTokens = readFileSync('src/skin/tokens.css', 'utf8')
+const skinShapes = ['src/skin/skins.css', 'src/skin/mobile.css'].map((path) => readFileSync(path, 'utf8')).join('\n')
+
+function skinBlock(selector: string): string {
+  const start = skinTokens.indexOf(`${selector} {`)
+  return start < 0 ? '' : skinTokens.slice(start, skinTokens.indexOf('\n}', start))
+}
+
+describe('platform skin rules', () => {
+  it('keeps colour values out of the skin shape rules', () => {
+    expect(skinShapes).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(skinShapes).not.toMatch(/\brgba?\(/)
+    expect(skinShapes).not.toMatch(/outline:\s*none\s*;/)
+  })
+
+  it('gives every colour a skin sets in light a dark value too', () => {
+    for (const skin of ['winui', 'material']) {
+      const light = skinBlock(`:root[data-skin="${skin}"]`)
+      const dark = skinBlock(`:root[data-skin="${skin}"][data-theme="dark"]`)
+      expect(light).not.toBe('')
+      const lightColors = [...light.matchAll(/(--color-[a-z0-9-]+):/g)].map((match) => match[1])
+      const darkColors = new Set([...dark.matchAll(/(--color-[a-z0-9-]+):/g)].map((match) => match[1]))
+      expect(lightColors.filter((name) => !darkColors.has(name))).toEqual([])
+    }
+  })
+
+  it('keeps every skin on the system font, with no webfont', () => {
+    expect(skinTokens).not.toMatch(/@font-face/)
+    expect(skinBlock(':root[data-skin="winui"]')).toMatch(/font-family:\s*"Segoe UI Variable Text"/)
+    expect(skinBlock(':root[data-skin="material"]')).toMatch(/font-family: Roboto/)
+  })
+
+  it('leaves the Apple skin to the base tokens, so macOS draws exactly as before', () => {
+    /* Apple-skin rules exist only for the phone layout (iOS); the desktop Apple skin is styles.css alone. */
+    const appleLines = `${skinTokens}\n${skinShapes}`.split('\n').filter((line) => line.includes('data-skin="apple"'))
+    expect(appleLines.length).toBeGreaterThan(0)
+    for (const line of appleLines) expect(line).toContain('[data-layout="mobile"]')
+  })
+})
