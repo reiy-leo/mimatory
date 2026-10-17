@@ -3104,6 +3104,12 @@
      are a two-column grid of bezeled push buttons, the chosen one filled like a selected segment
      (segmented-controls.md) and announced through aria-pressed. The read-only row is a link row whose
      glyph is the provider's mark in the label colour. */
+  /* The tallest sheet in the app: it scrolls inside the window rather than running off it. */
+  .sign-in-picker {
+    max-height: calc(100dvh - var(--space-400));
+    @apply overflow-y-auto;
+  }
+
   .sign-in-providers {
     @apply mt-200 grid grid-cols-2 gap-075 border-0 p-0;
   }

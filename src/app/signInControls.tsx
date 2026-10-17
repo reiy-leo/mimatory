@@ -195,7 +195,7 @@ export function SignInPicker({
                   onClick={() => setAccountId(candidate.id)}
                   type="button"
                 >
-                  <ItemIcon className="picker-icon" item={candidate} />
+                  <ItemIcon className="item-icon picker-icon" item={candidate} />
                   <span className="relation-row-text">
                     <span className="relation-row-title">{candidate.title}</span>
                     {candidate.username ? <span className="relation-row-caption">{candidate.username}</span> : null}

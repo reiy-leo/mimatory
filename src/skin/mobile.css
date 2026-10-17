@@ -392,3 +392,8 @@
 :root[data-layout="mobile"][data-skin="material"] .mobile-tab.active .mobile-tab-label {
   font-weight: var(--weight-semibold);
 }
+/* Sheets sit above the sticky item bar (z-index 2) and the FAB (3); without this the top of a tall sheet
+   such as Sign In With slid under the bar. */
+:root[data-layout="mobile"] .confirm-layer {
+  z-index: 10;
+}

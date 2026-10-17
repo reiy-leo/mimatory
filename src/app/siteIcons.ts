@@ -78,7 +78,7 @@ export function uniqueIconDomains(items: Array<Pick<LoginItem, 'icon_mode' | 'ur
 
 // Which of these sites to fetch now: never asked (absent from the cache) or asked long enough ago.
 export function domainsToFetch(domains: string[], cached: Record<string, CachedSiteIcon>): string[] {
-  return domains.filter((domain) => !cached[domain] || !cached[domain].fresh)
+  return domains.filter((domain) => !cached[domain]?.fresh)
 }
 
 // --- The window's icon store -------------------------------------------------------------------
