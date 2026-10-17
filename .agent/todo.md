@@ -48,13 +48,6 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
   custom-field *labels* in English (`expiry`, `otp`, `2fa`), so a card or passport expiry inside a template
   section, or any zh/ja label, is invisible to it. The fix belongs in Rust (read section JSON children and their
   `key` / `field_type`), with tests; the frontend already shows "Expired" / "Expires soon" per field.
-- **needs-owner-decision — Item relations (2026-10-15), choices made without the owner.** (1) Delete/Move are
-  refused while an item has *any* link, including being someone's parent; the alternative was to let a parent
-  go and orphan its children. (2) Links never cross vaults, so Move is refused rather than carrying counterparts
-  along. (3) Wording: en Parent Item / Child Items / Related Items, zh 上级项 / 子项 / 关联项, ja 親項目 / 子項目 / 関連項目.
-  (4) No child-count badge on list rows (left out to keep rows quiet; cheap to add from `relations.children`).
-  (5) `relations_ciphertext` NULL vs not reveals *that* an item has links (not which); writing an encrypted empty
-  record for every item would hide even that.
 - **Template field placeholders are generic** ("Value") except card number, email, URL and month/year; a
   per-field example placeholder in the template data would be cheap if wanted.
 
@@ -93,6 +86,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-17 | Item relations design approved by the owner as built ("这种是完全正确的"): Delete/Move refused while an item has any link (parent included); Move refused rather than carrying links across vaults; wording 上级项 / 子项 / 关联项 (en Parent Item / Child Items / Related Items, ja 親項目 / 子項目 / 関連項目); no child-count badge on list rows; `relations_ciphertext` NULL-vs-ciphertext presence signal accepted | `AGENTS.md` item relations |
 | 2026-10-14 | UI restyled to Apple design (macOS HIG): semantic system colours with real light **and** dark values (closes the "dark palette is owed" item), SF type scale, macOS radii/materials/focus ring, System appearance by default; Atlassian `DESIGN.md` and `.write-technical-spec/` deleted | `.agent/design.md` |
 | 2026-10-10 | Documentation split: engineering rules stay here in `AGENTS.md`, design constraints moved to `.agent/design.md`, all task state to this file | The three files |
 | 2026-10-10 | The vendored macOS HIG extract at `.agent/DESIGN.md` was deleted (superseded 2026-10-14 by the `apple-design` skill) | `.agent/design.md` header |
