@@ -2,6 +2,7 @@ use crate::crypto::{
     decrypt_string, decrypt_string_from_blob, derive_key, encrypt_string, encrypt_string_to_blob,
     generate_salt, CryptoError, EncryptedPayload, VaultKey,
 };
+use crate::site_match;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use chrono::Utc;
@@ -20,8 +21,6 @@ use uuid::Uuid;
 
 const DEFAULT_VAULT_ID: &str = "personal";
 const MASTER_VERIFIER_TEXT: &str = "passless-master-verifier";
-const MATCH_TYPE_EXACT: &str = "exact";
-const MATCH_TYPE_DOMAIN: &str = "domain";
 /// The field type older builds used to point at another item before links were real.
 const LEGACY_RELATED_FIELD: &str = "related_item";
 /// "Sign in with…": the field's value names the provider (`google`, …, or a name the user typed);
@@ -88,8 +87,9 @@ pub struct CustomField {
 pub struct ItemUrl {
     pub label: String,
     pub url: String,
-    /// `exact` autofills only on the host the address names, `domain` also on its subdomains.
-    /// Backups and sync files written before this existed carry neither and mean `domain`.
+    /// Autofill behaviour (`site_match`): `domain` fills anywhere on the registrable domain, `exact`
+    /// only on this host and port, `never` not at all. Missing or unknown means `domain`; a build
+    /// older than `never` (2026-10-17) reads it as `domain` and would write that back on save.
     #[serde(default = "default_match_type")]
     pub match_type: String,
 }
@@ -1200,23 +1200,45 @@ impl VaultService {
         self.list_login_items_by_archive_state(session, true)
     }
 
-    /// What the browser bridge asks for: items whose saved addresses cover this host, each
-    /// honoured by its own match type. Deliberately not the search path — a search matches
-    /// any field as a substring, which is far too loose a rule to hand a password over to.
+    /// What the browser bridge asks for: items one of whose saved addresses covers this page under
+    /// its own autofill behaviour (`site_match::address_matches`). Deliberately not the search path —
+    /// a search matches any field as a substring, far too loose a rule to hand a password over to.
     pub fn list_login_items_for_origin(
         &self,
         session: &Session,
         origin: &str,
     ) -> Result<Vec<LoginItem>, VaultError> {
-        let Some(request_host) = host_of(origin) else {
+        let Some(page) = site_match::parse_site(origin) else {
             return Ok(Vec::new());
         };
         let mut matches = Vec::new();
         for item in self.list_live_items(session, None)? {
             if normalized_urls(&item.website, &item.urls)
                 .iter()
-                .any(|url| url_matches_host(&url.url, &request_host, &url.match_type))
+                .any(|url| site_match::address_matches(&url.url, &url.match_type, &page))
             {
+                matches.push(item);
+            }
+        }
+        Ok(matches)
+    }
+
+    /// The items a login saved from this page could be an update of: any address on the same site,
+    /// whatever its autofill behaviour — "never fill here" is not "this is not my account here", and
+    /// ignoring it would make the extension save a duplicate the user then has to clean up.
+    pub fn list_login_items_for_site(
+        &self,
+        session: &Session,
+        origin: &str,
+    ) -> Result<Vec<LoginItem>, VaultError> {
+        let Some(page) = site_match::parse_site(origin) else {
+            return Ok(Vec::new());
+        };
+        let mut matches = Vec::new();
+        for item in self.list_live_items(session, None)? {
+            if normalized_urls(&item.website, &item.urls).iter().any(|url| {
+                site_match::address_matches(&url.url, site_match::MODE_DOMAIN, &page)
+            }) {
                 matches.push(item);
             }
         }
@@ -2616,7 +2638,7 @@ fn default_item_type() -> String {
 }
 
 pub(crate) fn default_match_type() -> String {
-    MATCH_TYPE_DOMAIN.to_string()
+    site_match::MODE_DOMAIN.to_string()
 }
 
 fn normalized_urls(website: &str, urls: &[ItemUrl]) -> Vec<ItemUrl> {
@@ -2629,11 +2651,7 @@ fn normalized_urls(website: &str, urls: &[ItemUrl]) -> Vec<ItemUrl> {
                 item_url.label.trim().to_string()
             },
             url: item_url.url.trim().to_string(),
-            match_type: if item_url.match_type == MATCH_TYPE_EXACT {
-                MATCH_TYPE_EXACT.to_string()
-            } else {
-                MATCH_TYPE_DOMAIN.to_string()
-            },
+            match_type: site_match::normalized_mode(&item_url.match_type).to_string(),
         })
         .filter(|item_url| !item_url.url.is_empty())
         .collect::<Vec<_>>();
@@ -2678,18 +2696,6 @@ fn host_of(value: &str) -> Option<String> {
     } else {
         Some(authority.to_string())
     }
-}
-
-/// Hosts only, never a substring: an item saved for `notgithub.com` must not answer a
-/// page on `github.com`, and `exact` must not answer one on `login.github.com`.
-fn url_matches_host(stored: &str, request_host: &str, match_type: &str) -> bool {
-    let Some(stored_host) = host_of(stored) else {
-        return false;
-    };
-    if match_type == MATCH_TYPE_EXACT {
-        return stored_host == request_host;
-    }
-    stored_host == request_host || request_host.ends_with(&format!(".{stored_host}"))
 }
 
 fn normalized_item_type(item_type: &str) -> String {
@@ -2948,22 +2954,6 @@ mod tests {
     }
 
     #[test]
-    fn exact_matches_one_host_and_domain_also_matches_subdomains() {
-        assert!(url_matches_host("https://github.com/login", "github.com", MATCH_TYPE_EXACT));
-        assert!(!url_matches_host(
-            "https://github.com/login",
-            "login.github.com",
-            MATCH_TYPE_EXACT
-        ));
-        assert!(url_matches_host("github.com", "login.github.com", MATCH_TYPE_DOMAIN));
-        assert!(url_matches_host("https://github.com:8443/x", "github.com", MATCH_TYPE_DOMAIN));
-        // A registered domain is not a suffix of an unrelated one: this is the whole reason the
-        // bridge no longer shares the search path's substring rule.
-        assert!(!url_matches_host("github.com", "notgithub.com", MATCH_TYPE_DOMAIN));
-        assert!(!url_matches_host("http://", "github.com", MATCH_TYPE_DOMAIN));
-    }
-
-    #[test]
     fn origin_lookup_honours_each_urls_match_type() {
         let path = test_database_path("origin-match");
         initialize_database(&path).expect("database should initialize");
@@ -2980,7 +2970,7 @@ mod tests {
                     urls: vec![ItemUrl {
                         label: String::new(),
                         url: "https://github.com/login".into(),
-                        match_type: MATCH_TYPE_EXACT.into(),
+                        match_type: site_match::MODE_EXACT.into(),
                     }],
                     ..login_input("GitHub sign-in", vec![])
                 },
@@ -2993,7 +2983,7 @@ mod tests {
                     urls: vec![ItemUrl {
                         label: String::new(),
                         url: "github.com".into(),
-                        match_type: MATCH_TYPE_DOMAIN.into(),
+                        match_type: site_match::MODE_DOMAIN.into(),
                     }],
                     ..login_input("GitHub API", vec![])
                 },
@@ -3006,7 +2996,7 @@ mod tests {
                     urls: vec![ItemUrl {
                         label: String::new(),
                         url: "https://notgithub.com".into(),
-                        match_type: MATCH_TYPE_DOMAIN.into(),
+                        match_type: site_match::MODE_DOMAIN.into(),
                     }],
                     ..login_input("Look-alike", vec![])
                 },
@@ -3026,6 +3016,52 @@ mod tests {
             vec![lookalike.title.clone()]
         );
         assert!(titles_for(&service, &session, "").is_empty());
+
+        // `never` drops that address from matching, but another address of the same item still counts,
+        // and the save path (which looks for the account to update) sees the item either way.
+        let url = |url: &str, mode: &str| ItemUrl {
+            label: String::new(),
+            url: url.into(),
+            match_type: mode.into(),
+        };
+        let never = service
+            .create_login_item(
+                &session,
+                LoginItemInput {
+                    urls: vec![url("https://example.org", site_match::MODE_NEVER)],
+                    ..login_input("Never here", vec![])
+                },
+            )
+            .expect("login should save");
+        let mixed = service
+            .create_login_item(
+                &session,
+                LoginItemInput {
+                    urls: vec![
+                        url("https://legacy.example.org", site_match::MODE_NEVER),
+                        url("https://id.example.org", site_match::MODE_EXACT),
+                    ],
+                    ..login_input("Mixed", vec![])
+                },
+            )
+            .expect("login should save");
+        assert_eq!(
+            mixed.urls.iter().map(|url| url.match_type.as_str()).collect::<Vec<_>>(),
+            vec!["never", "exact"]
+        );
+        assert!(titles_for(&service, &session, "https://example.org").is_empty());
+        assert_eq!(
+            titles_for(&service, &session, "https://id.example.org"),
+            vec![mixed.title.clone()]
+        );
+        let mut for_save = service
+            .list_login_items_for_site(&session, "https://example.org/login")
+            .expect("site should list")
+            .into_iter()
+            .map(|item| item.title)
+            .collect::<Vec<_>>();
+        for_save.sort();
+        assert_eq!(for_save, vec![mixed.title, never.title]);
 
         let _ = std::fs::remove_file(path);
     }

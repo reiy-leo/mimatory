@@ -15,7 +15,8 @@ function findLoginForm() {
 async function fetchMatches() {
   const { passlessToken } = await chrome.storage.local.get(['passlessToken'])
   const response = await fetch(`${PASSLESS_BRIDGE}/fill`, {
-    body: JSON.stringify({ origin: location.hostname }),
+    // The full origin, so "only fill on this exact host" can compare the port too (bridge: site_match.rs).
+    body: JSON.stringify({ origin: location.origin }),
     headers: { 'Content-Type': 'application/json', 'X-Passless-Token': passlessToken || '' },
     method: 'POST',
   })

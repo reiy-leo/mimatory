@@ -5,6 +5,7 @@ mod crypto;
 mod favicon;
 #[cfg(desktop)]
 mod shell;
+mod site_match;
 mod storage;
 mod totp;
 mod vault;
@@ -508,6 +509,13 @@ fn password_strength(password: String) -> PasswordStrength {
     vault::password_strength(&password)
 }
 
+/// Where an address would fill under each autofill behaviour, for the editor's Autofill Behavior
+/// box. Pure computation (Public Suffix List + the bundled related domains); no vault access.
+#[tauri::command]
+fn describe_website(url: String) -> Option<site_match::WebsiteScope> {
+    site_match::describe(&url)
+}
+
 #[tauri::command]
 fn generate_totp_code(secret: String) -> Result<TotpCode, String> {
     totp::generate_totp_now(&secret).map_err(|error| error.to_string())
@@ -758,6 +766,7 @@ pub fn run() {
             delete_tag,
             generate_password_command,
             password_strength,
+            describe_website,
             generate_totp_code,
             pick_attachment_file,
             attach_file_to_item,

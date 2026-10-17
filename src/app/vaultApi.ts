@@ -67,7 +67,20 @@ export type VaultSummary = {
   item_count: number
 }
 
-export type UrlMatchType = 'domain' | 'exact'
+/** Autofill behaviour per website (1Password 8): anywhere on the site (default), this exact host, or never. */
+export type UrlMatchType = 'domain' | 'exact' | 'never'
+
+/** Where an address fills under each behaviour, computed in Rust (`site_match::describe`). */
+export type WebsiteScope = {
+  /** The host with an explicit port: what "exact host" fills on. */
+  host: string
+  /** The registrable domain "anywhere on this website" fills on. */
+  domain: string
+  /** Bundled related domains (apple.com ↔ icloud.com) fill too. */
+  related: boolean
+  /** False for an IP address or a public-suffix host: there are no subdomains to reach. */
+  subdomains: boolean
+}
 
 export type ItemUrl = {
   label: string
@@ -197,6 +210,7 @@ export const vaultApi = {
   create: (input: LoginItemInput) => invoke<LoginItem>('create_login_item', { input }),
   createVault: (name: string) => invoke<VaultSummary>('create_vault', { name }),
   deleteTag: (name: string) => invoke<void>('delete_tag', { name }),
+  describeWebsite: (url: string) => invoke<WebsiteScope | null>('describe_website', { url }),
   // An empty vault needs nowhere to send its items, so `intoId` is null for that one case only.
   dissolveVault: (id: string, intoId: string | null) => invoke<void>('dissolve_vault', { id, intoId }),
   duplicate: (id: string, title: string) => invoke<LoginItem>('duplicate_login_item', { id, title }),

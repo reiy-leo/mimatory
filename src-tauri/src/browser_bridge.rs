@@ -185,7 +185,7 @@ fn save_login(session: &SharedSession, input: SaveRequest) -> Result<LoginItem, 
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let mut service = VaultService::new(connection);
     let existing = service
-        .list_login_items_for_origin(&session, &input.website)
+        .list_login_items_for_site(&session, &input.website)
         .map_err(|error| error.to_string())?
         .into_iter()
         .find(|item| item.username == input.username);
@@ -203,12 +203,10 @@ fn save_login(session: &SharedSession, input: SaveRequest) -> Result<LoginItem, 
                     },
                     username: input.username,
                     password: input.password,
-                    website: input.website.clone(),
-                    urls: vec![ItemUrl {
-                        label: "website".to_string(),
-                        url: input.website,
-                        match_type: default_match_type(),
-                    }],
+                    // Only the password changed: the item's websites, their labels, order and autofill
+                    // behaviours are the user's, so an update from the extension keeps them all.
+                    website: existing.website,
+                    urls: existing.urls,
                     notes: existing.notes,
                     tags: existing.tags,
                     custom_fields: existing.custom_fields,
