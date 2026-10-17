@@ -1,23 +1,57 @@
+//! The desktop shell (macOS, Windows, Linux): tray, Quick Access, autostart, single instance. The module is
+//! compiled only for desktop targets (`#[cfg(desktop)] mod shell` in lib.rs); iOS and Android have none of it.
+
 use std::error::Error;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::webview::WebviewWindowBuilder;
 use tauri::window::{Effect, EffectState, EffectsBuilder};
-use tauri::{App, AppHandle, Emitter, Manager, WebviewUrl, Wry};
+use tauri::{App, AppHandle, Builder, Emitter, Manager, WebviewUrl, Wry};
 use tauri_plugin_autostart::ManagerExt;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_positioner::{on_tray_event, Position, WindowExt};
 
 pub const QUICK_ACCESS_LABEL: &str = "quick-access";
 const TRAY_ID: &str = "passless-tray";
-const QUICK_ACCESS_SHORTCUT: &str = "Command+Shift+Space";
+/// ⌘⇧Space on macOS, Ctrl+Shift+Space on Windows (Win+Shift+Space is the system's input-language switch).
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+const QUICK_ACCESS_SHORTCUT: &str = "CommandOrControl+Shift+Space";
+/// The command-line switch a compositor keybinding launches (Hyprland: `bind = SUPER SHIFT, SPACE, exec,
+/// passless --quick-access`). The single-instance plugin hands it to the running app, which toggles the panel.
+pub const QUICK_ACCESS_ARG: &str = "--quick-access";
 const QUICK_ACCESS_WIDTH: f64 = 560.0;
 const QUICK_ACCESS_HEIGHT: f64 = 384.0;
 
+/// Desktop-only plugins, registered before anything else so a second launch is caught by the first.
+pub fn plugins(builder: Builder<Wry>) -> Builder<Wry> {
+    let builder = builder
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            if argv.iter().any(|arg| arg == QUICK_ACCESS_ARG) {
+                toggle_quick_access(app, Position::TopCenter);
+            } else {
+                focus_main_window(app);
+            }
+        }))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![]),
+        ))
+        .plugin(tauri_plugin_positioner::init());
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    let builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
+    builder
+}
+
 pub fn setup(app: &mut App) -> Result<(), Box<dyn Error>> {
     build_tray(app.handle())?;
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     register_shortcuts(app.handle())?;
+    // First launch straight from the keybinding: open the panel as well as the app.
+    if std::env::args().any(|arg| arg == QUICK_ACCESS_ARG) {
+        toggle_quick_access(app.handle(), Position::TopCenter);
+    }
     Ok(())
 }
 
@@ -65,6 +99,7 @@ fn build_tray(app: &AppHandle<Wry>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn register_shortcuts(app: &AppHandle<Wry>) -> Result<(), Box<dyn Error>> {
     app.global_shortcut().on_shortcut(QUICK_ACCESS_SHORTCUT, |app, _shortcut, event| {
         if event.state == ShortcutState::Pressed {
@@ -123,15 +158,7 @@ fn show_quick_access(app: &AppHandle<Wry>, position: Position) -> tauri::Result<
         // Borderless + rounded CSS corners only read as one panel if the window
         // itself stops painting an opaque rectangle behind the page.
         .transparent(true)
-        // Native popover material behind the panel (macOS NSVisualEffectView). The radius matches
-        // the shell's `rounded-xlarge`, so the blur stops at the CSS corners.
-        .effects(
-            EffectsBuilder::new()
-                .effect(Effect::Popover)
-                .state(EffectState::Active)
-                .radius(12.0)
-                .build(),
-        )
+        .effects(quick_access_effects())
         .visible(false)
         .build()?,
     };
@@ -142,6 +169,23 @@ fn show_quick_access(app: &AppHandle<Wry>, position: Position) -> tauri::Result<
     window.show()?;
     window.set_focus()?;
     window.emit("quick-access:opened", ())
+}
+
+/// macOS: the native popover material (NSVisualEffectView), its radius matching the shell's
+/// `rounded-xlarge` so the blur stops at the CSS corners. Windows 11: Acrylic, the WinUI flyout material.
+/// Linux: nothing — Hyprland blurs behind a transparent surface itself when the user's rules ask it to.
+fn quick_access_effects() -> tauri::utils::config::WindowEffectsConfig {
+    let effect = if cfg!(target_os = "windows") {
+        Effect::Acrylic
+    } else {
+        Effect::Popover
+    };
+    let builder = EffectsBuilder::new().effect(effect).state(EffectState::Active);
+    if cfg!(target_os = "macos") {
+        builder.radius(12.0).build()
+    } else {
+        builder.build()
+    }
 }
 
 pub fn hide_quick_access(app: &AppHandle<Wry>) {

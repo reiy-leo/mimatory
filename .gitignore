@@ -7,3 +7,5 @@ src-tauri/gen/schemas/
 .DS_Store
 .env
 .env.local
+src-tauri/gen/android/
+src-tauri/gen/apple/

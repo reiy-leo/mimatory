@@ -2,6 +2,7 @@ mod biometric;
 mod breach_check;
 mod browser_bridge;
 mod crypto;
+#[cfg(desktop)]
 mod shell;
 mod storage;
 mod totp;
@@ -424,11 +425,19 @@ fn generate_totp_code(secret: String) -> Result<TotpCode, String> {
     totp::generate_totp_now(&secret).map_err(|error| error.to_string())
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 fn pick_attachment_file() -> Result<Option<String>, String> {
     Ok(rfd::FileDialog::new()
         .pick_file()
         .map(|path| path.to_string_lossy().to_string()))
+}
+
+/// rfd has no iOS/Android backend; the frontend hides the attach button there (src/app/platformFeatures.ts).
+#[cfg(mobile)]
+#[tauri::command]
+fn pick_attachment_file() -> Result<Option<String>, String> {
+    Err("attaching files is not available on this platform yet".to_string())
 }
 
 #[tauri::command]
@@ -457,7 +466,7 @@ fn export_attachment_to_temp(id: String, state: State<AppState>) -> Result<Strin
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| "attachment".to_string());
-    let directory = std::env::temp_dir().join("Passless Attachments");
+    let directory = storage::temp_base_directory().join("Passless Attachments");
     storage::create_private_directory(&directory).map_err(|error| error.to_string())?;
     let path = directory.join(file_name);
     fs::write(&path, attachment.bytes).map_err(|error| error.to_string())?;
@@ -469,6 +478,10 @@ fn export_attachment_to_temp(id: String, state: State<AppState>) -> Result<Strin
 
 #[tauri::command]
 fn generate_browser_pairing_token(state: State<AppState>) -> Result<String, String> {
+    // The extension bridge only listens on desktop (see `run`); a token on a phone would pair nothing.
+    if cfg!(mobile) {
+        return Err("the browser extension bridge is desktop-only".to_string());
+    }
     let token = uuid::Uuid::new_v4().to_string();
     *state
         .bridge_token
@@ -478,19 +491,24 @@ fn generate_browser_pairing_token(state: State<AppState>) -> Result<String, Stri
 }
 
 #[tauri::command]
-fn can_use_biometrics() -> Result<bool, String> {
-    Ok(biometric::can_authenticate().is_ok())
+fn can_use_biometrics(app: tauri::AppHandle) -> Result<bool, String> {
+    Ok(biometric::can_authenticate(&app).is_ok())
 }
 
+/// Async so the prompt never blocks the main thread: on iOS/Android the plugin call waits for a native
+/// answer that is itself delivered on the main thread.
 #[tauri::command]
-fn unlock_with_biometrics(state: State<AppState>) -> Result<Vec<LoginItem>, String> {
-    biometric::authenticate("unlock your Passless vault").map_err(|error| error.to_string())?;
+async fn unlock_with_biometrics(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Vec<LoginItem>, String> {
+    biometric::authenticate(&app, "unlock your Passless vault").map_err(|error| error.to_string())?;
     let session = state
         .biometric_session
         .lock()
         .map_err(|_| "biometric session lock poisoned".to_string())?
         .clone()
-        .ok_or_else(|| "Unlock with master password once before using Touch ID".to_string())?;
+        .ok_or_else(|| "Unlock with master password once before using biometrics".to_string())?;
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let service = VaultService::new(connection);
     let items = service
@@ -531,38 +549,85 @@ fn current_session(state: &State<AppState>) -> Result<Session, String> {
 
 #[tauri::command]
 fn set_autostart(enabled: bool, app: tauri::AppHandle) -> Result<(), String> {
-    shell::set_autostart(&app, enabled)
+    #[cfg(desktop)]
+    return shell::set_autostart(&app, enabled);
+    #[cfg(mobile)]
+    {
+        let _ = (enabled, app);
+        Err("launch at login is desktop-only".to_string())
+    }
 }
 
 #[tauri::command]
 fn is_autostart_enabled(app: tauri::AppHandle) -> Result<bool, String> {
-    shell::autostart_enabled(&app)
+    #[cfg(desktop)]
+    return shell::autostart_enabled(&app);
+    #[cfg(mobile)]
+    {
+        let _ = app;
+        Ok(false)
+    }
 }
 
 #[tauri::command]
 fn hide_quick_access(app: tauri::AppHandle) {
+    #[cfg(desktop)]
     shell::hide_quick_access(&app);
+    #[cfg(mobile)]
+    let _ = app;
+}
+
+/// Linux is Wayland-only (owner ruling 2026-10-17: Hyprland, no X11). wry/tao are built without their X11
+/// backends, but GTK itself still carries one, so an X11 session would get a half-working app — refuse it
+/// up front instead, and pin GDK to Wayland so a stray DISPLAY (XWayland) never wins the backend probe.
+/// Runs before any thread is spawned, which is what makes `set_var` sound here.
+#[cfg(target_os = "linux")]
+fn require_wayland() {
+    let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some_and(|value| !value.is_empty());
+    if !wayland {
+        eprintln!(
+            "Passless needs a Wayland session (it is built for Hyprland); X11 is not supported.\n\
+             WAYLAND_DISPLAY is not set — start Passless from your Wayland compositor."
+        );
+        std::process::exit(1);
+    }
+    std::env::set_var("GDK_BACKEND", "wayland");
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    require_wayland();
+
     let session = Arc::new(Mutex::new(None));
     let biometric_session = Arc::new(Mutex::new(None));
     let bridge_token = Arc::new(Mutex::new(None));
+    // The extension lives in a desktop browser; iOS and Android get no loopback listener at all.
+    #[cfg(desktop)]
     browser_bridge::start_browser_bridge(session.clone(), bridge_token.clone());
 
-    tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            shell::focus_main_window(app);
-        }))
-        .plugin(tauri_plugin_autostart::init(
-            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec![]),
-        ))
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .plugin(tauri_plugin_positioner::init())
+    let builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    let builder = shell::plugins(builder);
+    #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_biometric::init());
+
+    builder
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| shell::setup(app))
+        .setup(|app| {
+            // Phones have no `dirs::data_dir()` worth trusting (None on Android), so the vault goes in the
+            // app's own sandboxed data directory there.
+            #[cfg(mobile)]
+            {
+                use tauri::Manager;
+                storage::set_app_data_directory(app.path().app_data_dir()?);
+            }
+            #[cfg(desktop)]
+            shell::setup(app)?;
+            #[cfg(mobile)]
+            let _ = app;
+            Ok(())
+        })
         .manage(AppState {
             session,
             biometric_session,

@@ -1,0 +1,21 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"app": {
+		"windows": [
+			{
+				"decorations": false,
+				"height": 760,
+				"minHeight": 420,
+				"minWidth": 480,
+				"title": "Passless",
+				"width": 1180
+			}
+		]
+	},
+	"bundle": {
+		"targets": [
+			"deb",
+			"appimage"
+		]
+	}
+}

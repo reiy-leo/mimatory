@@ -21,21 +21,51 @@ data-encoding = "2"
 dirs = "6"
 hmac = "0.12"
 rand = "0.8"
-reqwest = { version = "0.12", features = ["blocking", "json"] }
-rfd = "0.15"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "charset", "http2", "json"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha1 = "0.10"
-tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
-tauri-plugin-autostart = "2.7.0"
-tauri-plugin-global-shortcut = "2.4.0"
+# Default features minus `x11`: Linux is Wayland-only (Hyprland), so wry/tao are built without their X11
+# backends (gdkx11, x11-dl). `macos-private-api` is gone too: since 2.12.1 it is a no-op (the private APIs
+# are always on), and the `macOSPrivateApi` config key only feeds tauri-build's feature check. See AGENTS.md.
+tauri = { version = "2.12.1", default-features = false, features = [
+  "common-controls-v6",
+  "compression",
+  "dbus",
+  "dynamic-acl",
+  "tray-icon",
+  "wry",
+] }
 tauri-plugin-opener = "2.7.2"
-tauri-plugin-positioner = { version = "2.4.0", features = ["tray-icon"] }
-tauri-plugin-single-instance = "2.5.2"
 thiserror = "2"
 tiny_http = "0.12"
 uuid = { version = "1", features = ["v4"] }
+
+# Desktop shell: tray, Quick Access window, autostart, single instance, the native file picker.
+# iOS and Android have none of these (and rfd does not build there), so they are desktop-only.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+rfd = "0.15"
+tauri-plugin-autostart = "2.7.0"
+tauri-plugin-positioner = { version = "2.4.0", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2.5.2"
+
+# The global ⌘⇧Space / Ctrl+Shift+Space hotkey. Not on Linux: global-hotkey grabs keys through X11, which
+# a Wayland compositor never routes to it, so Hyprland binds `passless --quick-access` instead (shell.rs).
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+tauri-plugin-global-shortcut = "2.4.0"
+
+# TLS for the breach check: the platform stack on desktop and iOS; rustls on Android, where native-tls
+# would need a cross-compiled OpenSSL.
+[target.'cfg(not(target_os = "android"))'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["default-tls", "macos-system-configuration"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
+# Face ID / Touch ID / fingerprint on the phones (biometric.rs).
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri-plugin-biometric = "2"
 
 # Touch ID (biometric.rs). Only the macOS build links them; `biometric.rs` already gates every use
 # behind `cfg(target_os = "macos")`, so other targets (CI, a Linux box running `cargo test`) compile.

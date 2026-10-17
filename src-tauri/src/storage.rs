@@ -15,9 +15,30 @@ pub enum StorageError {
     Sqlite(#[from] rusqlite::Error),
 }
 
+/// Set once at startup on iOS/Android from Tauri's app data directory (the app sandbox), where
+/// `dirs::data_dir()` is either missing (Android) or not the directory the OS backs up and wipes with the app.
+static APP_DATA_DIRECTORY: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+#[cfg_attr(not(mobile), allow(dead_code))]
+pub fn set_app_data_directory(path: PathBuf) {
+    let _ = APP_DATA_DIRECTORY.set(path);
+}
+
 pub fn default_database_path() -> Result<PathBuf, StorageError> {
+    if let Some(base_dir) = APP_DATA_DIRECTORY.get() {
+        return Ok(base_dir.join("passless.sqlite3"));
+    }
     let base_dir = dirs::data_dir().ok_or(StorageError::MissingDataDirectory)?;
     Ok(base_dir.join("Passless").join("passless.sqlite3"))
+}
+
+/// Where decrypted attachment copies go. `std::env::temp_dir()` on Android is `/data/local/tmp`, which an app
+/// cannot write, so the phones use a folder inside their own sandbox instead.
+pub fn temp_base_directory() -> PathBuf {
+    match APP_DATA_DIRECTORY.get() {
+        Some(base_dir) => base_dir.join("tmp"),
+        None => std::env::temp_dir(),
+    }
 }
 
 /// Encrypted at rest is only a defence if the file stays out of reach of other local

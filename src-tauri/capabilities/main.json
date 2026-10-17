@@ -1,6 +1,6 @@
 {
 	"$schema": "../gen/schemas/desktop-schema.json",
-	"description": "Core permissions for the main vault window, the settings overlay window and the Quick Access overlay.",
+	"description": "Core permissions on every platform for the main vault window, the settings overlay window and the Quick Access overlay (the last two exist only on desktop).",
 	"identifier": "main",
 	"permissions": [
 		"core:default",
@@ -12,17 +12,13 @@
 		"core:window:allow-set-focus",
 		"core:window:allow-show",
 		"core:window:allow-start-dragging",
-		"autostart:allow-enable",
-		"autostart:allow-disable",
-		"autostart:allow-is-enabled",
-		"global-shortcut:allow-register",
-		"global-shortcut:allow-unregister",
-		"global-shortcut:allow-unregister-all",
-		"global-shortcut:allow-is-registered",
 		"opener:allow-default-urls",
 		"opener:allow-open-url",
-		"positioner:allow-move-window",
-		"positioner:allow-set-tray-icon-state"
+		"core:window:allow-set-theme"
 	],
-	"windows": ["main", "settings", "quick-access"]
+	"windows": [
+		"main",
+		"settings",
+		"quick-access"
+	]
 }

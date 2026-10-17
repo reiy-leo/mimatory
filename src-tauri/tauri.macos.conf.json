@@ -1,0 +1,24 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"app": {
+		"windows": [
+			{
+				"decorations": true,
+				"height": 760,
+				"hiddenTitle": true,
+				"minHeight": 640,
+				"minWidth": 960,
+				"title": "Passless",
+				"titleBarStyle": "Overlay",
+				"transparent": true,
+				"width": 1180,
+				"windowEffects": {
+					"effects": [
+						"sidebar"
+					],
+					"state": "followsWindowActiveState"
+				}
+			}
+		]
+	}
+}
