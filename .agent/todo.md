@@ -70,6 +70,21 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 - **Linux autostart** writes an XDG autostart entry, which Hyprland ignores unless the user runs something like
   `dex`/uwsm; `exec-once = passless` is the Hyprland way. Not changed.
 
+- **Website icons / Sign in with… (2026-10-17) — unverified parts.** Never fetched a real site from the app:
+  the network path is proven only against a local HTTP server (TLS, real redirects, proxies, rustls on Android,
+  WKWebView rendering of the data URLs and the packaged CSP `img-src data:` are unseen). `cargo test` of the whole
+  crate was not run here (scratch crate with crypto/storage/vault/favicon/bridge: 68 tests green; full crate
+  `cargo check --tests` on Linux only). The extension's provider-button highlight was never run in a browser.
+- **needs-owner-decision — Sign in with: one per item.** 1Password allows several sign-in methods on one login;
+  this allows one provider + one account. Also: auto-click the provider button in the extension (deliberately
+  not done), and whether the Quick Access row of a sign-in item should do something other than copy an empty
+  password.
+- **needs-owner-decision — Website icons through a proxy.** The system proxy is honoured; the SSRF check runs on
+  this side before the proxy connects, so a host whose DNS differs at the proxy is not caught. The alternative
+  (`no_proxy`) leaves users behind a proxy without icons.
+- **Website icon cache is never pruned** for sites no item names any more (rows are tiny and unreadable; only
+  the setting's off switch clears it).
+
 ## Never yet seen in a running app
 
 - Item relations (2026-10-15): the parent / child / related sections, the picker sheet and the disabled Delete
@@ -105,6 +120,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-17 | Website icons fetched from the site itself and cached encrypted (schema 4), Sign in with… (provider field + `sign_in` link, picker, row, reverse list, extension hint) | `AGENTS.md` Website icons, Sign in with… |
 | 2026-10-17 | Multiplatform: Apple / WinUI 3 / Material 3 skins and a phone layout (Mindough's mapping), platform feature gating, per-platform Tauri configs, desktop-only shell crates, Wayland-only Linux (tauri without `x11`, `WAYLAND_DISPLAY` required), biometrics via tauri-plugin-biometric on phones, CI (`ci.yml`, `build.yml`, `ios.yml`) | `AGENTS.md` Platforms; `design.md` Per-platform skins |
 | 2026-10-17 | Item relations design approved by the owner as built ("这种是完全正确的"): Delete/Move refused while an item has any link (parent included); Move refused rather than carrying links across vaults; wording 上级项 / 子项 / 关联项 (en Parent Item / Child Items / Related Items, ja 親項目 / 子項目 / 関連項目); no child-count badge on list rows; `relations_ciphertext` NULL-vs-ciphertext presence signal accepted | `AGENTS.md` item relations |
 | 2026-10-14 | UI restyled to Apple design (macOS HIG): semantic system colours with real light **and** dark values (closes the "dark palette is owed" item), SF type scale, macOS radii/materials/focus ring, System appearance by default; Atlassian `DESIGN.md` and `.write-technical-spec/` deleted | `.agent/design.md` |

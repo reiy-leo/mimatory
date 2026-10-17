@@ -29,7 +29,7 @@ npm run dev          # Vite dev server on :1430 (Tauri launches this automatical
 npm run build        # tailwindcss (extension CSS) → tsc → vite build
 npm run build:css    # Tailwind-compiles src/styles.css only, to /tmp — proves a token resolves
 npm run typecheck    # tsc --noEmit only, without the bundle
-npm run test         # Vitest, all 21 files (node environment; fork pool capped at 2)
+npm run test         # Vitest, all 25 files (node environment; fork pool capped at 2)
 npm run test:design  # Only src/app/designContract.test.ts — the Apple-design token/CSS/className guard
 npm run lint:fix     # biome check --write (JS/TS, CSS, JSON)
 npm run tauri dev    # Full desktop app (frontend + Rust backend)
@@ -113,7 +113,9 @@ src/                  # React frontend
   app/itemTags.ts sidebarHighlights.ts securityPreferences.ts lockScreen.ts totpDisplay.ts
   app/relativeTime.ts menuPlacement.ts itemDrafts.ts itemTemplates.ts windowPlacement.ts otpQrImport.ts
   app/itemFields.ts fieldFormats.ts fieldControls.tsx  # typed item fields: template bridge, rules, view/edit components
-  app/itemRelations.ts relationControls.tsx  # parent / child / related links: draft diffing, picker rules, the row group
+  app/itemRelations.ts relationControls.tsx  # parent / child / related / sign-in links: draft diffing, picker rules, the row group
+  app/siteIcons.ts itemIcon.tsx  # website icons: which sites to ask, the window's icon store, the item tile
+  app/signInProviders.ts signInControls.tsx providerMarks.tsx  # "Sign in with…": field rules, sheet + row, bundled marks
   app/designContract.test.ts  # executable guard for the .agent/design.md rules (incl. the skin stylesheets)
   app/platformFeatures.ts  # what exists on which platform (bridge, Quick Access, biometrics, shortcuts…)
   app/windowChrome.ts vibrancy.ts  # settings-window chrome per platform, window theme sync, native material flag
@@ -127,6 +129,7 @@ src-tauri/src/        # Rust backend
   vault.rs            # VaultService: CRUD, encryption, session management
   storage.rs          # SQLite connection + schema + the 0600/0700 permission helpers
   crypto.rs           # AES-GCM + argon2 KDF
+  favicon.rs          # Website icon fetch: https-only, SSRF guard, caps, decode + re-encode as a 64px PNG
   biometric.rs        # Touch ID (objc2) on macOS, tauri-plugin-biometric on iOS/Android, none elsewhere
   browser_bridge.rs   # HTTP server on 127.0.0.1:17891 for the extension
   shell.rs            # Desktop only: tray, Quick Access (hotkey on macOS/Windows, `--quick-access` on Linux), autostart, single instance
@@ -461,6 +464,48 @@ Wayland; X11 is not supported.
   items that already have another parent. In the item menu, Delete and Move To stay visible but disabled with a
   one-line reason while the item has links; Archive sits right above. There is no bulk delete anywhere, so
   there is no bulk path to guard.
+
+- **Website icons** (2026-10-17, owner: "添加链接后自动获取图标"). An item's tile shows its first address's site icon,
+  else the letter as before (`ItemIcon`: list rows, search results, detail header, Quick Access, picker rows).
+  **No third-party favicon service, ever by default** — that would hand someone the user's account list. Rust
+  (`favicon.rs`) asks the site itself: `https://<host>/` → `<link rel=icon|apple-touch-icon>` (SVG skipped,
+  `data:` decoded inline) → `/favicon.ico`; https and the default port only (redirects too, at most 4), every
+  hop's host resolved first and **pinned** with `resolve_to_addrs` so DNS cannot rebind between check and connect;
+  loopback/private/link-local/CGNAT/multicast/unspecified (and v4-mapped forms) refused; no cookies, no referrer,
+  8s timeout, HTML capped at 512KB and icons at 256KB; content type must be image/*, octet-stream or absent **and**
+  the magic bytes a supported raster format; decoded under 2048px/32MB limits and re-encoded as a transparent
+  64×64 PNG. A system proxy is honoured (users behind one reach nothing otherwise); the address check still runs
+  locally first, which is weaker than the pin — accepted. **Cache**: `site_icons` (schema 4) keyed by
+  `HMAC-SHA1(vault key, "site-icon:" + host)`, value the data URL encrypted under the vault key, one table for
+  every vault (they share the key); a NULL icon is a remembered miss. Fresh for 30 days (a miss for 3); stale
+  entries keep showing while the frontend refetches. `cached_site_icons` never touches the network;
+  `fetch_site_icon` (async, blocking thread, at most 2 in flight from `siteIcons.ts`) does. Per item,
+  `items.icon_mode` (`auto`/`letter`, plaintext like `favorite`) and the item menu's Refresh Icon / Use Letter Icon.
+  Settings ▸ General "Download website icons" is device-local (`passless-site-icons` in localStorage, default
+  on); turning it off hides every icon **and** clears the cache. The bridge exposes no icon endpoint, and Quick
+  Access only reads the cache (`download: false`). Tests: `favicon.rs` runs against a local tiny_http server
+  through the same code path with a relaxed `FetchPolicy` (http, private allowed, address pinned, no proxy).
+
+- **Sign in with…** (2026-10-17, owner: "支持类似1password的 sign in with..."). Two halves, each stored where it
+  belongs: the **provider** is the item's one `sign_in_with` custom field, value `google`/`apple`/`github`/
+  `microsoft`/`facebook`/`x` or any other name the user typed (template-JSON world, so it round-trips through old
+  builds and the bridge can read it); the **account** it signs in with is a link, `sign_in` in the encrypted
+  relation record, resolved as `relations.sign_in_with` on the item and `relations.signs_in_to` on the account
+  ("Used to Sign In To"). Decided as its own directed link kind rather than a *related* link: it has a direction,
+  and either end must still say what it is. It counts like every link: both ends refuse Delete and Move while it
+  stands, same vault only, never itself; a duplicate starts without it. Builds before this stored the account's
+  **item id** in the field value — `migrate_legacy_sign_in_fields` (on unlock / vault switch, like the related-item
+  migration) turns a resolvable id into the link and replaces the value with the provider guessed from the
+  account's address or title, else the account's title as a provider name; a dangling id is left alone and shows
+  as an unnamed "Other". Forward-compat caveat: an older build that rewrites an item's relation record drops
+  `sign_in` (serde ignores unknown keys). UI: Add More ▸ Sign in with… opens the sheet (provider grid + optional
+  account list, the provider's own accounts first); Done writes the form, Save writes the link after the item
+  (`setSignIn` is the last `RelationChange`). The view row links to the account; the password row is hidden in the
+  editor while empty; the list subtitle reads "Sign in with Google". Provider marks are Simple Icons paths
+  (CC0, bundled, `currentColor`), Microsoft drawn as four squares. **Extension**: `/fill` matches carry
+  `sign_in_with` (provider only — never the account item); the popup says "Sign in with Google" and the content
+  script outlines and focuses the page's provider button **without clicking it** (a provider sign-in can create an
+  account or share profile data).
 
 - **Item templates and typed fields** (2026-10-14). Every category's default fields are data in
   `src/app/itemTemplates.ts` (key, `field_type`, label key, options, rules); the editor and the read-only view
