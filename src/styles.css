@@ -251,6 +251,9 @@
     --measure-item-list-default: 220px;
     /* titleBarStyle: "Overlay" reserves the native traffic-light strip; never self-draw it. */
     --measure-titlebar: 44px;
+    /* Show in Large Type: one glyph per tile, sized to be read across a room (1Password's large type). */
+    --measure-large-type-glyph: 2.25rem;
+    --measure-large-type-cell: 3rem;
     /* The system font: SF Pro on macOS, reached through the platform keywords; no webfont. */
     font-family: -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -2973,6 +2976,153 @@
 
   .field-status.is-expiring {
     color: var(--color-text-warning);
+  }
+
+  /* A read-only field acts the way 1Password's item details do: the whole row is its primary action (Copy, or
+     Open & Fill for the item's website), drawn as a transparent button behind the content; hovering or focusing
+     the row names that action in a trailing hint, which turns into "Copied", and the chevron lists the rest. */
+  .field-row {
+    @apply relative;
+  }
+
+  .field-row-primary {
+    @apply absolute inset-0 h-auto min-h-0 w-auto cursor-pointer rounded-none border-0 bg-transparent p-0;
+  }
+
+  /* The row's group clips its children, so the ring is drawn inside the row instead of on its edge. */
+  .field-row-primary:focus-visible {
+    outline-offset: calc(var(--focus-ring-width) * -1);
+  }
+
+  .field-row.is-actionable:hover,
+  .field-row.is-menu-open {
+    background: var(--color-background-neutral-subtle-hovered);
+  }
+
+  .field-row-actions {
+    @apply relative;
+  }
+
+  .field-row-hint {
+    color: var(--color-text-brand);
+    @apply whitespace-nowrap px-050 text-callout font-medium opacity-0;
+  }
+
+  .field-row-actions .field-menu-button {
+    @apply opacity-0;
+  }
+
+  .field-row:hover .field-row-hint,
+  .field-row:focus-within .field-row-hint,
+  .field-row.is-copied .field-row-hint,
+  .field-row:hover .field-menu-button,
+  .field-row:focus-within .field-menu-button,
+  .field-row.is-menu-open .field-menu-button {
+    @apply opacity-100;
+  }
+
+  .field-action-menu {
+    @apply z-30;
+  }
+
+  /* Phones: a long press opens the field's actions as a sheet from the bottom edge (no hover, no right-click). */
+  .field-action-sheet-layer {
+    @apply fixed inset-0 z-40 flex flex-col justify-end p-100;
+  }
+
+  .field-action-sheet-backdrop {
+    @apply absolute inset-0 bg-blanket;
+  }
+
+  .field-action-sheet {
+    padding-bottom: env(safe-area-inset-bottom);
+    @apply relative grid gap-100;
+  }
+
+  .field-action-sheet-title {
+    color: var(--color-text-subtle);
+    @apply m-0 px-200 pt-150 pb-050 text-center text-callout;
+  }
+
+  .field-action-sheet-group {
+    background: var(--color-surface-overlay);
+    box-shadow: var(--shadow-sheet);
+    @apply grid rounded-xlarge pb-050;
+  }
+
+  .field-action-sheet-group .menu-option {
+    @apply mx-050 min-h-500 text-title-3;
+  }
+
+  .field-action-sheet-cancel {
+    color: var(--color-text-brand);
+    background: var(--color-surface-overlay);
+    box-shadow: var(--shadow-sheet);
+    @apply min-h-500 rounded-xlarge border-0 text-title-3 font-semibold;
+  }
+
+  /* Show in Large Type (1Password): every character on its own tile, its 1-based position underneath, digits
+     in the link blue and symbols in red as 1Password colours them — a documented exception to "one colour means
+     one thing" (.agent/design.md), since each tile also names its class for VoiceOver. */
+  .large-type-layer {
+    @apply fixed inset-0 z-50 grid place-items-center p-200;
+  }
+
+  .large-type-card {
+    background: var(--color-surface-raised);
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-sheet);
+    @apply relative grid max-h-full w-full max-w-content gap-150 overflow-auto rounded-xlarge border p-200;
+  }
+
+  .large-type-header {
+    @apply flex items-center justify-between gap-100;
+  }
+
+  .large-type-header h2 {
+    color: var(--color-text-subtle);
+    @apply m-0 truncate text-headline;
+  }
+
+  .large-type-grid {
+    @apply m-0 flex list-none flex-wrap justify-center gap-050 p-0;
+  }
+
+  .large-type-cell {
+    min-width: var(--measure-large-type-cell);
+    color: var(--color-text);
+    background: var(--color-surface-sunken);
+    border-color: var(--color-border);
+    @apply grid justify-items-center rounded-medium border px-050 pt-050 pb-025;
+  }
+
+  .large-type-glyph {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size: var(--measure-large-type-glyph);
+    line-height: 1.2;
+  }
+
+  .large-type-index {
+    color: var(--color-text-subtlest);
+    @apply text-caption;
+  }
+
+  .large-type-cell.is-digit .large-type-glyph,
+  .large-type-legend .is-digit {
+    color: var(--color-text-brand);
+  }
+
+  .large-type-cell.is-symbol .large-type-glyph,
+  .large-type-legend .is-symbol {
+    color: var(--color-text-danger);
+  }
+
+  .large-type-cell.is-space .large-type-glyph {
+    color: var(--color-text-subtlest);
+  }
+
+  .large-type-legend {
+    @apply m-0 flex justify-center gap-200 text-callout;
   }
 
   /* Item fields, editing. The section's own "Add Field" sits inside a field row, whose button rule is

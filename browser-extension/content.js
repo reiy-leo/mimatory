@@ -74,9 +74,10 @@ function highlightProviderButton(button) {
   }, 6000)
 }
 
-async function fillFromPassless() {
+async function fillFromPassless(itemId) {
   const items = await fetchMatches()
-  const item = items[0]
+  // Open & Fill names its item; the popup's Fill takes the best match for the page.
+  const item = itemId ? items.find((match) => match.id === itemId) : items[0]
   if (!item) return { kind: 'noMatch' }
   // A "Sign in with…" item has no password to fill; point at the provider's button instead.
   if (item.sign_in_with) {
@@ -117,6 +118,31 @@ if (login?.form && login.form.addEventListener) {
     saveToPassless()
   })
 }
+
+/* Open & Fill from the Passless app: the app opens the item's website with `#passless-fill=<item id>` in the
+   fragment (never sent to the server). The marker is removed from the address bar at once, then this one item
+   is filled through the ordinary origin-scoped /fill — an id for another site's item simply finds no match.
+   Sign-in forms that render late get a few seconds to appear. */
+function pendingFillItemId() {
+  const match = /^#passless-fill=([^&]+)$/.exec(location.hash)
+  if (!match) return null
+  history.replaceState(history.state, '', `${location.pathname}${location.search}`)
+  try {
+    return decodeURIComponent(match[1])
+  } catch {
+    return null
+  }
+}
+
+async function openAndFill(itemId, attemptsLeft = 10) {
+  const result = await fillFromPassless(itemId).catch(() => ({ kind: 'error' }))
+  if (result.kind === 'noLoginForm' && attemptsLeft > 0) {
+    window.setTimeout(() => openAndFill(itemId, attemptsLeft - 1), 500)
+  }
+}
+
+const openAndFillItemId = pendingFillItemId()
+if (openAndFillItemId) openAndFill(openAndFillItemId)
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === 'PASSLESS_FILL') {

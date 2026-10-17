@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest'
 
 const styles = readFileSync('src/styles.css', 'utf8')
 /* The field components carry class names too, so they are held to the same rules as App.tsx. */
-const app = ['src/App.tsx', 'src/app/fieldControls.tsx', 'src/app/relationControls.tsx']
+const app = [
+  'src/App.tsx',
+  'src/app/fieldControls.tsx',
+  'src/app/fieldActionControls.tsx',
+  'src/app/relationControls.tsx',
+]
   .map((path) => readFileSync(path, 'utf8'))
   .join('\n')
 const popup = readFileSync('browser-extension/popup.tailwind.css', 'utf8')

@@ -1,6 +1,16 @@
-import { AlertTriangle, Clock, Copy, ExternalLink, Eye, EyeOff, KeyRound } from 'lucide-react'
+import { AlertTriangle, Clock, Eye, EyeOff, KeyRound } from 'lucide-react'
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  anchorOf,
+  FieldActionMenu,
+  type FieldMenuAnchor,
+  FieldMenuButton,
+  fieldActionLabel,
+  LargeTypeOverlay,
+  useLongPress,
+} from './fieldActionControls'
+import { emailHref, type FieldActionId, fieldActions, fieldPlainValue, phoneHref } from './fieldActions'
 import {
   cardNumberMaxDigits,
   detectCardBrand,
@@ -122,6 +132,8 @@ function ExpiryBadge({ fieldType, value }: { fieldType: string; value: string })
 export type FieldViewProps = {
   /** Replaces the copy button, for a value that is not text worth copying (an attachment). */
   actions?: ReactNode
+  /** Open & Fill can reach the browser extension (desktop); without it a website only opens. */
+  canFill?: boolean
   /** What the copy button writes; defaults to the stored value (card numbers copy digits only). */
   copyValue?: string
   /** Replaces the rendered value, for fields whose value is a reference (a related item's id). */
@@ -131,13 +143,32 @@ export type FieldViewProps = {
   label: string
   meta?: FieldMeta
   onCopy: (value: string, label: string, sensitive: boolean) => void
+  /** Opens a URL field. `fill` asks for Open & Fill; the caller owns the item id the extension needs. */
+  onOpenUrl?: (url: string, fill: boolean) => void
+  /** ⌘R / Ctrl+R: every secure field of the item revealed at once; a field's own toggle still wins after. */
+  revealAll?: boolean
   /** A card number names its network under the digits unless a sibling row already does. */
   showBrand?: boolean
   value: string
+  /** The item's own login website, where selecting the address means Open & Fill. */
+  website?: boolean
 }
 
+const copiedFeedbackMs = 1500
+
+/** Opens a URL outside the app: the opener plugin inside Tauri, a new tab in a browser preview. */
+export function openUrlExternally(url: string) {
+  if (!openExternal(url)) window.open(url, '_blank', 'noopener,noreferrer')
+}
+
+/**
+ * One read-only field, 1Password-style: selecting the row runs its primary action (copy; Open & Fill for the
+ * item's website), the hovered or focused row says which in its trailing hint and then says "Copied", and the
+ * chevron — or a right-click, or a long press on a phone — lists everything else the type offers.
+ */
 export function FieldView({
   actions,
+  canFill = false,
   copyValue,
   display,
   fieldType,
@@ -145,16 +176,36 @@ export function FieldView({
   label,
   meta,
   onCopy,
+  onOpenUrl,
+  revealAll = false,
   showBrand = true,
   value,
+  website = false,
 }: FieldViewProps) {
   const { i18n, t } = useTranslation()
-  const [revealed, setRevealed] = useState(false)
+  const [revealed, setRevealed] = useState(revealAll)
+  const [copied, setCopied] = useState(false)
+  const [menuAnchor, setMenuAnchor] = useState<FieldMenuAnchor | null>(null)
+  const [largeType, setLargeType] = useState(false)
+  const copiedTimer = useRef<number | null>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
+  const labelId = useId()
+  const valueId = useId()
+  const hintId = useId()
+  const longPress = useLongPress((anchor) => setMenuAnchor(anchor))
   const concealed = isConcealedType(fieldType)
   const isCard = fieldType === 'card_number'
   const secret = concealed || isCard
   const locale = i18n.language
   const url = fieldType === 'url' ? openableUrl(value) : null
+
+  useEffect(() => setRevealed(revealAll), [revealAll])
+  useEffect(
+    () => () => {
+      if (copiedTimer.current !== null) window.clearTimeout(copiedTimer.current)
+    },
+    [],
+  )
 
   let content: ReactNode = value
   let caption: string | null = null
@@ -174,13 +225,106 @@ export function FieldView({
   if (isMultilineType(fieldType) && (!concealed || revealed)) valueClasses.push('is-multiline')
   if (secret && !revealed) valueClasses.push('is-masked')
 
-  const copied = copyValue ?? (isCard ? digitsOnly(value) : value)
+  const plain = copyValue ?? fieldPlainValue(fieldType, value)
+  // A reference shown by name (a linked item, a provider) is not text to enlarge, and an attachment brings its
+  // own button instead of a menu.
+  const available =
+    actions !== undefined
+      ? { menu: [], primary: null }
+      : display !== undefined
+        ? { menu: ['copy' as const], primary: 'copy' as const }
+        : fieldActions({ canFill, fieldType, revealed, value, website })
+
+  function copy() {
+    onCopy(plain, label, secret)
+    setCopied(true)
+    if (copiedTimer.current !== null) window.clearTimeout(copiedTimer.current)
+    copiedTimer.current = window.setTimeout(() => setCopied(false), copiedFeedbackMs)
+  }
+
+  function run(id: FieldActionId) {
+    switch (id) {
+      case 'copy':
+        copy()
+        return
+      case 'open':
+      case 'openAndFill': {
+        if (!url) return
+        if (onOpenUrl) onOpenUrl(url, id === 'openAndFill')
+        else openUrlExternally(url)
+        return
+      }
+      case 'reveal':
+        setRevealed(true)
+        return
+      case 'conceal':
+        setRevealed(false)
+        return
+      case 'largeType':
+        setLargeType(true)
+        return
+      case 'sendEmail': {
+        const href = emailHref(value)
+        if (href) openUrlExternally(href)
+        return
+      }
+      case 'call': {
+        const href = phoneHref(value)
+        if (href) openUrlExternally(href)
+        return
+      }
+    }
+  }
+
+  const primary = available.primary
+  const hint = copied ? t('fieldActions.copied') : primary ? fieldActionLabel(t, primary) : null
+  const openMenu = (anchor: FieldMenuAnchor) => {
+    if (available.menu.length) setMenuAnchor(anchor)
+  }
 
   return (
-    <div className="field-row">
+    <div
+      className={[
+        'field-row',
+        primary ? 'is-actionable' : '',
+        copied ? 'is-copied' : '',
+        menuAnchor ? 'is-menu-open' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      onContextMenu={(event) => {
+        if (!available.menu.length) return
+        event.preventDefault()
+        openMenu({ bottom: event.clientY, left: event.clientX, right: event.clientX + 220, top: event.clientY })
+      }}
+      ref={rowRef}
+    >
+      {primary ? (
+        // The whole row is the primary action, drawn as a transparent button under the content so the
+        // trailing buttons stay their own targets (a button cannot hold the strength meter's blocks).
+        <button
+          aria-describedby={hintId}
+          aria-labelledby={`${labelId} ${valueId}`}
+          className="field-row-primary"
+          onClick={() => {
+            if (longPress.consumeClick()) return
+            run(primary)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+              event.preventDefault()
+              openMenu(anchorOf(event.currentTarget))
+            }
+          }}
+          type="button"
+          {...longPress.handlers}
+        />
+      ) : null}
       <div className="field-row-main">
-        <span className="field-row-label">{label}</span>
-        <span className={valueClasses.join(' ')} title={url ?? undefined}>
+        <span className="field-row-label" id={labelId}>
+          {label}
+        </span>
+        <span className={valueClasses.join(' ')} id={valueId} title={url ?? undefined}>
           {content}
         </span>
         {caption || (meta?.expiry && (fieldType === 'date' || fieldType === 'month_year')) ? (
@@ -192,45 +336,29 @@ export function FieldView({
         {footer}
       </div>
       <div className="field-row-actions">
-        {secret ? (
-          <button
-            aria-label={revealed ? t('vault.concealField', { label }) : t('vault.revealField', { label })}
-            aria-pressed={revealed}
-            className="icon-button"
-            onClick={() => setRevealed((current) => !current)}
-            title={revealed ? t('vault.concealField', { label }) : t('vault.revealField', { label })}
-            type="button"
-          >
-            {revealed ? <EyeOff size={15} /> : <Eye size={15} />}
-          </button>
+        {hint ? (
+          <span aria-live="polite" className="field-row-hint" id={hintId}>
+            {hint}
+          </span>
         ) : null}
-        {url ? (
-          <a
-            aria-label={t('vault.openUrl', { host: urlHostname(value) ?? value })}
-            className="icon-button"
-            href={url}
-            onClick={(event) => {
-              if (openExternal(url)) event.preventDefault()
-            }}
-            rel="noopener noreferrer"
-            target="_blank"
-            title={t('vault.openUrl', { host: urlHostname(value) ?? value })}
-          >
-            <ExternalLink size={15} />
-          </a>
+        {actions}
+        {available.menu.length ? (
+          <FieldMenuButton expanded={menuAnchor !== null} label={label} onOpen={openMenu} />
         ) : null}
-        {actions ?? (
-          <button
-            aria-label={t('vault.copyField', { label })}
-            className="icon-button"
-            onClick={() => onCopy(copied, label, secret)}
-            title={t('vault.copyField', { label })}
-            type="button"
-          >
-            <Copy size={15} />
-          </button>
-        )}
       </div>
+      {menuAnchor ? (
+        <FieldActionMenu
+          actions={available.menu}
+          anchor={menuAnchor}
+          label={label}
+          onClose={(restoreFocus) => {
+            setMenuAnchor(null)
+            if (restoreFocus) rowRef.current?.querySelector<HTMLButtonElement>('.field-menu-button')?.focus()
+          }}
+          onSelect={run}
+        />
+      ) : null}
+      {largeType ? <LargeTypeOverlay label={label} onClose={() => setLargeType(false)} value={plain} /> : null}
     </div>
   )
 }

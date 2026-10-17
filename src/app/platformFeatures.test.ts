@@ -30,6 +30,8 @@ describe('platform features', () => {
     expect(shortcutLabel('mod+,', 'macos')).toBe('⌘ ,')
     expect(shortcutLabel('mod+n', 'windows')).toBe('Ctrl+N')
     expect(shortcutLabel('mod+shift+Space', 'macos')).toBe('⌘ ⇧ Space')
+    expect(shortcutLabel('mod+alt+c', 'macos')).toBe('⌘ ⌥ C')
+    expect(shortcutLabel('mod+alt+c', 'linux')).toBe('Ctrl+Alt+C')
     expect(isPrimaryModifier({ ctrlKey: false, metaKey: true }, 'macos')).toBe(true)
     expect(isPrimaryModifier({ ctrlKey: true, metaKey: false }, 'macos')).toBe(false)
     expect(isPrimaryModifier({ ctrlKey: true, metaKey: false }, 'linux')).toBe(true)

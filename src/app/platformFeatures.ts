@@ -76,9 +76,11 @@ export function isPrimaryModifier(event: { ctrlKey: boolean; metaKey: boolean },
 export function shortcutLabel(shortcut: string, platform: Platform): string {
   const parts = shortcut.split('+').map((part) => (part.length === 1 ? part.toUpperCase() : part))
   if (usesCommandKey(platform)) {
-    return parts.map((part) => (part === 'mod' ? '⌘' : part === 'shift' ? '⇧' : part)).join(' ')
+    return parts.map((part) => (part === 'mod' ? '⌘' : part === 'shift' ? '⇧' : part === 'alt' ? '⌥' : part)).join(' ')
   }
-  return parts.map((part) => (part === 'mod' ? 'Ctrl' : part === 'shift' ? 'Shift' : part)).join('+')
+  return parts
+    .map((part) => (part === 'mod' ? 'Ctrl' : part === 'shift' ? 'Shift' : part === 'alt' ? 'Alt' : part))
+    .join('+')
 }
 
 /**

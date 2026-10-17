@@ -397,3 +397,20 @@
 :root[data-layout="mobile"] .confirm-layer {
   z-index: 10;
 }
+/* Field rows on a phone: no hover, so the chevron stays visible (the accessible way into the actions, beside
+   touch and hold) and the trailing hint only appears to say "Copied". */
+:root[data-layout="mobile"] .field-row-actions .field-menu-button {
+  opacity: 1;
+}
+
+:root[data-layout="mobile"] .field-row:not(.is-copied) .field-row-hint {
+  display: none;
+}
+
+:root[data-layout="mobile"] .field-row.is-actionable:hover:not(.is-menu-open) {
+  background: transparent;
+}
+
+:root[data-layout="mobile"] .large-type-layer {
+  z-index: 60;
+}

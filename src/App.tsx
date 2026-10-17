@@ -80,10 +80,14 @@ import {
   useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import { copyText } from './app/clipboard'
+import { FieldActionMenu, type FieldMenuAnchor, FieldMenuButton, LargeTypeOverlay } from './app/fieldActionControls'
+import { openAndFillUrl } from './app/fieldActions'
 import {
   FieldEditor,
   type FieldMeta,
   FieldView,
+  openUrlExternally,
   PasswordStrengthMeter,
   SshFingerprintCaption,
   SshFingerprintView,
@@ -518,6 +522,28 @@ function OtpCodeButton({ onCopy, preview }: { onCopy: () => void; preview: Field
   )
 }
 
+/** The two-factor card's code, 1Password-style: selecting it copies, the chevron adds Show in Large Type. */
+function OtpCodeMenu({ code, label, onCopy }: { code: string; label: string; onCopy: () => void }) {
+  const [anchor, setAnchor] = useState<FieldMenuAnchor | null>(null)
+  const [largeType, setLargeType] = useState(false)
+  return (
+    <>
+      <FieldMenuButton expanded={anchor !== null} label={label} onOpen={setAnchor} />
+      {anchor ? (
+        <FieldActionMenu
+          actions={['copy', 'largeType']}
+          anchor={anchor}
+          label={label}
+          onClose={() => setAnchor(null)}
+          onSelect={(id) => (id === 'copy' ? onCopy() : setLargeType(true))}
+        />
+      ) : null}
+      {/* The code prop changes every period, so the overlay follows the live code rather than a snapshot. */}
+      {largeType ? <LargeTypeOverlay label={label} onClose={() => setLargeType(false)} value={code} /> : null}
+    </>
+  )
+}
+
 function OtpFieldActions({
   onCopy,
   onPreview,
@@ -854,6 +880,9 @@ function VaultWindow() {
   // "writing a new item" are one state, so trashing the open item dropped into a blank create form.
   const [composing, setComposing] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  // ⌘R reveals every secure field of the open item; leaving the item (or editing it) conceals them again.
+  const [revealAllSecure, setRevealAllSecure] = useState(false)
+  const itemShortcutRef = useRef<(event: KeyboardEvent) => void>(() => {})
   // What the current form was loaded from. A ref, not state: the switch effect below runs only
   // when the selected item changes, and it has to compare the outgoing form against the baseline
   // that form came from.
@@ -974,7 +1003,7 @@ function VaultWindow() {
       } else if (key === 'n') {
         event.preventDefault()
         openItemTypePicker()
-      } else if (key === 'f') {
+      } else if (key === 'f' && !event.shiftKey) {
         event.preventDefault()
         topSearchInputRef.current?.focus()
       } else if (key === 'k') {
@@ -997,6 +1026,15 @@ function VaultWindow() {
   }, [mode, lastActivityAt, securityPreferences.autoLockIdleDuration])
 
   const selectedItem = useMemo(() => items.find((item) => item.id === selectedId) ?? null, [items, selectedId])
+
+  useEffect(() => setRevealAllSecure(false), [selectedId, isEditing])
+
+  useEffect(() => {
+    if (mode !== 'unlocked') return
+    const handleItemShortcut = (event: KeyboardEvent) => itemShortcutRef.current(event)
+    window.addEventListener('keydown', handleItemShortcut)
+    return () => window.removeEventListener('keydown', handleItemShortcut)
+  }, [mode])
 
   // The sidebar lists the two kinds of vault separately: what is in use, and what has been put away
   // with everything inside it.
@@ -2174,7 +2212,8 @@ function VaultWindow() {
   async function copyFieldTotp(index: number) {
     const preview = fieldTotpPreviews[index]
     if (!preview) return
-    await navigator.clipboard.writeText(preview.code)
+    // A code is a secret for its 30 seconds; it follows the same clipboard clear as a password.
+    await copySecretText(preview.code)
     setOperationMessage(t('messages.copiedOtp'))
   }
 
@@ -2185,14 +2224,14 @@ function VaultWindow() {
   async function copyTotpSecret(index: number) {
     const secret = form.custom_fields[index]?.value
     if (!secret) return
-    await navigator.clipboard.writeText(normalizeTotpSecret(secret))
+    await copySecretText(normalizeTotpSecret(secret))
     setOperationMessage(t('messages.copiedSecret'))
   }
 
   async function copyTotpSetupLink(index: number) {
     const secret = form.custom_fields[index]?.value
     if (!secret) return
-    await navigator.clipboard.writeText(buildOtpAuthUri({ account: form.username, issuer: form.title, secret }))
+    await copySecretText(buildOtpAuthUri({ account: form.username, issuer: form.title, secret }))
     setOperationMessage(t('messages.copiedSetupLink'))
   }
 
@@ -2524,19 +2563,7 @@ function VaultWindow() {
 
   // A secret honours the 90-second clipboard clear; a plain value (a username, a hostname) does not.
   async function copySecretText(value: string, sensitive = true) {
-    if (!value) return
-    await navigator.clipboard.writeText(value)
-    if (sensitive && securityPreferences.clearClipboardAfter90Seconds) {
-      window.setTimeout(async () => {
-        try {
-          if ((await navigator.clipboard.readText()) === value) {
-            await navigator.clipboard.writeText('')
-          }
-        } catch {
-          await navigator.clipboard.writeText('')
-        }
-      }, 90 * 1000)
-    }
+    await copyText(value, { clearAfter90Seconds: securityPreferences.clearClipboardAfter90Seconds, sensitive })
   }
 
   async function copyFieldValue(value: string, label: string, sensitive: boolean) {
@@ -2547,6 +2574,38 @@ function VaultWindow() {
     } catch (nextError) {
       setError(String(nextError))
     }
+  }
+
+  // Open & Fill: the address opens in the default browser carrying this item's id in its fragment, which the
+  // extension's content script turns into a fill of this one item (fieldActions.ts `openAndFillUrl`).
+  function openItemWebsite(url: string, fill: boolean) {
+    const target = fill && selectedItem ? openAndFillUrl(url, selectedItem.id) : url
+    if (!target) return
+    openUrlExternally(target)
+    if (fill) setOperationMessage(t('messages.openedToFill', { host: new URL(target).hostname }))
+  }
+
+  // 1Password's item shortcuts (support.1password.com/keyboard-shortcuts): ⌘C username, ⇧⌘C password,
+  // ⌥⌘C one-time password, ⇧⌘F Open & Fill, ⌘R reveal or conceal every secure field (Ctrl on Windows/Linux).
+  // Read through a ref so the one listener always sees the item on screen, never the one it was added with.
+  itemShortcutRef.current = (event: KeyboardEvent) => {
+    if (!features.keyboardShortcuts || !selectedItem || isEditing) return
+    if (!isPrimaryModifier(event, platform)) return
+    const target = event.target as HTMLElement | null
+    if (target?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"]')) return
+    const plain = !event.shiftKey && !event.altKey
+    if (event.code === 'KeyC' && plain && form.username) {
+      void copyFieldValue(form.username, usernameLabel, false)
+    } else if (event.code === 'KeyC' && event.shiftKey && !event.altKey && form.password) {
+      void copyFieldValue(form.password, passwordLabel, true)
+    } else if (event.code === 'KeyC' && event.altKey && !event.shiftKey && viewOtpIndexes.length) {
+      void copyFieldTotp(viewOtpIndexes[0])
+    } else if (event.code === 'KeyF' && event.shiftKey && !event.altKey && viewWebsites.length) {
+      openItemWebsite(viewWebsites[0].url, features.browserExtension)
+    } else if (event.code === 'KeyR' && plain) {
+      setRevealAllSecure((current) => !current)
+    } else return
+    event.preventDefault()
   }
 
   async function generateFieldPassword() {
@@ -3793,6 +3852,7 @@ function VaultWindow() {
                         footer={passwordStrength ? <PasswordStrengthMeter strength={passwordStrength} /> : null}
                         label={passwordLabel}
                         onCopy={copyFieldValue}
+                        revealAll={revealAllSecure}
                         value={form.password}
                       />
                     ) : null}
@@ -3837,6 +3897,13 @@ function VaultWindow() {
                               <span className="otp-card-pending">{t('vault.otpCodePending')}</span>
                             )}
                           </div>
+                          {preview ? (
+                            <OtpCodeMenu
+                              code={preview.code}
+                              label={field.label.trim() || t('vault.customFieldDefaults.otp')}
+                              onCopy={() => void copyFieldTotp(index)}
+                            />
+                          ) : null}
                           <button
                             className="secondary-button"
                             disabled={!hasSecret}
@@ -3877,11 +3944,14 @@ function VaultWindow() {
                   <div className="field-group">
                     {viewWebsites.map((itemUrl) => (
                       <FieldView
+                        canFill={features.browserExtension}
                         fieldType="url"
                         key={itemUrl.id}
                         label={itemUrl.label === defaultWebsiteLabel ? t('vault.website') : itemUrl.label}
                         onCopy={copyFieldValue}
+                        onOpenUrl={openItemWebsite}
                         value={itemUrl.url}
+                        website
                       />
                     ))}
                   </div>
@@ -3900,6 +3970,7 @@ function VaultWindow() {
                               label={label}
                               meta={templateFieldMeta(templateField)}
                               onCopy={copyFieldValue}
+                              revealAll={revealAllSecure}
                               // The network already has its own row once it is filled in.
                               showBrand={!children.some((sibling) => sibling.key === 'brand')}
                               value={child.value}
@@ -3941,6 +4012,7 @@ function VaultWindow() {
                         key={`field-view-${index}`}
                         label={field.label.trim() || t(`vault.customFieldDefaults.${field.field_type}`)}
                         onCopy={copyFieldValue}
+                        revealAll={revealAllSecure}
                         value={field.value}
                       />
                     ))}
@@ -5247,6 +5319,11 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
                   [shortcutLabel('mod+n', platform), 'shortcuts.newItem'],
                   [shortcutLabel('mod+f', platform), 'shortcuts.focusSearch'],
                   [shortcutLabel('mod+k', platform), 'shortcuts.lockVault'],
+                  [shortcutLabel('mod+c', platform), 'shortcuts.copyUsername'],
+                  [shortcutLabel('mod+shift+c', platform), 'shortcuts.copyPassword'],
+                  [shortcutLabel('mod+alt+c', platform), 'shortcuts.copyOtp'],
+                  [shortcutLabel('mod+shift+f', platform), 'shortcuts.openAndFill'],
+                  [shortcutLabel('mod+r', platform), 'shortcuts.revealSecure'],
                   // Linux: the compositor owns global keys, so the row names the command to bind.
                   ...(quickAccess ? [[quickAccess, 'shortcuts.quickAccess']] : []),
                 ].map(([keys, label]) => (
@@ -5266,6 +5343,7 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
 
 function QuickAccessWindow() {
   const { t } = useTranslation()
+  const { platform } = usePlatformState()
   const [items, setItems] = useState<LoginItem[]>([])
   const [query, setQuery] = useState('')
   const [locked, setLocked] = useState(true)
@@ -5312,10 +5390,26 @@ function QuickAccessWindow() {
     }
   }
 
-  async function copyPassword(item: LoginItem) {
-    await navigator.clipboard.writeText(item.password)
+  // Same clipboard rules as the main window: a password or code is cleared after 90 seconds when the
+  // Security setting asks for it (read fresh, since Settings may have changed it while the panel was hidden).
+  async function copyFromItem(item: LoginItem, kind: 'otp' | 'password' | 'username') {
+    let value = kind === 'username' ? item.username : kind === 'password' ? item.password : ''
+    if (kind === 'otp') {
+      const index = otpSecretFieldIndexes(item.custom_fields)[0]
+      const secret = index === undefined ? '' : (item.custom_fields[index]?.value ?? '')
+      if (secret.trim()) value = (await vaultApi.generateTotp(secret).catch(() => null))?.code ?? ''
+    }
+    const copied = await copyText(value, {
+      clearAfter90Seconds: loadSecurityPreferences().clearClipboardAfter90Seconds,
+      sensitive: kind !== 'username',
+    })
+    if (!copied) return
     setCopiedId(item.id)
     hideTimerRef.current = window.setTimeout(() => void vaultApi.hideQuickAccess(), quickAccessCloseDelayMs)
+  }
+
+  async function copyPassword(item: LoginItem) {
+    await copyFromItem(item, 'password')
   }
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
@@ -5339,7 +5433,17 @@ function QuickAccessWindow() {
       event.preventDefault()
       const item = results[selectedIndex]
       if (item) void copyPassword(item)
+      return
     }
+    // 1Password's Quick Access keys: ⌘C username, ⇧⌘C password, ⌥⌘C one-time password (Ctrl elsewhere).
+    // Text selected in the search field keeps ⌘C as a plain copy.
+    if (event.code !== 'KeyC' || !isPrimaryModifier(event, platform)) return
+    const input = event.target instanceof HTMLInputElement ? event.target : null
+    if (input && input.selectionStart !== input.selectionEnd) return
+    const item = results[selectedIndex]
+    if (!item) return
+    event.preventDefault()
+    void copyFromItem(item, event.altKey ? 'otp' : event.shiftKey ? 'password' : 'username')
   }
 
   useEffect(() => applyTheme(theme), [theme])
@@ -5449,7 +5553,14 @@ function QuickAccessWindow() {
       )}
 
       <footer className="quick-access-footer" data-tauri-drag-region>
-        {t('quickAccess.copyHint')}
+        <span>{t('quickAccess.copyHint')}</span>
+        <span>
+          {t('quickAccess.copyKeysHint', {
+            otp: shortcutLabel('mod+alt+c', platform),
+            password: shortcutLabel('mod+shift+c', platform),
+            username: shortcutLabel('mod+c', platform),
+          })}
+        </span>
       </footer>
     </main>
   )
