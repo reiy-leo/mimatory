@@ -91,13 +91,39 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
   ⌘R/⌘C in WKWebView (⌘R must not reach a reload), long press in a real Android/iOS WebView (and whether the
   WebView's own text-selection/context gesture fights it), `mailto:`/`tel:` from the menu, the 90-second clear in
   Quick Access's hidden window. Not done, 1Password has them: password history (needs storage), hold Option to
-  reveal (needs a setting), drag-to-reorder fields, the generator as a popover beside the field, changing a field's
-  type after adding it, per-website autofill behaviour UI (`match_type` is stored), Markdown in notes, SSH private
-  key export, date expiry alerts.
+  reveal (needs a setting), the generator as a popover beside the field, changing a field's type after adding it,
+  Markdown in notes, SSH private key export, date expiry alerts. (Drag-to-reorder and the per-website autofill
+  behaviour landed 2026-10-17, see below.)
 - **needs-owner-decision — field actions.** (1) 1Password clears *every* copied value after 90 s; Passless clears
   secrets only (kept). (2) Quick Access ↵ copies the password; in 1Password ↵ is Open & Fill (kept). (3) The view's
   always-visible eye was removed in favour of the menu + ⌘R, as 1Password does — restore it if a one-click reveal is
   wanted. (4) A URL field inside a section opens on click (1Password's docs only say "copy or open").
+
+- **Unified field rows, websites + autofill behaviour, OTP edit row, whole-cell focus ring (2026-10-17) —
+  unverified.** Checked in Vite + Chromium against the stub (work/screens/websites/: macOS light+dark, Windows,
+  Android; checks.txt holds the scripted assertions — keyboard and pointer reorder, cross-section drag, popover
+  sentences, save payload). Never seen: pointer/touch drag in WKWebView, Android WebView and a real touch screen
+  (`touch-action: none` on the handle, pointer capture), the QR file picker offering the camera on a phone, Alt+↑/↓
+  on macOS (Option may type a character in some layouts before the handler sees it), the `color-mix()` ring in
+  WKWebView (Safari ≥ 16.2 has it), `describe_website` over the real bridge (only `site_match` unit tests), the
+  extension sending `location.origin` (never run in a browser), and the zh/ja autofill strings against 1Password's
+  own localisation (zh follows the wording in the owner's brief; ja is ours). Full-crate `cargo check --tests` ran on
+  Linux only.
+- **needs-owner-decision — autofill behaviour.** (1) "Never fill on this website" *ignores* that address, as
+  1Password documents — another address of the same item set to "anywhere" still fills there (1Password calls this
+  a known limitation; a veto rule would be one line in `list_login_items_for_origin`). (2) The related-domain list
+  is a deliberately small bundled subset (apple.com/icloud.com, google.com/youtube.com, the Microsoft account
+  domains) — the editor says "and some related websites" only for those; widen it or drop it. (3) A save from the
+  extension now keeps an existing item's websites and their behaviours instead of replacing them with the page URL.
+  (4) Builds older than 2026-10-17 read `never` as `domain` and write that back if they save the item.
+- **needs-owner-decision — field rows.** (1) Fixed labels (Username, Password, template fields, view labels) wear
+  the link tint; renamable labels read in the secondary label colour, as Rei's screenshots show (op-focus-ring vs
+  op-otp) — say if every label should tint. (2) Values went from body (13pt) to title-3 (15pt) in both modes to
+  match the screenshots' proportions. (3) The OTP edit row masks the key at rest and shows it grouped while focused
+  (the AGENTS.md masking rule); 1Password shows it plainly. (4) Template fields keep no remove button and do not
+  leave their section (the template finds them by key there); built-in username/password have no handle (they are
+  columns, not list entries). (5) The view's old two-factor card (reveal / copy key / copy setup link buttons and the
+  warning) became a row in the credentials card; Copy Secret Key and Copy Setup Link moved into its menu.
 
 ## Never yet seen in a running app
 
@@ -134,6 +160,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-17 | One field row for every field in view and edit (fieldRows.tsx: drag handle outside the card, label above value, trailing type buttons + red remove, whole-cell focus ring; sections as cards with their own "add more"; drag and Alt+↑/↓ reorder within and across sections), websites with label + autofill behaviour (anywhere / exact host / never) enforced in Rust with the Public Suffix List, OTP edit row (grouped key, QR scan) and view row ("214 • 685" + countdown) | `AGENTS.md` Websites and autofill behaviour, Field rows; `design.md` exceptions |
 | 2026-10-17 | 1Password-style field actions: row = primary action, per-type menu / phone action sheet, Show in Large Type, Open & Fill via the extension, item and Quick Access copy shortcuts, ⌘R, one clipboard helper (OTP and Quick Access copies now cleared) | `AGENTS.md` Field actions; `design.md` exceptions |
 | 2026-10-17 | Website icons fetched from the site itself and cached encrypted (schema 4), Sign in with… (provider field + `sign_in` link, picker, row, reverse list, extension hint) | `AGENTS.md` Website icons, Sign in with… |
 | 2026-10-17 | Multiplatform: Apple / WinUI 3 / Material 3 skins and a phone layout (Mindough's mapping), platform feature gating, per-platform Tauri configs, desktop-only shell crates, Wayland-only Linux (tauri without `x11`, `WAYLAND_DISPLAY` required), biometrics via tauri-plugin-biometric on phones, CI (`ci.yml`, `build.yml`, `ios.yml`) | `AGENTS.md` Platforms; `design.md` Per-platform skins |

@@ -29,7 +29,7 @@ npm run dev          # Vite dev server on :1430 (Tauri launches this automatical
 npm run build        # tailwindcss (extension CSS) → tsc → vite build
 npm run build:css    # Tailwind-compiles src/styles.css only, to /tmp — proves a token resolves
 npm run typecheck    # tsc --noEmit only, without the bundle
-npm run test         # Vitest, all 28 files (node environment; fork pool capped at 2)
+npm run test         # Vitest, all 29 files (node environment; fork pool capped at 2)
 npm run test:design  # Only src/app/designContract.test.ts — the Apple-design token/CSS/className guard
 npm run lint:fix     # biome check --write (JS/TS, CSS, JSON)
 npm run tauri dev    # Full desktop app (frontend + Rust backend)
@@ -120,6 +120,7 @@ src/                  # React frontend
   app/relativeTime.ts menuPlacement.ts itemDrafts.ts itemTemplates.ts windowPlacement.ts otpQrImport.ts
   app/itemFields.ts fieldFormats.ts fieldControls.tsx  # typed item fields: template bridge, rules, view/edit components
   app/fieldActions.ts fieldActionControls.tsx largeType.ts clipboard.ts  # 1Password-style field actions: per-type primary + menu, action sheet, Large Type, the one clipboard writer
+  app/fieldRows.tsx fieldReorder.ts  # the editor's field row (handle, cell, remove), drag/keyboard reorder, the Autofill Behavior popover
   app/itemRelations.ts relationControls.tsx  # parent / child / related / sign-in links: draft diffing, picker rules, the row group
   app/siteIcons.ts itemIcon.tsx  # website icons: which sites to ask, the window's icon store, the item tile
   app/signInProviders.ts signInControls.tsx providerMarks.tsx  # "Sign in with…": field rules, sheet + row, bundled marks
@@ -139,6 +140,7 @@ src-tauri/src/        # Rust backend
   favicon.rs          # Website icon fetch: https-only, SSRF guard, caps, decode + re-encode as a 64px PNG
   biometric.rs        # Touch ID (objc2) on macOS, tauri-plugin-biometric on iOS/Android, none elsewhere
   browser_bridge.rs   # HTTP server on 127.0.0.1:17891 for the extension
+  site_match.rs       # Autofill behaviour: registrable-domain / exact-host / never matching (psl crate), describe_website
   shell.rs            # Desktop only: tray, Quick Access (hotkey on macOS/Windows, `--quick-access` on Linux), autostart, single instance
   totp.rs             # TOTP code generation
   breach_check.rs     # Have I Been Pwned k-anonymity check
@@ -553,6 +555,35 @@ Wayland; X11 is not supported.
   site finds no match), retrying for ~5s while a late sign-in form renders. No bridge endpoint was added. The page's
   own scripts can read the item id before it is stripped — an opaque UUID, accepted. Large Type colours digits in
   the link blue and symbols in red as 1Password does (documented exception in `.agent/design.md`).
+
+- **Websites and autofill behaviour** (2026-10-17, owner: "这是1password链接的交互逻辑"). An item's websites are the
+  existing `item_urls` rows (label, url, `match_type`, position — the model already allowed several; `items.website`
+  is the first, which is also the icon's). `match_type` is `domain` (default, "Fill anywhere on this website"),
+  `exact` ("Only fill on this exact host") or `never`; anything else normalises to `domain`, so no migration was
+  needed. **Matching lives in Rust only** (`site_match.rs`, unit-tested): `domain` compares the registrable domain
+  (eTLD+1 from the `psl` crate's compiled Public Suffix List, private section included, so `github.io` users are
+  separate sites) plus a small bundled related-domain list, ignoring the port; an address that *is* a suffix or an IP
+  matches only its own host; `exact` compares host **and** explicit port; `never` makes that address count for
+  nothing — exactly 1Password's documented rule, so another "anywhere" address of the same item still fills there.
+  Hosts are compared as punycode (`url` crate). The bridge's `/fill` uses it (`list_login_items_for_origin`); the
+  extension now sends `location.origin` so ports reach it (a bare hostname from an old extension still parses).
+  `/save` looks for the account to update with `list_login_items_for_site` (domain rule over every address, `never`
+  included) and keeps the item's websites instead of overwriting them. The editor's info box asks
+  `describe_website` (pure, no vault) and says "and some related websites" only when the domain is in that bundled
+  list. In the view a non-default behaviour shows a one-line note under the address, and a `never` site offers Open,
+  not Open & Fill (also for ⇧⌘F), as 1Password 8.10.80 does.
+- **Field rows** (2026-10-17, owner: "要做到所有的字段样式都是统一的"). Every field in both modes is one `.field-row`
+  cell: `FieldView` / `OtpFieldView` read-only, `EditFieldRow` editing (a `.field-slot` = handle gutter outside the
+  card + the cell; the cells draw the card so the handle can sit outside it). Per-type differences are the value
+  control and trailing buttons in `renderEditField`, never a row shape; `designContract.test.ts` fails on a retired
+  row class or a form control outside `EditFieldRow`. Reorder: containers `urls`, `login` (OTP / passkey / sign-in
+  in the credentials card), `top` (loose fields and sections) and `section:<index>`; `fieldReorder.ts` moves an
+  entry (fields cross into and out of sections, sections only among top entries, nothing into `login`, template
+  children stay in their section) and Alt+↑/↓ on the handle steps across a section's edge. Drag is pointer events
+  on the handle with capture (`useFieldDrag`), hit-testing the innermost `[data-reorder-container]` row. The OTP
+  edit row stores normalized base32 (a pasted `otpauth://` link gives up its `secret` — the Rust TOTP reads bare
+  keys only), shows it in lowercase groups of four while focused and masked otherwise; its QR button reads a copied
+  image, else opens an image picker (the phone's camera / library).
 
 ## Testing and verification
 

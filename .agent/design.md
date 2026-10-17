@@ -255,6 +255,17 @@ from a shadow token; a popup colour that drifts from the app's.
 - **A read-only field row highlights on hover** (`.field-row.is-actionable:hover`, quaternary fill) because the
   whole row is a button (copy / Open & Fill); its trailing hint is link-coloured text, not a push button.
 
+- **An editing field's focus is a translucent ring around the whole cell** (`.field-row.is-edit:focus-within`,
+  owner 2026-10-17: "1p是input focus是整个field 有一个ring"): the accent at 45% via `color-mix()`, the cell raised to
+  `surface`, the input inside bare. This replaces, for field cells only, the "opaque accent, 3pt" deviation above:
+  the screenshot is translucent, and the raised white cell plus the ring still separate it from the gray card. WinUI
+  and Material instead underline the focused cell 2px in the accent (their text-field focus conventions).
+- **Field labels wear the link tint** (`text-brand`) when they are fixed text, read-only or editing; a label the
+  user can rename reads in the secondary label colour. Not interaction — a 1Password convention the owner asked
+  for; the label is never the only signal of anything. Values are title-3 in both modes.
+- **The read-only row's hover is a faint accent wash** (`--color-field-hovered`) and its menu is a full-height
+  segment with a hairline (`--color-field-segment`), as in 1Password 8.
+
 ## Per-platform skins (2026-10-17)
 
 The owner asked for every OS to get the design Mindough gives it. The mapping, detection and layout switch are in
