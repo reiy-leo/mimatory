@@ -225,7 +225,9 @@ export function FieldView({
   if (isMultilineType(fieldType) && (!concealed || revealed)) valueClasses.push('is-multiline')
   if (secret && !revealed) valueClasses.push('is-masked')
 
-  const plain = copyValue ?? fieldPlainValue(fieldType, value)
+  // A pop-up field copies the words it shows ("Visa"), not the option id it stores.
+  const plain =
+    copyValue ?? (fieldType === 'select' ? optionLabel(t, meta?.options, value) : fieldPlainValue(fieldType, value))
   // A reference shown by name (a linked item, a provider) is not text to enlarge, and an attachment brings its
   // own button instead of a menu.
   const available =
