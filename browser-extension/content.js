@@ -12,25 +12,87 @@ function findLoginForm() {
   return { form, password, username }
 }
 
-async function fillFromPassless() {
-  const login = findLoginForm()
-  if (!login) return
+async function fetchMatches() {
   const { passlessToken } = await chrome.storage.local.get(['passlessToken'])
   const response = await fetch(`${PASSLESS_BRIDGE}/fill`, {
     body: JSON.stringify({ origin: location.hostname }),
     headers: { 'Content-Type': 'application/json', 'X-Passless-Token': passlessToken || '' },
     method: 'POST',
   })
-  if (!response.ok) return
-  const items = await response.json()
+  if (!response.ok) return []
+  return response.json()
+}
+
+/* The words a provider's button carries on most sites ("Sign in with Google", "Continue with Apple",
+   "Log in with GitHub", or just the provider's name inside a social-login row). Known ids map to the
+   names sites print; anything else is the name the user typed in the app. */
+const PROVIDER_NAMES = {
+  apple: ['Apple'],
+  facebook: ['Facebook'],
+  github: ['GitHub'],
+  google: ['Google'],
+  microsoft: ['Microsoft', 'Outlook'],
+  x: ['X', 'Twitter'],
+}
+
+function providerNames(provider) {
+  return PROVIDER_NAMES[provider] || [provider]
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/* The visible button, link or role=button whose text or accessible name names the provider. A phrase
+   ("… with Google") beats a bare name, so a "Google Play" footer link does not win over the real button. */
+function findProviderButton(provider) {
+  const names = providerNames(provider).map(escapeRegExp).join('|')
+  const phrase = new RegExp(`\\b(with|via|using)\\s+(${names})\\b`, 'i')
+  const bare = new RegExp(`^\\s*(${names})\\s*$`, 'i')
+  const candidates = [
+    ...document.querySelectorAll('button, a, [role="button"], input[type="submit"], input[type="button"]'),
+  ]
+  const visible = candidates.filter((element) => element.getClientRects().length > 0)
+  const label = (element) =>
+    [element.getAttribute('aria-label'), element.getAttribute('title'), element.value, element.textContent]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+  return visible.find((element) => phrase.test(label(element))) || visible.find((element) => bare.test(label(element)))
+}
+
+/* Never clicked for the user: signing in through a provider can create an account or share profile
+   data, so the page's own button is only brought into view, outlined and focused — Return finishes it. */
+function highlightProviderButton(button) {
+  button.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  button.style.outline = '3px solid #0a84ff'
+  button.style.outlineOffset = '2px'
+  button.focus({ preventScroll: true })
+  window.setTimeout(() => {
+    button.style.outline = ''
+    button.style.outlineOffset = ''
+  }, 6000)
+}
+
+async function fillFromPassless() {
+  const items = await fetchMatches()
   const item = items[0]
-  if (!item) return
+  if (!item) return { kind: 'noMatch' }
+  // A "Sign in with…" item has no password to fill; point at the provider's button instead.
+  if (item.sign_in_with) {
+    const button = findProviderButton(item.sign_in_with)
+    if (button) highlightProviderButton(button)
+    return { found: Boolean(button), kind: 'signInWith', provider: item.sign_in_with }
+  }
+  const login = findLoginForm()
+  if (!login) return { kind: 'noLoginForm' }
   if (login.username) {
     login.username.value = item.username
     login.username.dispatchEvent(new Event('input', { bubbles: true }))
   }
   login.password.value = item.password
   login.password.dispatchEvent(new Event('input', { bubbles: true }))
+  return { kind: 'filled' }
 }
 
 async function saveToPassless() {
@@ -56,10 +118,15 @@ if (login?.form && login.form.addEventListener) {
   })
 }
 
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === 'PASSLESS_FILL') {
     fillFromPassless()
+      .then(sendResponse)
+      .catch(() => sendResponse({ kind: 'error' }))
+    // Keeps the channel open for the asynchronous answer.
+    return true
   }
+  return false
 })
 
 function installPasskeyObserver() {

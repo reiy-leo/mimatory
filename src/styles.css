@@ -39,6 +39,8 @@
     --color-surface-sunken: #f5f5f7;
     --color-surface-raised: #ffffff;
     --color-surface-overlay: #f6f6f6;
+    /* The tile a website icon sits on: white in both appearances, so a dark logo stays legible. */
+    --color-site-icon-tile: #ffffff;
     --color-window: #ececec;
     --color-sidebar: #ebebef;
 
@@ -280,6 +282,7 @@
     --color-surface-sunken: #1e1e1e;
     --color-surface-raised: #2c2c2e;
     --color-surface-overlay: #323234;
+    --color-site-icon-tile: #f5f5f7;
     --color-window: #323232;
     --color-sidebar: #2a2a2d;
     --color-border: #ffffff1a;
@@ -3097,6 +3100,80 @@
   .security-check-row input[type="checkbox"]:checked::before {
     transform: translateX(var(--space-150));
   }
+  /* "Sign in with…" (2026-10-17). The sheet reuses the item picker's search field and list; the providers
+     are a two-column grid of bezeled push buttons, the chosen one filled like a selected segment
+     (segmented-controls.md) and announced through aria-pressed. The read-only row is a link row whose
+     glyph is the provider's mark in the label colour. */
+  .sign-in-providers {
+    @apply mt-200 grid grid-cols-2 gap-075 border-0 p-0;
+  }
+
+  .sign-in-providers legend,
+  .sign-in-account-label {
+    color: var(--color-text-subtle);
+    @apply mb-075 text-callout font-semibold;
+  }
+
+  .sign-in-provider {
+    color: var(--color-text);
+    background: var(--color-background-control);
+    box-shadow: var(--shadow-control);
+    @apply flex h-350 min-w-0 items-center gap-100 rounded-medium border-0 px-100 text-left text-body transition-colors;
+  }
+
+  .sign-in-provider span {
+    @apply truncate;
+  }
+
+  .sign-in-provider.is-selected {
+    color: var(--color-text-selected);
+    background: var(--color-background-selected-bold);
+  }
+
+  .sign-in-other-name {
+    color: var(--color-text-subtle);
+    @apply mt-150 grid gap-050 text-callout;
+  }
+
+  .sign-in-account {
+    @apply mt-200 grid;
+  }
+
+  .sign-in-account .relation-picker-hint {
+    color: var(--color-text-subtle);
+    @apply text-callout;
+  }
+
+  .sign-in-account .relation-picker-search {
+    @apply mt-100;
+  }
+
+  .relation-picker-option.is-selected {
+    background: var(--color-background-selected);
+  }
+
+  .sign-in-row-mark {
+    color: var(--color-text);
+    @apply shrink-0;
+  }
+
+  .sign-in-edit {
+    @apply flex min-w-0 flex-1 items-center gap-100;
+  }
+
+  .sign-in-edit .sign-in-row {
+    @apply min-w-0 flex-1 border-0 p-0;
+  }
+
+  /* A picker row's leading tile: the website icon when there is one, otherwise the type glyph (or, for
+     "No linked item", an empty slot of the same size so the titles line up). */
+  .picker-icon {
+    @apply grid h-300 w-300 shrink-0 place-items-center rounded-medium;
+  }
+
+  .quick-access-row .item-icon {
+    @apply shrink-0;
+  }
 }
 
 /* Native vibrancy (materials.md). Inside the macOS app the windows are transparent and wear an
@@ -3132,4 +3209,26 @@
     --material-toolbar: var(--color-surface);
     --material-filter: none;
   }
+}
+
+/* Website icons (2026-10-17): the site's own artwork, re-encoded by Rust as a 64px PNG, on a white tile
+   with a hairline in every appearance and every state, so a dark logo stays legible in Dark Mode and a
+   selected row never tints it. Unlayered on purpose: the skins' selected-row rules are unlayered too, and
+   a layered rule loses to them whatever its specificity. */
+.item-icon.has-site-icon,
+.large-icon.has-site-icon,
+.picker-icon.has-site-icon,
+.item-row.active .item-icon.has-site-icon,
+.top-search-results button:hover .item-icon.has-site-icon {
+  background: var(--color-site-icon-tile);
+  border: 1px solid var(--color-border);
+  @apply overflow-hidden p-025;
+}
+
+.large-icon.has-site-icon {
+  @apply p-075;
+}
+
+.has-site-icon img {
+  @apply block h-full w-full object-contain;
 }

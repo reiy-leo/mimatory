@@ -5,17 +5,53 @@
 	"extensionName": {
 		"message": "Passless Autofill"
 	},
+	"filledPage": {
+		"message": "Filled the login on this page."
+	},
 	"fillPage": {
 		"message": "Fill Current Page"
 	},
 	"footerHint": {
 		"message": "Keep the Passless desktop app unlocked for autofill and save prompts."
 	},
+	"noLoginForm": {
+		"message": "No login form found on this page."
+	},
+	"noMatch": {
+		"message": "No saved login for this site."
+	},
 	"pairingTokenLabel": {
 		"message": "Pairing token"
 	},
+	"providerButtonFound": {
+		"message": "The $PROVIDER$ button on this page is highlighted.",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"providerButtonMissing": {
+		"message": "No $PROVIDER$ button found on this page.",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
 	"saveToken": {
 		"message": "Save Token"
+	},
+	"signInWithProvider": {
+		"message": "Sign in with $PROVIDER$",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
 	},
 	"statusChecking": {
 		"message": "Checking app…"

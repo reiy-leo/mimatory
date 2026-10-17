@@ -52,15 +52,20 @@ const ids = (list: LoginItem[]) => list.map((entry) => entry.id)
 describe('item relations', () => {
   it('reads a draft from stored relations and knows when there are none', () => {
     expect(relationDraftOf(undefined)).toEqual(emptyRelationDraft)
-    expect(relationDraftOf(items[1].relations)).toEqual({ childIds: ['pin'], parentId: 'bank', relatedIds: [] })
+    expect(relationDraftOf(items[1].relations)).toEqual({
+      childIds: ['pin'],
+      parentId: 'bank',
+      relatedIds: [],
+      signInId: null,
+    })
     expect(hasRelations(items[1].relations)).toBe(true)
     expect(hasRelations(items[6].relations)).toBe(false)
     expect(hasRelations({ children: [], parent: null, related: [] })).toBe(false)
   })
 
   it('compares drafts regardless of order', () => {
-    expect(relationDraftKey({ childIds: ['a', 'b'], parentId: null, relatedIds: [] })).toBe(
-      relationDraftKey({ childIds: ['b', 'a'], parentId: null, relatedIds: [] }),
+    expect(relationDraftKey({ childIds: ['a', 'b'], parentId: null, relatedIds: [], signInId: null })).toBe(
+      relationDraftKey({ childIds: ['b', 'a'], parentId: null, relatedIds: [], signInId: null }),
     )
     expect(relationDraftKey(undefined)).toBe(relationDraftKey(emptyRelationDraft))
   })
@@ -84,13 +89,13 @@ describe('item relations', () => {
       'loose',
     ])
     // A new item (no id yet) still respects what its own draft has picked.
-    const draft = { childIds: ['loose'], parentId: null, relatedIds: [] }
+    const draft = { childIds: ['loose'], parentId: null, relatedIds: [], signInId: null }
     expect(ids(relationCandidates(items, null, 'parent', draft))).not.toContain('loose')
   })
 
   it('orders a save so removals go first', () => {
-    const baseline = { childIds: ['pin'], parentId: 'bank', relatedIds: ['db'] }
-    const draft = { childIds: ['loose'], parentId: 'app', relatedIds: ['server'] }
+    const baseline = { childIds: ['pin'], parentId: 'bank', relatedIds: ['db'], signInId: null }
+    const draft = { childIds: ['loose'], parentId: 'app', relatedIds: ['server'], signInId: null }
     expect(relationChanges('card', baseline, draft)).toEqual([
       { kind: 'unlink', otherId: 'db' },
       { itemId: 'pin', kind: 'setParent', parentId: null },
@@ -108,5 +113,33 @@ describe('item relations', () => {
     expect(relationRef('gone', items, stored)).toEqual(ref('gone', true))
     expect(relationRef('nowhere', items, stored)).toBeNull()
     expect(ids(filterByTitle(items, ' ba '))).toEqual(['bank'])
+  })
+})
+
+describe('sign-in links', () => {
+  it('reads the stored account into the draft and counts it as a link on both ends', () => {
+    const relations = { children: [], parent: null, related: [], sign_in_with: ref('google') }
+    expect(relationDraftOf(relations).signInId).toBe('google')
+    expect(hasRelations(relations)).toBe(true)
+    expect(hasRelations({ children: [], parent: null, related: [], signs_in_to: [ref('figma')] })).toBe(true)
+    expect(hasRelations({ children: [], parent: null, related: [], signs_in_to: [] })).toBe(false)
+  })
+
+  it('writes a changed account last and leaves an unchanged one alone', () => {
+    const baseline = { ...emptyRelationDraft, signInId: 'google' }
+    expect(relationChanges('figma', baseline, baseline)).toEqual([])
+    expect(relationChanges('figma', baseline, { ...baseline, relatedIds: ['x'], signInId: 'apple' })).toEqual([
+      { kind: 'link', otherId: 'x' },
+      { accountId: 'apple', kind: 'setSignIn' },
+    ])
+    expect(relationChanges('figma', baseline, { ...baseline, signInId: null })).toEqual([
+      { accountId: null, kind: 'setSignIn' },
+    ])
+    expect(relationDraftKey(baseline)).not.toBe(relationDraftKey(emptyRelationDraft))
+  })
+
+  it('resolves an archived account from the stored ref', () => {
+    const stored = { children: [], parent: null, related: [], sign_in_with: ref('gone', true) }
+    expect(relationRef('gone', items, stored)).toEqual(ref('gone', true))
   })
 })

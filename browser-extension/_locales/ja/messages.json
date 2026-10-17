@@ -5,17 +5,53 @@
 	"extensionName": {
 		"message": "Passless 自動入力"
 	},
+	"filledPage": {
+		"message": "このページのログインを入力しました。"
+	},
 	"fillPage": {
 		"message": "現在のページに入力"
 	},
 	"footerHint": {
 		"message": "自動入力と保存プロンプトを使うには、Passless デスクトップアプリのロックを解除したままにしてください。"
 	},
+	"noLoginForm": {
+		"message": "このページにログインフォームが見つかりません。"
+	},
+	"noMatch": {
+		"message": "このサイトに保存されたログインはありません。"
+	},
 	"pairingTokenLabel": {
 		"message": "ペアリングトークン"
 	},
+	"providerButtonFound": {
+		"message": "このページの $PROVIDER$ ボタンを強調表示しました。",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"providerButtonMissing": {
+		"message": "このページに $PROVIDER$ ボタンが見つかりません。",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
 	"saveToken": {
 		"message": "トークンを保存"
+	},
+	"signInWithProvider": {
+		"message": "$PROVIDER$ でサインイン",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
 	},
 	"statusChecking": {
 		"message": "アプリを確認中…"

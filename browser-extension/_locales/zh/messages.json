@@ -5,17 +5,53 @@
 	"extensionName": {
 		"message": "Passless 自动填充"
 	},
+	"filledPage": {
+		"message": "已填充此页面的登录信息。"
+	},
 	"fillPage": {
 		"message": "填充当前页面"
 	},
 	"footerHint": {
 		"message": "请保持 Passless 桌面应用处于解锁状态，才能使用自动填充和保存提示。"
 	},
+	"noLoginForm": {
+		"message": "此页面上未找到登录表单。"
+	},
+	"noMatch": {
+		"message": "此网站没有已保存的登录信息。"
+	},
 	"pairingTokenLabel": {
 		"message": "配对令牌"
 	},
+	"providerButtonFound": {
+		"message": "已在此页面上突出显示 $PROVIDER$ 按钮。",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"providerButtonMissing": {
+		"message": "此页面上未找到 $PROVIDER$ 按钮。",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
 	"saveToken": {
 		"message": "保存令牌"
+	},
+	"signInWithProvider": {
+		"message": "使用 $PROVIDER$ 登录",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
 	},
 	"statusChecking": {
 		"message": "正在检查应用…"

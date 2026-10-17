@@ -22,6 +22,17 @@ export type LoginItem = {
   updated_at: string
   // Left out of the payload when the item has no links (and by the browser bridge entirely).
   relations?: ItemRelations
+  // Absent means `auto`: the website icon when the item has a site and one was found.
+  icon_mode?: ItemIconMode
+}
+
+export type ItemIconMode = 'auto' | 'letter'
+
+// One cached website icon: a PNG data URL (or null for a site that had none) and whether it is recent
+// enough not to ask the site again. A site never fetched is simply absent from the answer.
+export type CachedSiteIcon = {
+  fresh: boolean
+  icon: string | null
 }
 
 // One linked item, as much as the detail pane needs to draw it and navigate to it.
@@ -37,6 +48,10 @@ export type ItemRelations = {
   children: RelatedItemRef[]
   parent: RelatedItemRef | null
   related: RelatedItemRef[]
+  // The account this item signs in with, and the items that sign in with this one. Both are left out
+  // of the payload when empty.
+  sign_in_with?: RelatedItemRef | null
+  signs_in_to?: RelatedItemRef[]
 }
 
 export type VaultSummary = {
@@ -66,7 +81,7 @@ export type CustomField = {
   field_type: string
 }
 
-export type LoginItemInput = Omit<LoginItem, 'id' | 'relations' | 'updated_at'>
+export type LoginItemInput = Omit<LoginItem, 'icon_mode' | 'id' | 'relations' | 'updated_at'>
 
 export type PasswordGeneratorMode = 'passphrase' | 'pin' | 'random'
 
@@ -174,8 +189,11 @@ export const vaultApi = {
   archive: (id: string) => invoke<void>('archive_login_item', { id }),
   archived: () => invoke<LoginItem[]>('list_archived_login_items'),
   attachFileToItem: (id: string, path: string) => invoke<CustomField>('attach_file_to_item', { id, path }),
+  // Website icons the vault already holds, for these sites. Never touches the network.
+  cachedSiteIcons: (domains: string[]) => invoke<Record<string, CachedSiteIcon>>('cached_site_icons', { domains }),
   canUseBiometrics: () => invoke<boolean>('can_use_biometrics'),
   checkBreaches: () => invoke<BreachCheckResult>('check_breached_passwords'),
+  clearSiteIcons: () => invoke<void>('clear_site_icons'),
   create: (input: LoginItemInput) => invoke<LoginItem>('create_login_item', { input }),
   createVault: (name: string) => invoke<VaultSummary>('create_vault', { name }),
   deleteTag: (name: string) => invoke<void>('delete_tag', { name }),
@@ -184,6 +202,8 @@ export const vaultApi = {
   duplicate: (id: string, title: string) => invoke<LoginItem>('duplicate_login_item', { id, title }),
   exportAttachmentToTemp: (id: string) => invoke<string>('export_attachment_to_temp', { id }),
   favorite: (id: string, favorite: boolean) => invoke<void>('set_login_favorite', { favorite, id }),
+  // Asks the site itself (Rust, favicon.rs) and caches the answer; `force` ignores a recent one.
+  fetchSiteIcon: (domain: string, force: boolean) => invoke<string | null>('fetch_site_icon', { domain, force }),
   generateBrowserPairingToken: () => invoke<string>('generate_browser_pairing_token'),
   generatePassword: (options: PasswordGeneratorOptions) => invoke<string>('generate_password_command', { options }),
   generateTotp: (secret: string) => invoke<TotpCode>('generate_totp_code', { secret }),
@@ -204,7 +224,10 @@ export const vaultApi = {
   restoreFromTrash: (id: string) => invoke<void>('restore_trashed_login_item', { id }),
   setAutostart: (enabled: boolean) => invoke<void>('set_autostart', { enabled }),
   // `parentId: null` clears the parent. Rust refuses itself, a cycle, and an item in the trash.
+  setIconMode: (id: string, mode: ItemIconMode) => invoke<void>('set_item_icon_mode', { id, mode }),
   setParent: (id: string, parentId: string | null) => invoke<void>('set_item_parent', { id, parentId }),
+  // `accountId: null` clears it. Rust refuses itself and an item outside this vault or in the trash.
+  setSignIn: (id: string, accountId: string | null) => invoke<void>('set_item_sign_in', { accountId, id }),
   setup: (password: string) => invoke<LoginItem[]>('setup_master_password', { password }),
   // Archiving a vault archives what is in it too, so the items land in the view that already exists.
   setVaultArchived: (archived: boolean, id: string) => invoke<void>('set_vault_archived', { archived, id }),

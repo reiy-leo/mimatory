@@ -2,7 +2,7 @@ const bridge = 'http://127.0.0.1:17891'
 const statusEl = document.getElementById('status')
 const tokenInput = document.getElementById('token')
 
-const text = (key) => chrome.i18n.getMessage(key)
+const text = (key, substitutions) => chrome.i18n.getMessage(key, substitutions)
 
 /* The popup has no in-app language switch: it follows the browser UI language, which is what
    chrome.i18n resolves messages against. Assistive tech reads this value for the whole document. */
@@ -26,10 +26,37 @@ fetch(`${bridge}/health`)
     statusEl.textContent = text('statusUnavailable')
   })
 
+/* The bridge sends a known provider as its id (`google`) and anything else as the name the user typed. */
+const PROVIDER_LABELS = {
+  apple: 'Apple',
+  facebook: 'Facebook',
+  github: 'GitHub',
+  google: 'Google',
+  microsoft: 'Microsoft',
+  x: 'X',
+}
+
+function describeFill(result) {
+  if (!result) return text('noMatch')
+  if (result.kind === 'signInWith') {
+    const provider = PROVIDER_LABELS[result.provider] || result.provider
+    const hint = text(result.found ? 'providerButtonFound' : 'providerButtonMissing', [provider])
+    return `${text('signInWithProvider', [provider])}. ${hint}`
+  }
+  if (result.kind === 'filled') return text('filledPage')
+  if (result.kind === 'noLoginForm') return text('noLoginForm')
+  if (result.kind === 'noMatch') return text('noMatch')
+  return text('statusUnavailable')
+}
+
 document.getElementById('fill').addEventListener('click', async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-  if (tab?.id) {
-    chrome.tabs.sendMessage(tab.id, { type: 'PASSLESS_FILL' })
+  if (!tab?.id) return
+  try {
+    const result = await chrome.tabs.sendMessage(tab.id, { type: 'PASSLESS_FILL' })
+    statusEl.textContent = describeFill(result)
+  } catch {
+    statusEl.textContent = text('statusUnavailable')
   }
 })
 

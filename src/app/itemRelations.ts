@@ -6,6 +6,8 @@ export type RelationDraft = {
   childIds: string[]
   parentId: string | null
   relatedIds: string[]
+  // The account the item signs in with ("Sign in with…"); the provider itself is a field.
+  signInId: string | null
 }
 
 export type RelationKind = 'child' | 'parent' | 'related'
@@ -15,9 +17,10 @@ export type RelationKind = 'child' | 'parent' | 'related'
 export type RelationChange =
   | { kind: 'link'; otherId: string }
   | { kind: 'setParent'; itemId: string; parentId: string | null }
+  | { kind: 'setSignIn'; accountId: string | null }
   | { kind: 'unlink'; otherId: string }
 
-export const emptyRelationDraft: RelationDraft = { childIds: [], parentId: null, relatedIds: [] }
+export const emptyRelationDraft: RelationDraft = { childIds: [], parentId: null, relatedIds: [], signInId: null }
 
 export function relationDraftOf(relations?: ItemRelations | null): RelationDraft {
   if (!relations) return emptyRelationDraft
@@ -25,17 +28,30 @@ export function relationDraftOf(relations?: ItemRelations | null): RelationDraft
     childIds: relations.children.map((child) => child.id),
     parentId: relations.parent?.id ?? null,
     relatedIds: relations.related.map((related) => related.id),
+    signInId: relations.sign_in_with?.id ?? null,
   }
 }
 
 // Whether the item has any link at all — the rule that keeps Delete (and Move) unavailable.
 export function hasRelations(relations?: ItemRelations | null): boolean {
-  return Boolean(relations && (relations.parent || relations.children.length || relations.related.length))
+  return Boolean(
+    relations &&
+      (relations.parent ||
+        relations.children.length ||
+        relations.related.length ||
+        relations.sign_in_with ||
+        relations.signs_in_to?.length),
+  )
 }
 
 export function relationDraftKey(draft?: RelationDraft): string {
   const value = draft ?? emptyRelationDraft
-  return JSON.stringify([value.parentId, [...value.childIds].sort(), [...value.relatedIds].sort()])
+  return JSON.stringify([
+    value.parentId,
+    [...value.childIds].sort(),
+    [...value.relatedIds].sort(),
+    value.signInId ?? null,
+  ])
 }
 
 export function relationChanges(itemId: string, baseline: RelationDraft, draft: RelationDraft): RelationChange[] {
@@ -55,6 +71,9 @@ export function relationChanges(itemId: string, baseline: RelationDraft, draft: 
     changes.push({ itemId: childId, kind: 'setParent', parentId: itemId })
   }
   for (const otherId of removed(draft.relatedIds, baseline.relatedIds)) changes.push({ kind: 'link', otherId })
+  if ((draft.signInId ?? null) !== (baseline.signInId ?? null)) {
+    changes.push({ accountId: draft.signInId ?? null, kind: 'setSignIn' })
+  }
   return changes
 }
 
@@ -121,7 +140,15 @@ export function relationCandidates(
 export function relationRef(id: string, items: LoginItem[], stored?: ItemRelations | null): RelatedItemRef | null {
   const live = items.find((item) => item.id === id)
   if (live) return { archived: false, id, item_type: live.item_type, title: live.title }
-  const refs = stored ? [...(stored.parent ? [stored.parent] : []), ...stored.children, ...stored.related] : []
+  const refs = stored
+    ? [
+        ...(stored.parent ? [stored.parent] : []),
+        ...stored.children,
+        ...stored.related,
+        ...(stored.sign_in_with ? [stored.sign_in_with] : []),
+        ...(stored.signs_in_to ?? []),
+      ]
+    : []
   return refs.find((ref) => ref.id === id) ?? null
 }
 

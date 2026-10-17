@@ -12,6 +12,7 @@ import {
   Calendar,
   CalendarRange,
   Car,
+  CaseUpper,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -31,6 +32,7 @@ import {
   EyeOff,
   Fingerprint,
   FolderInput,
+  Globe,
   GripVertical,
   Group,
   IdCard,
@@ -50,6 +52,7 @@ import {
   Plane,
   Plus,
   QrCode,
+  RefreshCw,
   Router,
   Search,
   Server,
@@ -99,6 +102,7 @@ import {
   sectionDisplayTitle,
   stringifySectionChildren,
 } from './app/itemFields'
+import { ItemIcon } from './app/itemIcon'
 import {
   emptyRelationDraft,
   filterByTitle,
@@ -152,6 +156,18 @@ import {
   saveHighlightKeys,
   toggleHighlightKeys,
 } from './app/sidebarHighlights'
+import { SignInPicker, SignInRow, useSignInLabel } from './app/signInControls'
+import { itemSignInProvider, parseSignInProvider, withoutSignInField, withSignInField } from './app/signInProviders'
+import {
+  forgetSiteIcons,
+  loadSiteIcons,
+  readSiteIconsEnabled,
+  refreshSiteIcon,
+  siteIconDomain,
+  uniqueIconDomains,
+  useSiteIconsEnabled,
+  writeSiteIconsEnabled,
+} from './app/siteIcons'
 import {
   defaultTagColor,
   tagColorClass,
@@ -338,7 +354,7 @@ const vaultMenuHeight = 3 * menuRowHeight + 24
 // because only the taller one can ever be the one that has to flip above the trigger.
 const itemMenuWidth = 220
 // Move and Delete each carry a one-line hint while the item has links, hence the extra allowance.
-const itemMenuHeight = 8 * menuRowHeight + 40
+const itemMenuHeight = 10 * menuRowHeight + 40
 
 // These belong with the credentials they protect, so they render in the username /
 // password group instead of the custom field list.
@@ -429,13 +445,6 @@ function itemTitleById(items: LoginItem[], id: string) {
   return items.find((item) => item.id === id)?.title ?? id
 }
 
-function filterItemsByTitle(items: LoginItem[], query: string, excludeId?: string) {
-  const normalizedQuery = query.trim().toLowerCase()
-  return items.filter(
-    (item) => item.id !== excludeId && (!normalizedQuery || item.title.toLowerCase().includes(normalizedQuery)),
-  )
-}
-
 function fileNameFromPath(path: string) {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path
 }
@@ -446,75 +455,6 @@ const iconById = {
   trash: Trash2,
   vaults: Vault,
 } as const
-
-function ItemSearchField({
-  ariaLabel,
-  emptyMessage,
-  excludeId,
-  items,
-  onChange,
-  placeholder,
-  value,
-}: {
-  ariaLabel: string
-  emptyMessage: string
-  excludeId?: string
-  items: LoginItem[]
-  onChange: (itemId: string) => void
-  placeholder: string
-  value: string
-}) {
-  const [query, setQuery] = useState('')
-  const [open, setOpen] = useState(false)
-  const matches = open ? filterItemsByTitle(items, query, excludeId) : []
-
-  return (
-    <div className="item-search-wrap">
-      <input
-        aria-label={ariaLabel}
-        className="custom-field-value-input"
-        onBlur={() => {
-          setOpen(false)
-          setQuery('')
-        }}
-        onChange={(event) => setQuery(event.target.value)}
-        onFocus={() => setOpen(true)}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            setOpen(false)
-            setQuery('')
-          }
-        }}
-        placeholder={placeholder}
-        value={open ? query : itemTitleById(items, value)}
-      />
-      {open ? (
-        <div
-          className="item-search-list"
-          // Keep focus on the input so selecting an option is not raced by blur.
-          onMouseDown={(event) => event.preventDefault()}
-        >
-          {matches.map((item) => (
-            <button
-              className="menu-option"
-              key={item.id}
-              onClick={() => {
-                onChange(item.id)
-                setOpen(false)
-                setQuery('')
-              }}
-              type="button"
-            >
-              <span>{item.title}</span>
-              {item.username || item.website ? <small>{item.username || item.website}</small> : null}
-            </button>
-          ))}
-          {matches.length === 0 ? <p className="item-search-empty">{emptyMessage}</p> : null}
-        </div>
-      ) : null}
-    </div>
-  )
-}
 
 function FieldOrderButtons({
   canMoveDown,
@@ -863,6 +803,10 @@ function VaultWindow() {
   const [relationPicker, setRelationPicker] = useState<RelationKind | null>(null)
   const [relationQuery, setRelationQuery] = useState('')
   const relationSearchRef = useRef<HTMLInputElement>(null)
+  // The "Sign in with…" sheet (Add More); it edits the form's provider field and its sign-in link.
+  const [signInPickerOpen, setSignInPickerOpen] = useState(false)
+  const siteIconsEnabled = useSiteIconsEnabled()
+  const signInLabel = useSignInLabel()
   // One panel holds everything that can be done to a stored item, opened either from the header's
   // ellipsis or by right-clicking the row. `move` is the vault list swapped into the same panel rather
   // than a second anchor that could cover the trigger, and the source decides which of the two rows
@@ -1146,6 +1090,7 @@ function VaultWindow() {
   const showUsername = Boolean(template.credentials ? template.credentials.username || form.username : true)
   const usernameLabel = t(template.credentials?.usernameLabelKey ?? 'vault.username')
   const passwordLabel = t(template.credentials?.passwordLabelKey ?? 'vault.password')
+  const hasSignInField = form.custom_fields.some((field) => field.field_type === 'sign_in_with')
   const showWebsites = template.websites || form.urlsInput.some((itemUrl) => itemUrl.url.trim())
 
   // Original custom_fields indexes are kept so every mutator still addresses the right row.
@@ -1269,6 +1214,14 @@ function VaultWindow() {
   useEffect(() => {
     if (relationPicker) relationSearchRef.current?.focus()
   }, [relationPicker])
+
+  // Website icons: show what the vault already holds for every listed site, and fetch the missing or
+  // stale ones in the background when the setting allows it. A newly saved address arrives here with
+  // the re-listed items, which is how an item gets its icon on save.
+  useEffect(() => {
+    if (mode !== 'unlocked' || !siteIconsEnabled) return
+    void loadSiteIcons(uniqueIconDomains([...items, ...archivedItems, ...trashedItems]), { download: true })
+  }, [archivedItems, items, mode, siteIconsEnabled, trashedItems])
 
   // The category a new draft was built under is scrolled into view and focused, which has to happen
   // after the row exists: an unfolded section and its rows arrive in the same commit as this state.
@@ -1441,6 +1394,7 @@ function VaultWindow() {
         try {
           if (change.kind === 'setParent') await vaultApi.setParent(change.itemId, change.parentId)
           else if (change.kind === 'link') await vaultApi.linkRelated(saved.id, change.otherId)
+          else if (change.kind === 'setSignIn') await vaultApi.setSignIn(saved.id, change.accountId)
           else await vaultApi.unlinkRelated(saved.id, change.otherId)
         } catch (nextError) {
           relationError = relationError ?? nextError
@@ -2052,6 +2006,7 @@ function VaultWindow() {
       !tagDeleteTarget &&
       !itemTypePickerOpen &&
       !relationPicker &&
+      !signInPickerOpen &&
       !vaultEditor &&
       !vaultDissolveTarget
     )
@@ -2066,6 +2021,7 @@ function VaultWindow() {
       if (menuOpen) closeFieldMenus()
       setPurgeTarget(null)
       setRelationPicker(null)
+      setSignInPickerOpen(false)
       closeCreateVault()
       closeTagEditor()
       setTagDeleteTarget(null)
@@ -2089,6 +2045,7 @@ function VaultWindow() {
     sectionHighlightMenu,
     sectionMenuIndex,
     showAddMore,
+    signInPickerOpen,
     tagDeleteTarget,
     tagEditor,
     tagMenu,
@@ -2098,6 +2055,11 @@ function VaultWindow() {
   ])
 
   async function addCustomField(fieldType: (typeof addMoreOptions)[number]['type']) {
+    // Not a free-text field: it opens the sheet that picks the provider and the account.
+    if (fieldType === 'sign_in_with') {
+      openSignInPicker()
+      return
+    }
     const attachmentPath = fieldType === 'file' ? await vaultApi.pickAttachmentFile() : null
     if (fieldType === 'file' && !attachmentPath) {
       setShowAddMore(false)
@@ -2125,13 +2087,69 @@ function VaultWindow() {
 
   function removeCustomField(index: number) {
     setForm((current) => {
+      const removed = current.custom_fields[index]
       const customFields = current.custom_fields.filter((_, fieldIndex) => fieldIndex !== index)
       return {
         ...current,
         custom_fields: customFields,
         customFieldsInput: customFieldsToInput(customFields),
+        // The provider and the account it signs in with go together.
+        relationDraft:
+          removed?.field_type === 'sign_in_with' ? { ...current.relationDraft, signInId: null } : current.relationDraft,
       }
     })
+  }
+
+  function openSignInPicker() {
+    closeFieldMenus()
+    setSignInPickerOpen(true)
+  }
+
+  function applySignIn(provider: Parameters<typeof withSignInField>[1], accountId: string | null) {
+    setSignInPickerOpen(false)
+    setForm((current) => {
+      const customFields = withSignInField(current.custom_fields, provider)
+      return {
+        ...current,
+        custom_fields: customFields,
+        customFieldsInput: customFieldsToInput(customFields),
+        relationDraft: { ...current.relationDraft, signInId: accountId },
+      }
+    })
+  }
+
+  // The list's second line: "Sign in with Google" for an item that has no password of its own to
+  // speak of, otherwise the username, the site or the type, as before.
+  function itemSubtitle(item: LoginItem) {
+    const provider = itemSignInProvider(item)
+    if (provider) return signInLabel(provider)
+    return item.username || item.website || t(`itemTypes.${item.item_type}`)
+  }
+
+  async function handleRefreshIcon() {
+    if (!selectedItem) return
+    closeFieldMenus()
+    const domain = siteIconDomain(selectedItem)
+    if (!domain) return
+    try {
+      if (selectedItem.icon_mode === 'letter') await vaultApi.setIconMode(selectedItem.id, 'auto')
+      const icon = await refreshSiteIcon(domain)
+      setItems(await vaultApi.list())
+      setOperationMessage(t(icon ? 'messages.iconRefreshed' : 'messages.iconNotFound'))
+    } catch (nextError) {
+      setError(String(nextError))
+    }
+  }
+
+  async function handleIconMode(mode: 'auto' | 'letter') {
+    if (!selectedItem) return
+    closeFieldMenus()
+    try {
+      await vaultApi.setIconMode(selectedItem.id, mode)
+      setItems(await vaultApi.list())
+    } catch (nextError) {
+      setError(String(nextError))
+    }
   }
 
   async function previewFieldTotp(index: number, secret: string, silent = false) {
@@ -2953,10 +2971,10 @@ function VaultWindow() {
             <div className="top-search-results" data-tauri-drag-region="false">
               {topSearchResults.map((item) => (
                 <button key={item.id} onClick={() => jumpToSearchResult(item.id)} type="button">
-                  <span className="item-icon">{item.title.slice(0, 1).toUpperCase() || 'L'}</span>
+                  <ItemIcon item={item} />
                   <span>
                     <strong>{item.title}</strong>
-                    <small>{item.username || item.website || t(`itemTypes.${item.item_type}`)}</small>
+                    <small>{itemSubtitle(item)}</small>
                   </span>
                 </button>
               ))}
@@ -2984,13 +3002,11 @@ function VaultWindow() {
                 // A state row is not selectable: the detail pane only ever edits live items, so the
                 // row carries its own way back, and the trash carries the way out as well.
                 <div className="item-row state-row" key={item.id}>
-                  <span className="item-icon">{item.title.slice(0, 1).toUpperCase() || 'L'}</span>
+                  <ItemIcon item={item} />
                   <span className="item-row-text">
                     <strong>{item.title}</strong>
                     <small>
-                      <span className="row-subtitle">
-                        {item.username || item.website || t(`itemTypes.${item.item_type}`)}
-                      </span>
+                      <span className="row-subtitle">{itemSubtitle(item)}</span>
                       <span className="row-stamp">{formatItemTimestamp(item.updated_at, i18n.language)}</span>
                     </small>
                     <span className="state-row-actions">
@@ -3029,13 +3045,11 @@ function VaultWindow() {
                   onContextMenu={(event) => openItemRowMenu(event, item)}
                   type="button"
                 >
-                  <span className="item-icon">{item.title.slice(0, 1).toUpperCase() || 'L'}</span>
+                  <ItemIcon item={item} />
                   <span className="item-row-text">
                     <strong>{item.title}</strong>
                     <small>
-                      <span className="row-subtitle">
-                        {item.username || item.website || t(`itemTypes.${item.item_type}`)}
-                      </span>
+                      <span className="row-subtitle">{itemSubtitle(item)}</span>
                       <span className="row-stamp">{formatItemTimestamp(item.updated_at, i18n.language)}</span>
                     </small>
                   </span>
@@ -3111,7 +3125,16 @@ function VaultWindow() {
             <form className="detail-form" id="item-detail-form" onSubmit={handleSave}>
               <fieldset className="detail-fieldset" disabled={!isEditing} onScroll={closeFieldMenus}>
                 <div className="detail-header">
-                  <div className="large-icon">{form.title.slice(0, 1).toUpperCase() || '+'}</div>
+                  <ItemIcon
+                    className="large-icon"
+                    item={{
+                      icon_mode: selectedItem?.icon_mode,
+                      title: form.title,
+                      urls: selectedItem?.urls ?? [],
+                      website: selectedItem?.website ?? '',
+                    }}
+                    placeholder="+"
+                  />
                   <div>
                     <input
                       aria-label={t('vault.loginTitle')}
@@ -3147,66 +3170,84 @@ function VaultWindow() {
                           />
                         </label>
                       ) : null}
-                      <label className="onepassword-field">
-                        {passwordLabel}
-                        <span className="password-control">
-                          <input
-                            onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                            placeholder={t('vault.passwordPlaceholder')}
-                            type={showPassword ? 'text' : 'password'}
-                            value={form.password}
-                          />
-                          <button
-                            aria-label={t('vault.showPassword')}
-                            onClick={() => setShowPassword((value) => !value)}
-                            title={t('vault.showPassword')}
-                            type="button"
-                          >
-                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </button>
-                          <button
-                            aria-label={t('vault.copyPassword')}
-                            onClick={copyPassword}
-                            title={t('vault.copyPassword')}
-                            type="button"
-                          >
-                            <Copy size={16} />
-                          </button>
-                          <button
-                            aria-label={t('vault.generatePassword')}
-                            onClick={handleGeneratePassword}
-                            title={t('vault.generatePassword')}
-                            type="button"
-                          >
-                            <KeyRound size={16} />
-                          </button>
-                        </span>
-                        {passwordStrength ? <PasswordStrengthMeter strength={passwordStrength} /> : null}
-                      </label>
+                      {/* A "Sign in with…" login has no password of its own; the row comes back as soon as
+                          one is typed somewhere (or the sign-in method is removed). */}
+                      {!hasSignInField || form.password ? (
+                        <label className="onepassword-field">
+                          {passwordLabel}
+                          <span className="password-control">
+                            <input
+                              onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+                              placeholder={t('vault.passwordPlaceholder')}
+                              type={showPassword ? 'text' : 'password'}
+                              value={form.password}
+                            />
+                            <button
+                              aria-label={t('vault.showPassword')}
+                              onClick={() => setShowPassword((value) => !value)}
+                              title={t('vault.showPassword')}
+                              type="button"
+                            >
+                              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                            <button
+                              aria-label={t('vault.copyPassword')}
+                              onClick={copyPassword}
+                              title={t('vault.copyPassword')}
+                              type="button"
+                            >
+                              <Copy size={16} />
+                            </button>
+                            <button
+                              aria-label={t('vault.generatePassword')}
+                              onClick={handleGeneratePassword}
+                              title={t('vault.generatePassword')}
+                              type="button"
+                            >
+                              <KeyRound size={16} />
+                            </button>
+                          </span>
+                          {passwordStrength ? <PasswordStrengthMeter strength={passwordStrength} /> : null}
+                        </label>
+                      ) : null}
                       {loginSectionFields.map(({ field, index }) => (
                         <div
                           className="onepassword-field login-custom-field"
                           key={`login-field-${field.field_type}-${index}`}
                         >
-                          <input
-                            aria-label={t('vault.fieldLabel')}
-                            className="custom-field-name-input"
-                            onChange={(event) => updateCustomField(index, { label: event.target.value })}
-                            placeholder={t(`vault.customFieldDefaults.${field.field_type}`)}
-                            value={field.label}
-                          />
+                          {field.field_type === 'sign_in_with' ? (
+                            // The provider is chosen in the sheet, not typed, so its label is fixed too.
+                            <span className="custom-field-name-input">
+                              {t('vault.customFieldDefaults.sign_in_with')}
+                            </span>
+                          ) : (
+                            <input
+                              aria-label={t('vault.fieldLabel')}
+                              className="custom-field-name-input"
+                              onChange={(event) => updateCustomField(index, { label: event.target.value })}
+                              placeholder={t(`vault.customFieldDefaults.${field.field_type}`)}
+                              value={field.label}
+                            />
+                          )}
                           <div className="login-custom-field-value">
                             <div className="login-custom-field-control">
                               {field.field_type === 'sign_in_with' ? (
-                                <ItemSearchField
-                                  ariaLabel={t('vault.signInWith')}
-                                  emptyMessage={t('vault.noSearchResults')}
-                                  excludeId={selectedItem?.id}
-                                  items={items}
-                                  onChange={(itemId) => updateCustomField(index, { value: itemId })}
-                                  placeholder={t('vault.signInWithPlaceholder')}
-                                  value={field.value}
-                                />
+                                <div className="sign-in-edit">
+                                  <SignInRow
+                                    account={
+                                      form.relationDraft.signInId
+                                        ? relationRef(form.relationDraft.signInId, items, selectedItem?.relations)
+                                        : null
+                                    }
+                                    accountDetail={
+                                      items.find((item) => item.id === form.relationDraft.signInId)?.username
+                                    }
+                                    provider={parseSignInProvider(field.value)}
+                                  />
+                                  <button className="secondary-button" onClick={openSignInPicker} type="button">
+                                    {t('vault.signIn.change')}
+                                  </button>
+                                </div>
                               ) : (
                                 <input
                                   aria-label={t('vault.fieldValue')}
@@ -3718,7 +3759,16 @@ function VaultWindow() {
           ) : (
             <div className="detail-view">
               <div className="detail-header">
-                <div className="large-icon">{form.title.slice(0, 1).toUpperCase() || '+'}</div>
+                <ItemIcon
+                  className="large-icon"
+                  item={{
+                    icon_mode: selectedItem?.icon_mode,
+                    title: form.title,
+                    urls: selectedItem?.urls ?? [],
+                    website: selectedItem?.website ?? '',
+                  }}
+                  placeholder="+"
+                />
                 <h2 className="detail-title">{form.title}</h2>
                 <button
                   aria-label={t('vault.favorite')}
@@ -3746,16 +3796,25 @@ function VaultWindow() {
                         value={form.password}
                       />
                     ) : null}
-                    {viewLoginFields.map(({ field, index }) => (
-                      <FieldView
-                        display={field.field_type === 'sign_in_with' ? itemTitleById(items, field.value) : undefined}
-                        fieldType="text"
-                        key={`login-view-${index}`}
-                        label={field.label.trim() || t(`vault.customFieldDefaults.${field.field_type}`)}
-                        onCopy={copyFieldValue}
-                        value={field.field_type === 'sign_in_with' ? itemTitleById(items, field.value) : field.value}
-                      />
-                    ))}
+                    {viewLoginFields.map(({ field, index }) =>
+                      field.field_type === 'sign_in_with' ? (
+                        <SignInRow
+                          account={viewRelations?.sign_in_with ?? null}
+                          accountDetail={items.find((item) => item.id === viewRelations?.sign_in_with?.id)?.username}
+                          key={`login-view-${index}`}
+                          onOpen={(ref) => openRelatedItem(ref.id)}
+                          provider={parseSignInProvider(field.value)}
+                        />
+                      ) : (
+                        <FieldView
+                          fieldType="text"
+                          key={`login-view-${index}`}
+                          label={field.label.trim() || t(`vault.customFieldDefaults.${field.field_type}`)}
+                          onCopy={copyFieldValue}
+                          value={field.value}
+                        />
+                      ),
+                    )}
                   </div>
                 ) : null}
                 {viewOtpIndexes.length ? (
@@ -3870,11 +3929,13 @@ function VaultWindow() {
                           ) : undefined
                         }
                         display={
-                          field.field_type === 'related_item' || field.field_type === 'sign_in_with'
+                          field.field_type === 'related_item'
                             ? itemTitleById(items, field.value)
-                            : field.field_type === 'file'
-                              ? fileNameFromPath(field.value)
-                              : undefined
+                            : field.field_type === 'sign_in_with'
+                              ? signInLabel(parseSignInProvider(field.value))
+                              : field.field_type === 'file'
+                                ? fileNameFromPath(field.value)
+                                : undefined
                         }
                         fieldType={specialFieldTypes.includes(field.field_type) ? 'text' : field.field_type}
                         key={`field-view-${index}`}
@@ -3890,6 +3951,7 @@ function VaultWindow() {
                     ['parent', 'vault.relations.parent', viewRelations?.parent ? [viewRelations.parent] : []],
                     ['child', 'vault.relations.children', viewRelations?.children ?? []],
                     ['related', 'vault.relations.related', viewRelations?.related ?? []],
+                    ['signsInTo', 'vault.signIn.usedBy', viewRelations?.signs_in_to ?? []],
                   ] as const
                 ).map(([kind, headingKey, refs]) => (
                   <RelationSection
@@ -4089,7 +4151,11 @@ function VaultWindow() {
                         }}
                         type="button"
                       >
-                        <Icon aria-hidden="true" className={colorClass} size={16} />
+                        <ItemIcon
+                          className="picker-icon"
+                          fallback={<Icon aria-hidden="true" className={colorClass} size={16} />}
+                          item={candidate}
+                        />
                         <span className="relation-row-text">
                           <span className="relation-row-title">{candidate.title}</span>
                           <span className="relation-row-caption">{relationTypeLabel(candidate.item_type)}</span>
@@ -4111,6 +4177,16 @@ function VaultWindow() {
             </div>
           </div>
         </div>
+      ) : null}
+      {signInPickerOpen ? (
+        <SignInPicker
+          initialAccountId={form.relationDraft.signInId}
+          initialProvider={itemSignInProvider(form)}
+          items={items}
+          onCancel={() => setSignInPickerOpen(false)}
+          onDone={applySignIn}
+          selfId={selectedItem?.id ?? null}
+        />
       ) : null}
       {/* The header's ellipsis. Two sections share one anchor: the vault list swaps in place rather
           than flying out beside a panel that already sits at the right edge of the window. */}
@@ -4189,6 +4265,37 @@ function VaultWindow() {
                   <span>{t('vault.duplicateItem')}</span>
                 </span>
               </button>
+              {selectedItem && siteIconDomain(selectedItem) ? (
+                <>
+                  {siteIconsEnabled ? (
+                    <button className="menu-option with-icon" onClick={() => void handleRefreshIcon()} type="button">
+                      <RefreshCw aria-hidden="true" size={15} />
+                      <span className="menu-option-label">
+                        <span>{t('vault.siteIcon.refresh')}</span>
+                      </span>
+                    </button>
+                  ) : null}
+                  {selectedItem.icon_mode === 'letter' ? (
+                    <button className="menu-option with-icon" onClick={() => void handleIconMode('auto')} type="button">
+                      <Globe aria-hidden="true" size={15} />
+                      <span className="menu-option-label">
+                        <span>{t('vault.siteIcon.useWebsite')}</span>
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      className="menu-option with-icon"
+                      onClick={() => void handleIconMode('letter')}
+                      type="button"
+                    >
+                      <CaseUpper aria-hidden="true" size={15} />
+                      <span className="menu-option-label">
+                        <span>{t('vault.siteIcon.useLetter')}</span>
+                      </span>
+                    </button>
+                  )}
+                </>
+              ) : null}
               {itemMenuSource === 'header' ? (
                 <button className="menu-option with-icon" onClick={() => void handleShare()} type="button">
                   <Share aria-hidden="true" size={15} />
@@ -4515,6 +4622,7 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
   const [status, setStatus] = useState<AppStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [operationMessage, setOperationMessage] = useState<string | null>(null)
+  const [siteIconsOn, setSiteIconsOn] = useState(() => readSiteIconsEnabled())
   const [watchtower, setWatchtower] = useState<WatchtowerReport | null>(null)
   const [breachResult, setBreachResult] = useState<BreachCheckResult | null>(null)
   const [browserToken, setBrowserToken] = useState('')
@@ -4583,6 +4691,21 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
       .then(setAutostartEnabled)
       .catch(() => setAutostartEnabled(false))
   }, [])
+
+  async function updateSiteIcons(enabled: boolean) {
+    setError(null)
+    writeSiteIconsEnabled(enabled)
+    setSiteIconsOn(enabled)
+    if (enabled) return
+    // Off means off: the icons already saved go too, not just future downloads.
+    forgetSiteIcons()
+    try {
+      await vaultApi.clearSiteIcons()
+    } catch {
+      // Locked: nothing can be read without the key anyway, and the next unlock with the setting
+      // off neither shows nor fetches any icon.
+    }
+  }
 
   async function updateAutostart(enabled: boolean) {
     setError(null)
@@ -4754,6 +4877,18 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
                     </option>
                   ))}
                 </select>
+              </label>
+            </div>
+            <div className="integration-card">
+              <h2>{t('settings.siteIcons')}</h2>
+              <p>{t('settings.siteIconsDescription')}</p>
+              <label className="checkbox-row">
+                <input
+                  checked={siteIconsOn}
+                  onChange={(event) => void updateSiteIcons(event.target.checked)}
+                  type="checkbox"
+                />
+                {t('settings.downloadSiteIcons')}
               </label>
             </div>
             {features.autostart ? (
@@ -5144,6 +5279,8 @@ function QuickAccessWindow() {
   const listRef = useRef<HTMLDivElement>(null)
   const hideTimerRef = useRef<number | null>(null)
 
+  const signInLabel = useSignInLabel()
+  const siteIconsEnabled = useSiteIconsEnabled()
   const results = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     const matches = normalizedQuery
@@ -5156,6 +5293,11 @@ function QuickAccessWindow() {
       : items
     return matches.slice(0, quickAccessMaxResults)
   }, [items, query])
+
+  // The panel only reads icons the main window already fetched; it never starts a download itself.
+  useEffect(() => {
+    if (siteIconsEnabled && results.length) void loadSiteIcons(uniqueIconDomains(results), { download: false })
+  }, [results, siteIconsEnabled])
 
   async function refresh() {
     try {
@@ -5296,8 +5438,9 @@ function QuickAccessWindow() {
               onClick={() => void copyPassword(item)}
               type="button"
             >
+              <ItemIcon item={item} />
               <strong>{item.title}</strong>
-              <small>{item.username}</small>
+              <small>{item.username || (itemSignInProvider(item) ? signInLabel(itemSignInProvider(item)) : '')}</small>
               {copiedId === item.id ? <span className="quick-access-badge">{t('quickAccess.copied')}</span> : null}
             </button>
           ))}
