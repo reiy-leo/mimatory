@@ -1,3 +1,4 @@
+use crate::passkey::StoredPasskey;
 use crate::crypto::{
     decrypt_string, decrypt_string_from_blob, derive_key, encrypt_string, encrypt_string_to_blob,
     generate_salt, CryptoError, EncryptedPayload, VaultKey,
@@ -1210,6 +1211,7 @@ impl VaultService {
         rp_id: &str,
         user_name: &str,
         target: &PasskeyTarget,
+        credential: Option<&StoredPasskey>,
     ) -> Result<LoginItem, VaultError> {
         let holder = match target {
             PasskeyTarget::NewItem => None,
@@ -1238,7 +1240,30 @@ impl VaultService {
             }
         };
         let vault = holder.unwrap_or_else(|| session.clone());
-        self.save_passkey(&vault, overwrite, origin, rp_id, user_name, target)
+        self.save_passkey(&vault, overwrite, origin, rp_id, user_name, target, credential)
+    }
+
+    /// Every passkey Passless itself holds for a relying party, across the open vaults, with the item
+    /// that carries it (the extension's sign-in picker and its signer).
+    pub fn passkey_credentials_everywhere(
+        &self,
+        session: &Session,
+        rp_id: &str,
+    ) -> Result<Vec<(Session, LoginItem, StoredPasskey)>, VaultError> {
+        let rp_id = rp_id.trim().to_ascii_lowercase();
+        let mut found = Vec::new();
+        for vault in self.open_vault_sessions(session)? {
+            for item in self.list_live_items(&vault, None)? {
+                for field in &item.custom_fields {
+                    if let Some(stored) = StoredPasskey::from_field(field) {
+                        if stored.rp_id.eq_ignore_ascii_case(&rp_id) {
+                            found.push((vault.clone(), item.clone(), stored));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(found)
     }
 
     /// Tags belong to All, not to a vault (owner 2026-10-18): one entry per name across the open vaults,
@@ -1628,6 +1653,7 @@ impl VaultService {
             rp_id,
             user_name,
             &PasskeyTarget::Matching,
+            None,
         )
     }
 
@@ -1642,6 +1668,7 @@ impl VaultService {
         rp_id: &str,
         user_name: &str,
         target: &PasskeyTarget,
+        credential: Option<&StoredPasskey>,
     ) -> Result<LoginItem, VaultError> {
         let rp_id = rp_id.trim();
         let target = match target {
@@ -1658,8 +1685,10 @@ impl VaultService {
         };
 
         if let Some(target) = target {
-            let custom_fields =
-                upsert_passkey_field(&target.custom_fields, rp_id, user_name, overwrite);
+            let custom_fields = with_passkey_credential(
+                upsert_passkey_field(&target.custom_fields, rp_id, user_name, overwrite),
+                credential,
+            );
             return self.update_login_item(
                 session,
                 LoginItemUpdate {
@@ -1694,7 +1723,7 @@ impl VaultService {
                 }],
                 notes: PASSKEY_NOTE.to_string(),
                 tags: vec!["passkey".to_string()],
-                custom_fields: vec![passkey_field(rp_id, user_name)],
+                custom_fields: with_passkey_credential(vec![passkey_field(rp_id, user_name)], credential),
                 favorite: false,
             },
         )
@@ -2835,6 +2864,22 @@ fn passkey_field(rp_id: &str, user_name: &str) -> CustomField {
     }
 }
 
+/// A new key for the same account on the same relying party replaces the old one; other accounts keep theirs.
+fn with_passkey_credential(mut fields: Vec<CustomField>, credential: Option<&StoredPasskey>) -> Vec<CustomField> {
+    let Some(credential) = credential else {
+        return fields;
+    };
+    fields.retain(|field| {
+        StoredPasskey::from_field(field).map_or(true, |existing| {
+            !(existing.rp_id.eq_ignore_ascii_case(&credential.rp_id)
+                && (existing.user_handle == credential.user_handle
+                    || existing.credential_id == credential.credential_id))
+        })
+    });
+    fields.push(credential.to_field());
+    fields
+}
+
 fn upsert_passkey_field(
     fields: &[CustomField],
     rp_id: &str,
@@ -3778,7 +3823,7 @@ mod tests {
 
         // A passkey for the matching login lands in Work, not as a new Personal item.
         let saved = service
-            .save_passkey_everywhere(&personal, true, "https://example.com", "example.com", "rei", &PasskeyTarget::Matching)
+            .save_passkey_everywhere(&personal, true, "https://example.com", "example.com", "rei", &PasskeyTarget::Matching, None)
             .expect("passkey");
         assert_eq!(saved.id, theirs.id);
         assert!(service.list_login_items(&personal, None).expect("personal").is_empty());
@@ -4820,6 +4865,7 @@ mod tests {
                 "example.com",
                 "alice",
                 &PasskeyTarget::Item(first.id.clone()),
+                None,
             )
             .expect("passkey should save to the picked login");
         assert_eq!(picked.id, first.id);
@@ -4833,6 +4879,7 @@ mod tests {
                 "example.com",
                 "alice",
                 &PasskeyTarget::NewItem,
+                None,
             )
             .expect("passkey should save to a new login");
         assert_ne!(fresh.id, first.id);
@@ -4846,6 +4893,7 @@ mod tests {
             "example.com",
             "alice",
             &PasskeyTarget::Item("no-such-item".into()),
+            None,
         );
         assert!(matches!(missing, Err(VaultError::PasskeyItemNotFound)));
 

@@ -36,14 +36,20 @@
 			}
 		}
 	},
+	"passkeyCancel": {
+		"message": "キャンセル"
+	},
 	"passkeyDone": {
 		"message": "完了"
+	},
+	"passkeyMenuSub": {
+		"message": "パスキー"
 	},
 	"passkeyNewItem": {
 		"message": "新規アイテム"
 	},
 	"passkeyNote": {
-		"message": "パスキー自体はブラウザまたはデバイスに保存されます。Passless はログイン情報と一緒に記録します。"
+		"message": "Passless がパスキーを作成し、秘密鍵は保管庫に暗号化して保存します。"
 	},
 	"passkeyNotNow": {
 		"message": "今はしない"
@@ -73,8 +79,14 @@
 	"passkeySaveTitle": {
 		"message": "パスキーを Passless に保存しますか？"
 	},
+	"passkeySignInTitle": {
+		"message": "パスキーでサインイン"
+	},
 	"passkeyUnknownAccount": {
 		"message": "このアカウント"
+	},
+	"passkeyUseOther": {
+		"message": "別のデバイスを使用"
 	},
 	"providerButtonFound": {
 		"message": "このページの $PROVIDER$ ボタンを強調表示しました。",

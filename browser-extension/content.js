@@ -1,10 +1,17 @@
-const PASSLESS_BRIDGE = 'http://127.0.0.1:17891'
+/* Every call to the Passless app goes through the extension's service worker (background.js), which adds the
+   pairing token and the page's real origin. */
+async function bridge(path, body = {}) {
+  const answer = await chrome.runtime.sendMessage({ body, path, type: 'PASSLESS_BRIDGE' })
+  if (!answer) throw new Error('0')
+  return answer
+}
 
 const visible = (element) => Boolean(element) && element.getClientRects().length > 0 && !element.disabled
 
 const USERNAME_SELECTOR = [
-  'input[autocomplete="username"]',
-  'input[autocomplete="email"]',
+  'input[autocomplete~="username"]',
+  'input[autocomplete~="webauthn"]',
+  'input[autocomplete~="email"]',
   'input[type="email"]',
   'input[name*="user" i]',
   'input[name*="login" i]',
@@ -80,15 +87,8 @@ function submitLogin(field) {
 }
 
 async function fetchMatches() {
-  const { passlessToken } = await chrome.storage.local.get(['passlessToken'])
-  const response = await fetch(`${PASSLESS_BRIDGE}/fill`, {
-    // The full origin, so "only fill on this exact host" can compare the port too (bridge: site_match.rs).
-    body: JSON.stringify({ origin: location.origin }),
-    headers: { 'Content-Type': 'application/json', 'X-Passless-Token': passlessToken || '' },
-    method: 'POST',
-  })
-  if (!response.ok) return []
-  return response.json()
+  const answer = await bridge('/fill')
+  return answer.ok && Array.isArray(answer.data) ? answer.data : []
 }
 
 /* The words a provider's button carries on most sites ("Sign in with Google", "Continue with Apple",
@@ -192,16 +192,11 @@ async function saveToPassless() {
   ) {
     return
   }
-  const { passlessToken } = await chrome.storage.local.get(['passlessToken'])
-  await fetch(`${PASSLESS_BRIDGE}/save`, {
-    body: JSON.stringify({
-      password: login.password.value,
-      title: document.title || location.hostname,
-      username: login.username?.value || '',
-      website: location.origin,
-    }),
-    headers: { 'Content-Type': 'application/json', 'X-Passless-Token': passlessToken || '' },
-    method: 'POST',
+  await bridge('/save', {
+    password: login.password.value,
+    title: document.title || location.hostname,
+    username: login.username?.value || '',
+    website: location.origin,
   }).catch(() => {})
 }
 
@@ -252,21 +247,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return false
 })
 
-/* ── Saving a passkey (owner, 2026-10-18) ─────────────────────────────────────────────────────────────────
-   A passkey is never typed into Passless: when a site registers one, passkey-observer.js (page world) reports
-   it and this prompt asks whether to record it — on a login for this site, or as a new item. Nothing is sent
-   to the app until Save. Passless keeps the metadata only (site + account); the private key stays with the
-   browser's or the device's authenticator. */
-
 const msg = (key, substitutions) => chrome.i18n.getMessage(key, substitutions) || key
-
-/* WebAuthn only lets a page name its own host or a parent domain as the relying party, so a message that
-   claims another site is not a passkey this page created. */
-function rpIdFitsPage(rpId) {
-  const host = location.hostname.toLowerCase()
-  const rp = String(rpId || '').toLowerCase()
-  return Boolean(rp) && (host === rp || host.endsWith(`.${rp}`))
-}
 
 /* The popup's tokens (popup.tailwind.css), value for value: a page cannot load the extension's stylesheet into
    a closed shadow root without web_accessible_resources, so the prompt carries its own copy. */
@@ -317,25 +298,6 @@ const PROMPT_STYLE = `
   button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 0; }
 `
 
-let activePrompt = null
-
-async function postPasskey({ itemId, newItem, rpId, userName }) {
-  const { passlessToken } = await chrome.storage.local.get(['passlessToken'])
-  const response = await fetch(`${PASSLESS_BRIDGE}/passkey-event`, {
-    body: JSON.stringify({
-      event_type: 'create',
-      item_id: itemId || null,
-      new_item: Boolean(newItem),
-      origin: location.origin,
-      rp_id: rpId,
-      user_name: userName,
-    }),
-    headers: { 'Content-Type': 'application/json', 'X-Passless-Token': passlessToken || '' },
-    method: 'POST',
-  })
-  if (!response.ok) throw new Error(String(response.status))
-}
-
 function el(tag, attributes = {}, children = []) {
   const node = document.createElement(tag)
   for (const [key, value] of Object.entries(attributes)) {
@@ -345,97 +307,6 @@ function el(tag, attributes = {}, children = []) {
   for (const child of children) node.append(child)
   return node
 }
-
-/* The prompt: a small card in the page's top-right corner inside a closed shadow root, so the site's CSS
-   cannot restyle it and its scripts cannot read it. It offers each login Passless has for this site, then a
-   new item; Save is the default button, Not Now and Escape dismiss it without writing anything. */
-async function showPasskeyPrompt({ rpId, userName }) {
-  activePrompt?.remove()
-  const matches = await fetchMatches().catch(() => [])
-  const logins = (Array.isArray(matches) ? matches : []).filter((item) => !item.sign_in_with || item.password)
-
-  const host = el('div', { 'data-passless-prompt': '' })
-  const root = host.attachShadow({ mode: 'closed' })
-  root.append(el('style', { text: PROMPT_STYLE }))
-  const titleId = 'passless-passkey-title'
-  const card = el('div', { 'aria-labelledby': titleId, class: 'card', role: 'dialog' })
-
-  const mark = el('div', { 'aria-hidden': 'true', class: 'mark' })
-  mark.innerHTML =
-    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.85 12.15 8.65-8.65"/><path d="m18 5 2 2"/><path d="m15 8 2 2"/></svg>'
-  const account = userName || msg('passkeyUnknownAccount')
-  card.append(
-    el('div', { class: 'head' }, [
-      mark,
-      el('div', {}, [
-        el('h2', { id: titleId, text: msg('passkeySaveTitle') }),
-        el('p', { class: 'detail', text: msg('passkeySaveDetail', [account, rpId]), title: `${account} — ${rpId}` }),
-      ]),
-    ]),
-  )
-
-  const choices = el('fieldset', { class: 'choices' })
-  const option = (value, title, sub, checked) => {
-    const input = el('input', { name: 'passless-target', type: 'radio', value })
-    input.checked = checked
-    const text = el('span', {}, [el('span', { class: 'choice-title', text: title })])
-    if (sub) text.append(el('span', { class: 'choice-sub', text: sub }))
-    choices.append(el('label', {}, [input, text]))
-  }
-  for (const [index, item] of logins.entries()) {
-    option(`item:${item.id}`, msg('passkeyAddToItem', [item.title || rpId]), item.username || '', index === 0)
-  }
-  option('new', msg('passkeyNewItem'), logins.length ? '' : rpId, logins.length === 0)
-  card.append(choices)
-
-  const note = el('p', { class: 'note', text: msg('passkeyNote') })
-  card.append(note)
-
-  const close = () => {
-    host.remove()
-    if (activePrompt === host) activePrompt = null
-  }
-  const notNow = el('button', { text: msg('passkeyNotNow'), type: 'button' })
-  const save = el('button', { class: 'primary', text: msg('passkeySave'), type: 'button' })
-  notNow.addEventListener('click', close)
-  save.addEventListener('click', async () => {
-    const picked = choices.querySelector('input:checked')?.value || 'new'
-    save.disabled = true
-    try {
-      await postPasskey({
-        itemId: picked.startsWith('item:') ? picked.slice(5) : null,
-        newItem: picked === 'new',
-        rpId,
-        userName,
-      })
-      note.classList.remove('is-error')
-      note.textContent = msg('passkeySaved')
-      choices.remove()
-      save.remove()
-      notNow.textContent = msg('passkeyDone')
-      notNow.focus()
-    } catch {
-      save.disabled = false
-      note.classList.add('is-error')
-      note.textContent = msg('passkeySaveFailed')
-    }
-  })
-  card.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') close()
-  })
-  card.append(el('div', { class: 'actions' }, [notNow, save]))
-  root.append(card)
-  document.documentElement.append(host)
-  activePrompt = host
-  save.focus({ preventScroll: true })
-}
-
-window.addEventListener('message', (event) => {
-  if (event.source !== window || event.origin !== location.origin) return
-  const data = event.data
-  if (data?.__passless !== 'passkey-created' || !rpIdFitsPage(data.rpId)) return
-  showPasskeyPrompt({ rpId: String(data.rpId), userName: String(data.userName || '') })
-})
 
 /* ── Inline fill menu (owner, 2026-10-18: "like 1Password") ──────────────────────────────────────────────
    Focusing or clicking a sign-in field on a site Passless has logins for opens a small menu under the field
@@ -559,6 +430,10 @@ function selectOption(index) {
 
 function pickItem(item) {
   closeMenu()
+  if (item.passkeyChoice) {
+    answerConditional(item)
+    return
+  }
   if (item.sign_in_with) {
     const button = findProviderButton(item.sign_in_with)
     if (button) highlightProviderButton(button)
@@ -569,7 +444,12 @@ function pickItem(item) {
 
 async function openMenu(field) {
   if (menuState?.field === field || Date.now() < suppressMenuUntil) return
-  const items = (await cachedMatches()).filter((item) => item.sign_in_with || item.password || item.username)
+  const logins = (await cachedMatches()).filter((item) => item.sign_in_with || item.password || item.username)
+  // A site waiting on passkey autofill (mediation "conditional") gets Passless's passkeys first.
+  const passkeys = conditionalRequest
+    ? conditionalRequest.choices.map((choice) => ({ ...choice, passkeyChoice: true }))
+    : []
+  const items = [...passkeys, ...logins]
   // The field may have lost focus while the bridge answered.
   if (!items.length || document.activeElement !== field) return
   closeMenu()
@@ -581,16 +461,21 @@ async function openMenu(field) {
   menu.append(el('li', { 'aria-hidden': 'true', class: 'heading', role: 'presentation', text: msg('inlineMenuLabel') }))
   for (const item of items) {
     const title = item.title || location.hostname
-    const sub = item.sign_in_with
-      ? msg('signInWithProvider', [PROVIDER_NAMES[item.sign_in_with]?.[0] || item.sign_in_with])
-      : item.username || ''
+    const sub = item.passkeyChoice
+      ? `${msg('passkeyMenuSub')} · ${item.user_name || ''}`
+      : item.sign_in_with
+        ? msg('signInWithProvider', [PROVIDER_NAMES[item.sign_in_with]?.[0] || item.sign_in_with])
+        : item.username || ''
     const option = el('li', { 'aria-selected': 'false', class: 'option', role: 'option' }, [
-      el('span', { 'aria-hidden': 'true', class: 'badge', text: title.trim().charAt(0).toUpperCase() || '•' }),
+      item.passkeyChoice
+        ? passkeyBadge()
+        : el('span', { 'aria-hidden': 'true', class: 'badge', text: title.trim().charAt(0).toUpperCase() || '•' }),
       el('span', {}, [el('span', { class: 'title', text: title }), el('span', { class: 'sub', text: sub })]),
     ])
     // mousedown, not click: the field keeps focus, so the page never sees a blur between focus and fill.
     option.addEventListener('mousedown', (event) => {
       event.preventDefault()
+      if (!event.isTrusted) return
       pickItem(item)
     })
     menu.append(option)
@@ -630,7 +515,7 @@ document.addEventListener(
 document.addEventListener(
   'keydown',
   (event) => {
-    if (!menuState || event.target !== menuState.field) return
+    if (!event.isTrusted || !menuState || event.target !== menuState.field) return
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
       selectOption(menuState.selected + (event.key === 'ArrowDown' ? 1 : -1))
@@ -692,3 +577,244 @@ if (pendingStepItemId()) {
 
 // A sign-in field the page focused on load gets its menu too.
 if (isLoginField(document.activeElement)) openMenu(document.activeElement)
+
+/* ── Passkeys (owner 2026-10-18: "完整passkey支持") ───────────────────────────────────────────────────────
+   passkey-provider.js hands the page's navigator.credentials.create() / .get() here. Passless answers only
+   after the user chose it in a prompt the page cannot read or click (closed shadow root, trusted events
+   only); the bridge holds the private key and returns signatures. "Use another device", or a site Passless
+   has nothing for, sends the call on to the browser's own WebAuthn untouched. */
+
+const KEY_ICON =
+  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.85 12.15 8.65-8.65"/><path d="m18 5 2 2"/><path d="m15 8 2 2"/></svg>'
+
+function passkeyBadge() {
+  const badge = el('span', { 'aria-hidden': 'true', class: 'badge' })
+  badge.innerHTML = KEY_ICON
+  return badge
+}
+
+const CARD_EXTRA_STYLE = `
+  .accounts { display: grid; gap: 2px; }
+  .account { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 8px; align-items: center;
+    min-height: 40px; padding: 6px 8px; text-align: left; background: transparent; box-shadow: none; }
+  .account:hover { background: var(--hover); }
+  .badge { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center;
+    background: var(--accent); color: #ffffff; }
+  .actions.spread { justify-content: space-between; }
+`
+
+function respondToPage(id, answer) {
+  window.postMessage({ __passless: 'webauthn-response', id, ...answer }, location.origin)
+}
+
+const notAllowed = { message: 'The operation either timed out or was not allowed.', name: 'NotAllowedError' }
+const openCards = new Map()
+let conditionalRequest = null
+
+/* The card every passkey prompt uses: top-right, Escape cancels. `onCancel` runs once, for Escape or a
+   page abort; the caller's own buttons close it with `done`. */
+function passkeyCard(id, { title, detail, onCancel }) {
+  openCards.get(id)?.close()
+  const host = el('div', { 'data-passless-prompt': '' })
+  const root = host.attachShadow({ mode: 'closed' })
+  root.append(el('style', { text: PROMPT_STYLE + CARD_EXTRA_STYLE }))
+  const card = el('div', { 'aria-label': title, class: 'card', role: 'dialog' })
+  const mark = el('div', { 'aria-hidden': 'true', class: 'mark' })
+  mark.innerHTML = KEY_ICON
+  card.append(
+    el('div', { class: 'head' }, [
+      mark,
+      el('div', {}, [el('h2', { text: title }), el('p', { class: 'detail', text: detail, title: detail })]),
+    ]),
+  )
+  let closed = false
+  const done = () => {
+    if (closed) return
+    closed = true
+    host.remove()
+    openCards.delete(id)
+  }
+  const cancel = () => {
+    if (closed) return
+    done()
+    onCancel?.()
+  }
+  card.addEventListener('keydown', (event) => {
+    if (event.isTrusted && event.key === 'Escape') cancel()
+  })
+  root.append(card)
+  document.documentElement.append(host)
+  openCards.set(id, { cancel, close: done })
+  return { card, done }
+}
+
+// Buttons that only answer real clicks: a page can dispatch events, but not trusted ones.
+function trustedButton(text, className, onClick) {
+  const button = el('button', className ? { class: className, text, type: 'button' } : { text, type: 'button' })
+  button.addEventListener('click', (event) => {
+    if (event.isTrusted) onClick(button)
+  })
+  return button
+}
+
+function bridgeFailure(answer) {
+  if (answer?.status === 409)
+    return { message: 'The authenticator already holds a passkey for this account.', name: 'InvalidStateError' }
+  if (answer?.status === 400)
+    return { message: answer.data?.error || 'This page cannot use that passkey.', name: 'SecurityError' }
+  return null
+}
+
+async function passlessAvailable(request) {
+  const answer = await bridge('/passkey/list', {
+    allow_credentials: request.allow_credentials || [],
+    rp_id: request.rp_id,
+  }).catch(() => null)
+  return answer?.ok ? answer.data || [] : null
+}
+
+async function handleCreate(id, request) {
+  // Not paired, locked or not running: the browser's own passkey flow, as if Passless were absent.
+  if ((await passlessAvailable({ rp_id: request.rp_id })) === null) {
+    respondToPage(id, { fallback: true })
+    return
+  }
+  const logins = (await cachedMatches()).filter((item) => !item.sign_in_with)
+  const account = request.user_name || request.user_display_name || msg('passkeyUnknownAccount')
+  const { card, done } = passkeyCard(id, {
+    detail: msg('passkeySaveDetail', [account, request.rp_id]),
+    onCancel: () => respondToPage(id, { error: notAllowed }),
+    title: msg('passkeySaveTitle'),
+  })
+  const choices = el('fieldset', { class: 'choices' })
+  const option = (value, title, sub, checked) => {
+    const input = el('input', { name: 'passless-target', type: 'radio', value })
+    input.checked = checked
+    const text = el('span', {}, [el('span', { class: 'choice-title', text: title })])
+    if (sub) text.append(el('span', { class: 'choice-sub', text: sub }))
+    choices.append(el('label', {}, [input, text]))
+  }
+  const preferred = logins.findIndex((item) => item.username && item.username === request.user_name)
+  logins.forEach((item, index) => {
+    option(
+      `item:${item.id}`,
+      msg('passkeyAddToItem', [item.title || request.rp_id]),
+      item.username || '',
+      index === Math.max(preferred, 0),
+    )
+  })
+  option('new', msg('passkeyNewItem'), logins.length ? '' : request.rp_id, logins.length === 0)
+  card.append(choices)
+  const note = el('p', { class: 'note', text: msg('passkeyNote') })
+  card.append(note)
+
+  const other = trustedButton(msg('passkeyUseOther'), '', () => {
+    done()
+    respondToPage(id, { fallback: true })
+  })
+  const save = trustedButton(msg('passkeySave'), 'primary', async (button) => {
+    const picked = choices.querySelector('input:checked')?.value || 'new'
+    button.disabled = true
+    const answer = await bridge('/passkey/create', {
+      ...request,
+      item_id: picked.startsWith('item:') ? picked.slice(5) : null,
+      new_item: picked === 'new',
+    }).catch(() => null)
+    if (answer?.ok) {
+      done()
+      matchesCache = null
+      respondToPage(id, { result: answer.data })
+      return
+    }
+    const failure = bridgeFailure(answer)
+    if (failure) {
+      done()
+      respondToPage(id, { error: failure })
+      return
+    }
+    button.disabled = false
+    note.classList.add('is-error')
+    note.textContent = msg('passkeySaveFailed')
+  })
+  card.append(el('div', { class: 'actions spread' }, [other, save]))
+  save.focus({ preventScroll: true })
+}
+
+async function signIn(id, request, choice) {
+  const answer = await bridge('/passkey/get', {
+    challenge: request.challenge,
+    credential_id: choice.credential_id,
+    rp_id: request.rp_id,
+  }).catch(() => null)
+  if (answer?.ok) respondToPage(id, { result: answer.data })
+  else respondToPage(id, { error: bridgeFailure(answer) || notAllowed })
+}
+
+function answerConditional(choice) {
+  const waiting = conditionalRequest
+  conditionalRequest = null
+  if (waiting) signIn(waiting.id, waiting.request, choice)
+}
+
+async function handleGet(id, request) {
+  const choices = await passlessAvailable(request)
+  if (!choices?.length) {
+    respondToPage(id, { fallback: true })
+    return
+  }
+  // Passkey autofill: the site waits until an account is picked from the sign-in field's menu.
+  if (request.conditional) {
+    conditionalRequest = { choices, id, request }
+    if (isLoginField(document.activeElement)) {
+      closeMenu()
+      openMenu(document.activeElement)
+    }
+    return
+  }
+  const { card, done } = passkeyCard(id, {
+    detail: request.rp_id,
+    onCancel: () => respondToPage(id, { error: notAllowed }),
+    title: msg('passkeySignInTitle'),
+  })
+  const list = el('div', { class: 'accounts' })
+  for (const choice of choices) {
+    const row = trustedButton('', 'account', () => {
+      done()
+      signIn(id, request, choice)
+    })
+    row.append(
+      passkeyBadge(),
+      el('span', {}, [
+        el('span', { class: 'choice-title', text: choice.user_name || choice.title }),
+        el('span', { class: 'choice-sub', text: choice.title }),
+      ]),
+    )
+    list.append(row)
+  }
+  card.append(list)
+  const other = trustedButton(msg('passkeyUseOther'), '', () => {
+    done()
+    respondToPage(id, { fallback: true })
+  })
+  const cancel = trustedButton(msg('passkeyCancel'), '', () => {
+    done()
+    respondToPage(id, { error: notAllowed })
+  })
+  card.append(el('div', { class: 'actions spread' }, [other, cancel]))
+  list.querySelector('button')?.focus({ preventScroll: true })
+}
+
+window.addEventListener('message', (event) => {
+  if (event.source !== window || event.origin !== location.origin) return
+  const data = event.data
+  if (data?.__passless === 'webauthn-abort') {
+    openCards.get(data.id)?.close()
+    if (conditionalRequest?.id === data.id) conditionalRequest = null
+    return
+  }
+  if (data?.__passless !== 'webauthn-request' || typeof data.id !== 'string') return
+  const request = { ...data.request }
+  const run = data.kind === 'create' ? handleCreate : data.kind === 'get' ? handleGet : null
+  if (!run) return
+  run(data.id, request).catch(() => respondToPage(data.id, { fallback: true }))
+})

@@ -3,9 +3,12 @@
 		"default_popup": "popup.html",
 		"default_title": "__MSG_extensionName__"
 	},
+	"background": {
+		"service_worker": "background.js"
+	},
 	"content_scripts": [
 		{
-			"js": ["passkey-observer.js"],
+			"js": ["passkey-provider.js"],
 			"matches": ["<all_urls>"],
 			"run_at": "document_start",
 			"world": "MAIN"

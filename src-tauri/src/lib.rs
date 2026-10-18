@@ -3,6 +3,7 @@ mod breach_check;
 mod browser_bridge;
 mod crypto;
 mod favicon;
+mod passkey;
 #[cfg(desktop)]
 mod shell;
 mod site_match;

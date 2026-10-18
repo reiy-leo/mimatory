@@ -36,14 +36,20 @@
 			}
 		}
 	},
+	"passkeyCancel": {
+		"message": "取消"
+	},
 	"passkeyDone": {
 		"message": "完成"
+	},
+	"passkeyMenuSub": {
+		"message": "通行密钥"
 	},
 	"passkeyNewItem": {
 		"message": "新建项目"
 	},
 	"passkeyNote": {
-		"message": "通行密钥本身保存在浏览器或设备中，Passless 会在登录项中记录它。"
+		"message": "Passless 会创建这个通行密钥，私钥加密保存在你的保险库中。"
 	},
 	"passkeyNotNow": {
 		"message": "以后再说"
@@ -73,8 +79,14 @@
 	"passkeySaveTitle": {
 		"message": "保存通行密钥到 Passless？"
 	},
+	"passkeySignInTitle": {
+		"message": "使用通行密钥登录"
+	},
 	"passkeyUnknownAccount": {
 		"message": "此账户"
+	},
+	"passkeyUseOther": {
+		"message": "使用其他设备"
 	},
 	"providerButtonFound": {
 		"message": "已在此页面上突出显示 $PROVIDER$ 按钮。",

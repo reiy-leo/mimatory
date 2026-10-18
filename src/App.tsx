@@ -363,6 +363,8 @@ const itemMenuHeight = 10 * menuRowHeight + 40
 // These belong with the credentials they protect, so they render in the username /
 // password group instead of the custom field list.
 const loginSectionFieldTypes = ['otp', 'sign_in_with', 'passkey']
+/** Passkeys Passless itself created (passkey.rs): JSON with the private key, kept but never shown. */
+const passkeyCredentialFieldType = 'passkey_credential'
 
 // One table for every item type the vault can hold: it is the sidebar's category list *and* the
 // new-item picker's list, in the same order, so a type can never be creatable but nowhere to be
@@ -1279,7 +1281,11 @@ function VaultWindow() {
 
   // Original custom_fields indexes are kept so every mutator still addresses the right row.
   const customFieldEntries = useMemo(
-    () => form.custom_fields.map((field, index) => ({ field, index })),
+    () =>
+      form.custom_fields.flatMap((field, index) =>
+        // A passkey's key material is the app's, never a row: the passkey row stands for it.
+        field.field_type === passkeyCredentialFieldType ? [] : [{ field, index }],
+      ),
     [form.custom_fields],
   )
   // OTP, passkeys and sign-in methods belong to the credential they protect. On a category
@@ -2309,7 +2315,16 @@ function VaultWindow() {
   function removeCustomField(index: number) {
     setForm((current) => {
       const removed = current.custom_fields[index]
-      const customFields = current.custom_fields.filter((_, fieldIndex) => fieldIndex !== index)
+      // Removing a passkey row deletes the passkey itself: its key for that relying party goes too.
+      const customFields = current.custom_fields.filter(
+        (field, fieldIndex) =>
+          fieldIndex !== index &&
+          !(
+            removed?.field_type === 'passkey' &&
+            field.field_type === passkeyCredentialFieldType &&
+            field.label.toLowerCase() === removed.label.toLowerCase()
+          ),
+      )
       return {
         ...current,
         custom_fields: customFields,

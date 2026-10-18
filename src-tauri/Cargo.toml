@@ -28,12 +28,15 @@ idna = "1"
 psl = "2"
 url = "2"
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "webp"] }
+# Passkeys (passkey.rs): ES256 keys, PKCS#8 storage, SHA-256 for authenticator data.
+p256 = { version = "0.13", features = ["pkcs8"] }
 rand = "0.8"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "charset", "http2", "json"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha1 = "0.10"
+sha2 = "0.10"
 # Default features minus `x11`: Linux is Wayland-only (Hyprland), so wry/tao are built without their X11
 # backends (gdkx11, x11-dl). `macos-private-api` is gone too: since 2.12.1 it is a no-op (the private APIs
 # are always on), and the `macOSPrivateApi` config key only feeds tauri-build's feature check. See AGENTS.md.

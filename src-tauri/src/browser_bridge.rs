@@ -1,3 +1,4 @@
+use crate::passkey::{self, PASSKEY_CREDENTIAL_FIELD};
 use crate::storage;
 use crate::vault::{
     default_match_type, sign_in_provider_of, ItemUrl, LoginItem, LoginItemInput, LoginItemUpdate,
@@ -51,10 +52,62 @@ struct BridgeMatch {
 }
 
 impl From<LoginItem> for BridgeMatch {
-    fn from(item: LoginItem) -> Self {
+    fn from(mut item: LoginItem) -> Self {
         let sign_in_with = sign_in_provider_of(&item);
+        // A passkey's private key stays in the app: the extension gets signatures, never the key.
+        item.custom_fields.retain(|field| field.field_type != PASSKEY_CREDENTIAL_FIELD);
         Self { item, sign_in_with }
     }
+}
+
+/// `navigator.credentials.create()` handed to Passless (all binary values base64url).
+#[derive(Deserialize)]
+struct PasskeyCreateRequest {
+    origin: String,
+    #[serde(default)]
+    rp_id: String,
+    challenge: String,
+    user_id: String,
+    #[serde(default)]
+    user_name: String,
+    #[serde(default)]
+    user_display_name: String,
+    #[serde(default)]
+    algorithms: Vec<i64>,
+    #[serde(default)]
+    exclude_credentials: Vec<String>,
+    #[serde(default)]
+    item_id: Option<String>,
+    #[serde(default)]
+    new_item: bool,
+}
+
+/// The accounts Passless can sign in with on this page: by RP ID, narrowed to the site's allow list.
+#[derive(Deserialize)]
+struct PasskeyListRequest {
+    origin: String,
+    #[serde(default)]
+    rp_id: String,
+    #[serde(default)]
+    allow_credentials: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct PasskeyGetRequest {
+    origin: String,
+    #[serde(default)]
+    rp_id: String,
+    challenge: String,
+    credential_id: String,
+}
+
+/// One sign-in choice: what the picker shows, never the key.
+#[derive(Serialize)]
+struct PasskeyChoice {
+    item_id: String,
+    title: String,
+    user_name: String,
+    credential_id: String,
 }
 
 #[derive(Serialize)]
@@ -116,6 +169,28 @@ pub fn start_browser_bridge(session: SharedSession, bridge_token: SharedBridgeTo
                         Err(error) => error_response(StatusCode(400), error.to_string()),
                     }
                 }
+                (Method::Post, "/passkey/create" | "/passkey/list" | "/passkey/get") => {
+                    if let Err(error) = authorize(&request, &bridge_token) {
+                        let _ = request.respond(error_response(StatusCode(401), error));
+                        continue;
+                    }
+                    let request_body = read_body(&mut request);
+                    let result = match path.as_str() {
+                        "/passkey/create" => serde_json::from_str::<PasskeyCreateRequest>(&request_body)
+                            .map_err(|error| (StatusCode(400), error.to_string()))
+                            .and_then(|input| create_passkey(&session, input))
+                            .map(|value| json_response(&value)),
+                        "/passkey/list" => serde_json::from_str::<PasskeyListRequest>(&request_body)
+                            .map_err(|error| (StatusCode(400), error.to_string()))
+                            .and_then(|input| list_passkeys(&session, input))
+                            .map(|value| json_response(&value)),
+                        _ => serde_json::from_str::<PasskeyGetRequest>(&request_body)
+                            .map_err(|error| (StatusCode(400), error.to_string()))
+                            .and_then(|input| sign_with_passkey(&session, input))
+                            .map(|value| json_response(&value)),
+                    };
+                    result.unwrap_or_else(|(status, error)| error_response(status, error))
+                }
                 _ => error_response(StatusCode(404), "not found".to_string()),
             };
             let _ = request.respond(response);
@@ -145,8 +220,95 @@ fn save_passkey_event(
             &input.rp_id,
             &input.user_name,
             &target,
+            None,
         )
         .map_err(|error| error.to_string())
+}
+
+type BridgeResult<T> = Result<T, (StatusCode, String)>;
+
+fn locked(error: String) -> (StatusCode, String) {
+    (StatusCode(423), error)
+}
+
+fn bad_request(error: passkey::PasskeyError) -> (StatusCode, String) {
+    (StatusCode(400), error.to_string())
+}
+
+/// Registers a new passkey on the item the user picked (or a matching / new login), across the open vaults.
+fn create_passkey(session: &SharedSession, input: PasskeyCreateRequest) -> BridgeResult<passkey::Registration> {
+    let session = current_session(session).map_err(locked)?;
+    let rp_id = passkey::check_rp_id(&input.origin, &input.rp_id).map_err(bad_request)?;
+    let connection = storage::open_default_database().map_err(|error| locked(error.to_string()))?;
+    let mut service = VaultService::new(connection);
+    let held = service
+        .passkey_credentials_everywhere(&session, &rp_id)
+        .map_err(|error| locked(error.to_string()))?;
+    // excludeCredentials: the site already has one of these for this account (409 冲突).
+    let excluded = input.exclude_credentials.iter().map(|id| id.trim_end_matches('=')).collect::<Vec<_>>();
+    if held.iter().any(|(_, _, stored)| excluded.contains(&stored.credential_id.as_str())) {
+        return Err((StatusCode(409), "excluded".to_string()));
+    }
+    let created = passkey::create(&passkey::CreateRequest {
+        origin: &input.origin,
+        rp_id: &rp_id,
+        challenge: &input.challenge,
+        user_handle: &input.user_id,
+        user_name: &input.user_name,
+        user_display_name: &input.user_display_name,
+        algorithms: &input.algorithms,
+    })
+    .map_err(bad_request)?;
+    let target = if input.new_item {
+        PasskeyTarget::NewItem
+    } else if let Some(id) = input.item_id.filter(|id| !id.trim().is_empty()) {
+        PasskeyTarget::Item(id)
+    } else {
+        PasskeyTarget::Matching
+    };
+    let account = if input.user_name.trim().is_empty() { &input.user_display_name } else { &input.user_name };
+    service
+        .save_passkey_everywhere(&session, true, &input.origin, &rp_id, account, &target, Some(&created.stored))
+        .map_err(|error| locked(error.to_string()))?;
+    Ok(created.registration)
+}
+
+fn list_passkeys(session: &SharedSession, input: PasskeyListRequest) -> BridgeResult<Vec<PasskeyChoice>> {
+    let session = current_session(session).map_err(locked)?;
+    let rp_id = passkey::check_rp_id(&input.origin, &input.rp_id).map_err(bad_request)?;
+    let connection = storage::open_default_database().map_err(|error| locked(error.to_string()))?;
+    let service = VaultService::new(connection);
+    let allowed = input.allow_credentials.iter().map(|id| id.trim_end_matches('=')).collect::<Vec<_>>();
+    Ok(service
+        .passkey_credentials_everywhere(&session, &rp_id)
+        .map_err(|error| locked(error.to_string()))?
+        .into_iter()
+        .filter(|(_, _, stored)| allowed.is_empty() || allowed.contains(&stored.credential_id.as_str()))
+        .map(|(_, item, stored)| PasskeyChoice {
+            item_id: item.id,
+            title: item.title,
+            user_name: if stored.user_name.is_empty() { stored.user_display_name } else { stored.user_name },
+            credential_id: stored.credential_id,
+        })
+        .collect())
+}
+
+fn sign_with_passkey(session: &SharedSession, input: PasskeyGetRequest) -> BridgeResult<passkey::Assertion> {
+    let session = current_session(session).map_err(locked)?;
+    let rp_id = passkey::check_rp_id(&input.origin, &input.rp_id).map_err(bad_request)?;
+    let connection = storage::open_default_database().map_err(|error| locked(error.to_string()))?;
+    let mut service = VaultService::new(connection);
+    let wanted = input.credential_id.trim_end_matches('=');
+    let (vault, item, stored) = service
+        .passkey_credentials_everywhere(&session, &rp_id)
+        .map_err(|error| locked(error.to_string()))?
+        .into_iter()
+        .find(|(_, _, stored)| stored.credential_id == wanted)
+        .ok_or_else(|| (StatusCode(404), "passkey not found".to_string()))?;
+    let assertion = passkey::assert(&stored, &input.origin, &rp_id, &input.challenge).map_err(bad_request)?;
+    // A passkey sign-in counts as a use, like copying a password or Open & Fill.
+    let _ = service.record_item_use(&vault, &item.id);
+    Ok(assertion)
 }
 
 fn authorize(request: &tiny_http::Request, bridge_token: &SharedBridgeToken) -> Result<(), String> {
@@ -291,7 +453,7 @@ fn with_cors(response: Response<std::io::Cursor<Vec<u8>>>) -> Response<std::io::
     response
         .with_header(Header::from_bytes("Access-Control-Allow-Origin", "*").expect("header"))
         .with_header(
-            Header::from_bytes("Access-Control-Allow-Headers", "Content-Type").expect("header"),
+            Header::from_bytes("Access-Control-Allow-Headers", "Content-Type, X-Passless-Token").expect("header"),
         )
         .with_header(
             Header::from_bytes("Access-Control-Allow-Methods", "GET, POST, OPTIONS")

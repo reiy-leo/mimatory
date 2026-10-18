@@ -242,3 +242,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 - **No import.** The 1Password importer (`import_1pux.rs`) went on 2026-10-08 and the encrypted Passless backup
   reader (`json_transfer.rs`) on 2026-10-09, along with both settings tabs. The open question about `.1pux`
   collections flattening to a list died with the feature.
+
+## Passkeys — Passless as the authenticator (2026-10-18)
+- Done: extension takes over navigator.credentials.create/get (passkey-provider.js, MAIN world); keys are ES256, "none" attestation, private key PKCS#8 in an encrypted `passkey_credential` field, signing in Rust (passkey.rs); conditional mediation shows passkeys in the inline field menu; "Use Another Device" falls back to the browser's own WebAuthn. Bridge calls now go through background.js (CORS / Private Network Access).
+- needs-owner-decision: AAGUID is all-zero (RPs show a generic name); sign counter fixed at 0; UV flag claimed because the vault is unlocked (no extra Touch ID per sign-in); passkeys are not exportable yet; no macOS system-wide credential provider (needs Swift extension + Apple signing).
