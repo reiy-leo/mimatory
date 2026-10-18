@@ -258,6 +258,10 @@
     /* Show in Large Type: one glyph per tile, sized to be read across a room (1Password's large type). */
     --measure-large-type-glyph: 2.25rem;
     --measure-large-type-cell: 3rem;
+    /* The item pane's side padding. The edit form's drag handles hang in it, left of the cards, so every card
+       lines up with the item icon (owner, 2026-10-18); the handle's hit area is --measure-field-handle wide. */
+    --measure-detail-inline: 1.75rem;
+    --measure-field-handle: 1.5rem;
     /* The system font: SF Pro on macOS, reached through the platform keywords; no webfont. */
     font-family: -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -1829,8 +1833,9 @@
      border here would draw a second one six pixels away, on the far side of the resize gutter. */
   /* The detail pane is a grouped form, like System Settings: inset sections on a gray ground. */
   .detail-pane {
+    padding-inline: var(--measure-detail-inline);
     background: var(--color-surface-sunken);
-    @apply flex flex-col overflow-hidden px-250 py-0;
+    @apply flex flex-col overflow-hidden py-0;
   }
 
   .detail-topbar {
@@ -1893,7 +1898,10 @@
     @apply grid min-h-0 max-w-none flex-1 grid-rows-[minmax(0,1fr)_auto];
   }
 
+  /* The scroller spans the pane's padding too, so a drag handle hung left of a card is inside it, not clipped. */
   .detail-fieldset {
+    padding-inline: var(--measure-detail-inline);
+    margin-inline: calc(var(--measure-detail-inline) * -1);
     @apply min-h-0 overflow-auto pb-200;
   }
 
@@ -2742,32 +2750,57 @@
   }
 
   /* ── Editing ──────────────────────────────────────────────────────────────────────────────────────────
-     A card of `.field-slot`s: a handle gutter outside the card, then the cell. The cells draw the card
-     (`--color-field-edit` fill, hairlines between, the outer corners rounded), so a handle can sit outside it. */
+     A card of `.field-slot`s. The cells draw the card (`--color-field-edit` fill, hairlines between, the outer
+     corners rounded) at the same left edge as the item icon; a movable row's handle hangs outside it, centred
+     in the pane's padding (`.detail-fieldset` scrolls that padding, so nothing clips it). */
   .field-group.is-edit {
     @apply overflow-visible rounded-none border-0 bg-transparent;
   }
 
+  /* `min-w-0`: a slot is a grid item, and a long value must not push its card past the pane's edge. */
   .field-slot {
-    @apply relative grid grid-cols-field-slot items-stretch;
+    @apply relative min-w-0;
   }
 
   .field-slot-handle {
-    @apply flex items-center justify-center;
+    right: calc(100% + (var(--measure-detail-inline) - var(--measure-field-handle)) / 2);
+    width: var(--measure-field-handle);
+    @apply absolute inset-y-0 flex items-center justify-center;
   }
 
+  /* Faint at rest, a step stronger while its row is hovered or focused, full strength under the pointer, and
+     the accent while it is being dragged or moved from the keyboard (owner, 2026-10-18: "drag handle要颜色淡一点，
+     drag时浓一点"). */
   .field-reorder-handle {
-    color: var(--color-icon-subtle);
+    width: var(--measure-field-handle);
+    color: color-mix(in srgb, var(--color-icon) 32%, transparent);
     touch-action: none;
-    @apply grid h-400 w-400 cursor-grab place-items-center rounded-medium border-0 bg-transparent p-0;
+    @apply grid h-400 cursor-grab place-items-center rounded-medium border-0 bg-transparent p-0 transition-colors;
+  }
+
+  .field-slot:hover > .field-slot-handle > .field-reorder-handle,
+  .field-slot:focus-within > .field-slot-handle > .field-reorder-handle {
+    color: var(--color-icon-subtle);
   }
 
   .field-reorder-handle:hover {
     color: var(--color-icon);
   }
 
-  .field-reorder-handle:active {
+  .field-reorder-handle:focus-visible,
+  .field-reorder-handle:active,
+  .field-reorder-handle.is-dragging,
+  .field-slot:hover > .field-slot-handle > .field-reorder-handle.is-dragging {
+    color: var(--color-accent);
+  }
+
+  .field-reorder-handle:active,
+  .field-reorder-handle.is-dragging {
     @apply cursor-grabbing;
+  }
+
+  .field-slot.is-dragging > .field-row {
+    @apply opacity-60;
   }
 
   .field-row.is-edit {
@@ -2886,15 +2919,28 @@
   .field-slot.is-drop-before::before,
   .field-slot.is-drop-after::after,
   .field-section.is-drop-before::before,
-  .field-section.is-drop-after::after {
+  .field-section.is-drop-after::after,
+  .add-more-wrap.is-drop-before::before {
     content: "";
     background: var(--color-accent);
-    @apply pointer-events-none absolute left-500 right-0 z-10 h-025 rounded-full;
+    @apply pointer-events-none absolute left-0 right-0 z-10 h-025 rounded-full;
   }
 
   .field-slot.is-drop-before::before,
   .field-section.is-drop-before::before {
     @apply -top-025;
+  }
+
+  /* An empty section's drop line sits just above its Add More bar (the bar has its own top margin). */
+  .add-more-wrap.is-drop-before::before {
+    @apply top-050;
+  }
+
+  /* The Add More menu floats in a portal layer at its own content width (220–280px set inline), placed and
+     height-capped by placeAnchoredPanel() so it never leaves the window. */
+  .add-more-menu.is-floating {
+    width: max-content;
+    @apply z-40 overflow-y-auto;
   }
 
   .field-slot.is-drop-after::after,

@@ -170,3 +170,20 @@ export function keyboardTarget(
   }
   return { container: from.container, index: from.index + delta }
 }
+
+/**
+ * The credential card's own order (owner, 2026-10-18: "通行密钥的位置固定在密码、OTP之间"): after the username
+ * and password come the sign-in method, then passkeys, then one-time passwords, whatever order they were
+ * stored in. Stable within a type. None of these rows has a drag handle.
+ */
+export const credentialFieldOrder: readonly string[] = ['sign_in_with', 'passkey', 'otp']
+
+export function orderCredentialFields<T extends { field: { field_type: string }; index: number }>(
+  entries: readonly T[],
+): T[] {
+  const rank = (entry: T) => {
+    const position = credentialFieldOrder.indexOf(entry.field.field_type)
+    return position === -1 ? credentialFieldOrder.length : position
+  }
+  return [...entries].sort((a, b) => rank(a) - rank(b) || a.index - b.index)
+}

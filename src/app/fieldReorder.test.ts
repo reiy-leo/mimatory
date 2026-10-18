@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { type ContainerLists, keyboardTarget, moveFieldEntry } from './fieldReorder'
+import {
+  type ContainerLists,
+  canEnter,
+  keyboardTarget,
+  moveFieldEntry,
+  orderCredentialFields,
+  sectionChildFieldTypes,
+} from './fieldReorder'
 import { parseSectionChildren, stringifySectionChildren } from './itemFields'
 import type { CustomField } from './vaultApi'
 
@@ -111,5 +118,29 @@ describe('keyboard reordering', () => {
   it('stops at the ends', () => {
     expect(keyboardTarget(fields, lists, { container: 'top', index: 0 }, -1)).toBeNull()
     expect(keyboardTarget(fields, lists, { container: 'login', index: 0 }, 1)).toBeNull()
+  })
+})
+
+describe('credential card order', () => {
+  it('puts sign-in, then passkeys, then one-time passwords, whatever the storage order', () => {
+    const entries = [
+      { field: { field_type: 'otp' }, index: 0 },
+      { field: { field_type: 'passkey' }, index: 1 },
+      { field: { field_type: 'otp' }, index: 2 },
+      { field: { field_type: 'sign_in_with' }, index: 3 },
+      { field: { field_type: 'passkey' }, index: 4 },
+    ]
+    expect(orderCredentialFields(entries).map(({ field, index }) => `${field.field_type}:${index}`)).toEqual([
+      'sign_in_with:3',
+      'passkey:1',
+      'passkey:4',
+      'otp:0',
+      'otp:2',
+    ])
+  })
+
+  it('keeps passkeys out of sections', () => {
+    expect(canEnter('passkey', 'login', 'section:0')).toBe(false)
+    expect(sectionChildFieldTypes).not.toContain('passkey')
   })
 })

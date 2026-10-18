@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getMenuAnchorStyle, getMenuPlacement } from './menuPlacement'
+import { getMenuAnchorStyle, getMenuPlacement, placeAnchoredPanel } from './menuPlacement'
 
 describe('floating menu placement', () => {
   it('opens below while the space below still fits the menu', () => {
@@ -35,5 +35,54 @@ describe('floating menu placement', () => {
 
     expect(placement).toBe('above')
     expect(style).toMatchObject({ bottom: 82, left: 40, position: 'fixed', top: undefined, width: 300 })
+  })
+})
+
+describe('anchored panel placement', () => {
+  const viewport = { height: 600, width: 800 }
+
+  it('hangs below the trigger, at its leading edge, when the panel fits', () => {
+    const placed = placeAnchoredPanel({
+      panelHeight: 200,
+      panelWidth: 240,
+      rect: { bottom: 130, left: 300, right: 700, top: 100 },
+      viewport,
+    })
+    expect(placed).toMatchObject({ left: 300, placement: 'below', top: 136 })
+    expect(placed.maxHeight).toBe(600 - 130 - 6 - 8)
+  })
+
+  it('flips up near the bottom and caps the height to the room above, 8px inside the window', () => {
+    const placed = placeAnchoredPanel({
+      panelHeight: 700,
+      panelWidth: 240,
+      rect: { bottom: 560, left: 300, right: 700, top: 530 },
+      viewport,
+    })
+    expect(placed.placement).toBe('above')
+    expect(placed.bottom).toBe(600 - 530 + 6)
+    // Its top edge lands exactly on the margin: never off the top of the window.
+    expect(600 - (placed.bottom ?? 0) - placed.maxHeight).toBe(8)
+  })
+
+  it('clamps horizontally so a menu near the right edge stays inside the window', () => {
+    const placed = placeAnchoredPanel({
+      panelHeight: 100,
+      panelWidth: 280,
+      rect: { bottom: 130, left: 700, right: 790, top: 100 },
+      viewport,
+    })
+    expect(placed.left).toBe(800 - 280 - 8)
+  })
+
+  it('lines up with the trailing edge for end-aligned popovers', () => {
+    const placed = placeAnchoredPanel({
+      align: 'end',
+      panelHeight: 100,
+      panelWidth: 200,
+      rect: { bottom: 130, left: 500, right: 600, top: 100 },
+      viewport,
+    })
+    expect(placed.left).toBe(400)
   })
 })

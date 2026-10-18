@@ -105,8 +105,13 @@
 }
 
 /* ───────── The item pane ───────── */
+/* The phone's side padding is exactly one handle wide, so an edit row's drag handle still fits beside its card. */
+:root[data-layout="mobile"] {
+  --measure-detail-inline: var(--measure-field-handle);
+}
+
 :root[data-layout="mobile"] .detail-pane {
-  padding: 0 var(--space-200);
+  padding: 0 var(--measure-detail-inline);
   border: 0;
 }
 
@@ -115,8 +120,8 @@
   top: 0;
   z-index: 2;
   flex-wrap: nowrap;
-  padding: calc(env(safe-area-inset-top) + var(--space-100)) var(--space-200) var(--space-100);
-  margin: 0 calc(var(--space-200) * -1);
+  padding: calc(env(safe-area-inset-top) + var(--space-100)) var(--measure-detail-inline) var(--space-100);
+  margin: 0 calc(var(--measure-detail-inline) * -1);
   background: var(--color-surface-sunken);
 }
 

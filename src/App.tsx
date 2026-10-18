@@ -3,14 +3,11 @@ import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import {
   AlertCircle,
-  AlignLeft,
   Archive,
   ArchiveRestore,
   ArrowLeft,
   BadgeCheck,
   Braces,
-  Calendar,
-  CalendarRange,
   Car,
   CaseUpper,
   ChevronDown,
@@ -19,8 +16,6 @@ import {
   Cog,
   Coins,
   Copy,
-  CornerDownRight,
-  CornerLeftUp,
   CreditCard,
   Database,
   DollarSign,
@@ -31,19 +26,13 @@ import {
   Fingerprint,
   FolderInput,
   Globe,
-  Group,
   IdCard,
   Inbox,
   KeyRound,
   LayoutGrid,
-  Link,
-  Link2,
-  LogIn,
   Mail,
-  MapPin,
   NotebookTabs,
   Paperclip,
-  Phone,
   Pin,
   PinOff,
   Plane,
@@ -55,12 +44,9 @@ import {
   Server,
   Share,
   ShieldCheck,
-  ShieldQuestion,
   Star,
   Terminal,
-  Timer,
   Trash2,
-  Type,
   Vault,
   Wifi,
   X,
@@ -78,6 +64,8 @@ import {
   useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AddMoreControl } from './app/addMoreMenu'
+import type { AddMoreFieldType } from './app/addMoreOptions'
 import { copyText } from './app/clipboard'
 import {
   FieldActionMenu,
@@ -102,8 +90,8 @@ import {
   canEnter,
   keyboardTarget,
   moveFieldEntry,
+  orderCredentialFields,
   type Slot,
-  sectionChildFieldTypes,
 } from './app/fieldReorder'
 import {
   AddRowButton,
@@ -317,44 +305,8 @@ function normalizeFormUrls(urls: UrlFormState[], fallbackWebsite: string): ItemU
   return filled
 }
 
-const addMoreOptions = [
-  {
-    descriptionKey: 'vault.addMoreOptions.securityQuestionsDescription',
-    icon: ShieldQuestion,
-    labelKey: 'vault.addMoreOptions.securityQuestions',
-    type: 'security_questions',
-  },
-  { icon: Type, labelKey: 'vault.addMoreOptions.text', type: 'text' },
-  { icon: AlignLeft, labelKey: 'vault.addMoreOptions.multiline', type: 'multiline' },
-  { icon: EyeOff, labelKey: 'vault.addMoreOptions.concealed', type: 'concealed' },
-  { icon: Link, labelKey: 'vault.addMoreOptions.url', type: 'url' },
-  { icon: Mail, labelKey: 'vault.addMoreOptions.email', type: 'email' },
-  { icon: MapPin, labelKey: 'vault.addMoreOptions.address', type: 'address' },
-  { icon: Calendar, labelKey: 'vault.addMoreOptions.date', type: 'date' },
-  { icon: CalendarRange, labelKey: 'vault.addMoreOptions.monthYear', type: 'month_year' },
-  { icon: Timer, labelKey: 'vault.addMoreOptions.oneTimePassword', type: 'otp' },
-  { icon: KeyRound, labelKey: 'vault.addMoreOptions.password', type: 'password' },
-  { icon: Phone, labelKey: 'vault.addMoreOptions.phone', type: 'phone' },
-  { icon: LogIn, labelKey: 'vault.addMoreOptions.signInWith', type: 'sign_in_with' },
-  { icon: Fingerprint, labelKey: 'vault.addMoreOptions.passkey', type: 'passkey' },
-  { icon: Group, labelKey: 'vault.addMoreOptions.section', type: 'section' },
-  { icon: Paperclip, labelKey: 'vault.addMoreOptions.attachFile', type: 'file' },
-] as const
-
-// Links to other items close the Add More menu in their own group. They are not fields: each opens the
-// item picker, and the choice lands in the form's relation draft rather than in `custom_fields`.
-const relationMenuOptions: ReadonlyArray<{ icon: typeof Link2; kind: RelationKind; labelKey: string }> = [
-  { icon: CornerLeftUp, kind: 'parent', labelKey: 'vault.relations.addParent' },
-  { icon: CornerDownRight, kind: 'child', labelKey: 'vault.relations.addChild' },
-  { icon: Link2, kind: 'related', labelKey: 'vault.relations.addRelated' },
-]
-
-const sectionChildOptions = addMoreOptions.filter((option) => sectionChildFieldTypes.includes(option.type))
-
 // Only used to decide which side of the trigger has more room, so a rough height is enough.
 const menuRowHeight = 36
-const addMoreMenuHeight = (addMoreOptions.length + relationMenuOptions.length) * menuRowHeight + 48
-const sectionMenuHeight = Math.ceil(sectionChildOptions.length / 2) * menuRowHeight + 24
 // Edit, highlight, delete — the highlight row reads 取消突出显示 once the row already carries one.
 const tagMenuHeight = 3 * menuRowHeight + 24
 // A category row has the one action, and so does a section title once it has anything to clear.
@@ -594,48 +546,6 @@ function OtpScanButton({ label, onScan }: { label: string; onScan: () => void })
     >
       <ScanQrCode aria-hidden="true" size={18} />
     </button>
-  )
-}
-
-/** A section's "add more": the field types a section may hold, as a popover — or a sheet on phones. */
-function SectionAddMenu({
-  onPick,
-  options,
-  sheet,
-  style,
-}: {
-  onPick: (type: (typeof addMoreOptions)[number]['type']) => void
-  options: typeof sectionChildOptions
-  sheet: boolean
-  style?: CSSProperties
-}) {
-  const { t } = useTranslation()
-  const rows = options.map((option) => (
-    <button className="menu-option with-icon" key={option.type} onClick={() => onPick(option.type)} type="button">
-      <option.icon aria-hidden="true" size={15} />
-      <span className="menu-option-label">
-        <span>{t(option.labelKey)}</span>
-        {'descriptionKey' in option ? <small>{t(option.descriptionKey)}</small> : null}
-      </span>
-    </button>
-  ))
-  if (sheet) {
-    return (
-      <div className="field-action-sheet-layer" data-field-menu="">
-        <div aria-hidden="true" className="field-action-sheet-backdrop" />
-        <div className="field-action-sheet">
-          <div className="field-action-sheet-group">
-            <p className="field-action-sheet-title">{t('fieldRows.sectionAddMore')}</p>
-            {rows}
-          </div>
-        </div>
-      </div>
-    )
-  }
-  return (
-    <div className="section-add-menu" data-field-menu="" style={style}>
-      {rows}
-    </div>
   )
 }
 
@@ -926,8 +836,6 @@ function VaultWindow() {
   const [passwordStrength, setPasswordStrength] = useState<PasswordStrength | null>(null)
   const [showAddMore, setShowAddMore] = useState(false)
   const [sectionMenuIndex, setSectionMenuIndex] = useState<number | null>(null)
-  const [addMoreMenuAnchor, setAddMoreMenuAnchor] = useState<MenuAnchor>()
-  const [sectionMenuAnchor, setSectionMenuAnchor] = useState<MenuAnchor>()
   const [fieldTotpPreviews, setFieldTotpPreviews] = useState<Record<number, FieldTotpPreview>>({})
   // Which seed input is showing its value. A saved seed is not a display value, so it rests as dots and
   // only the field being typed in reveals itself — see `fieldValueInputProps`.
@@ -1201,8 +1109,9 @@ function VaultWindow() {
   // with no credential block they fall back to the plain custom-field list instead of
   // disappearing with it.
   const inCredentialBlock = (field: CustomField) => showCredentials && loginSectionFieldTypes.includes(field.field_type)
+  // Fixed order, no handles (owner 2026-10-18): username, password, sign-in method, passkeys, one-time passwords.
   const loginSectionFields = useMemo(
-    () => customFieldEntries.filter(({ field }) => inCredentialBlock(field)),
+    () => orderCredentialFields(customFieldEntries.filter(({ field }) => inCredentialBlock(field))),
     [customFieldEntries, showCredentials],
   )
   const detailCustomFields = useMemo(
@@ -1899,46 +1808,24 @@ function VaultWindow() {
     })
   }
 
-  // The field rows clip an absolutely positioned panel, so both menus are anchored to the
-  // viewport and open on whichever side of the trigger has room.
-  function toggleAddMoreMenu(trigger: HTMLElement) {
+  // Both Add More menus are one component (addMoreMenu.tsx) that places itself in a portal layer.
+  function toggleAddMoreMenu() {
     const next = !showAddMore
-    setSectionMenuIndex(null)
+    closeFieldMenus()
     setShowAddMore(next)
-    if (!next) return
-    setAddMoreMenuAnchor(
-      getMenuAnchorStyle({
-        menuHeight: addMoreMenuHeight,
-        rect: trigger.getBoundingClientRect(),
-        viewportHeight: window.innerHeight,
-      }),
-    )
   }
 
-  function toggleSectionMenu(sectionIndex: number, trigger: HTMLElement) {
+  function toggleSectionMenu(sectionIndex: number) {
     const next = sectionMenuIndex === sectionIndex ? null : sectionIndex
-    setShowAddMore(false)
+    closeFieldMenus()
     setSectionMenuIndex(next)
-    if (next === null) return
-    const buttonRect = trigger.getBoundingClientRect()
-    // The panel spans the card it belongs to rather than the width of the text button.
-    const cardRect = trigger.closest('.field-group')?.getBoundingClientRect() ?? buttonRect
-    setSectionMenuAnchor(
-      getMenuAnchorStyle({
-        menuHeight: sectionMenuHeight,
-        rect: { bottom: buttonRect.bottom, left: cardRect.left, top: buttonRect.top, width: cardRect.width },
-        viewportHeight: window.innerHeight,
-      }),
-    )
   }
 
   function closeFieldMenus() {
-    setAddMoreMenuAnchor(undefined)
     setCategoryMenu(null)
     setCategoryMenuAnchor(undefined)
     setItemMenu(null)
     setItemMenuAnchor(undefined)
-    setSectionMenuAnchor(undefined)
     setSectionMenuIndex(null)
     setSectionHighlightMenu(null)
     setSectionHighlightMenuAnchor(undefined)
@@ -2149,7 +2036,7 @@ function VaultWindow() {
     vaultMenu,
   ])
 
-  async function addCustomField(fieldType: (typeof addMoreOptions)[number]['type']) {
+  async function addCustomField(fieldType: AddMoreFieldType) {
     // Not a free-text field: it opens the sheet that picks the provider and the account.
     if (fieldType === 'sign_in_with') {
       openSignInPicker()
@@ -2409,7 +2296,7 @@ function VaultWindow() {
     }, 0)
   }
 
-  function addSectionChild(sectionIndex: number, fieldType: (typeof addMoreOptions)[number]['type']) {
+  function addSectionChild(sectionIndex: number, fieldType: AddMoreFieldType) {
     setSectionMenuIndex(null)
     focusNewLabel(`section:${sectionIndex}`)
     setForm((current) => {
@@ -2511,6 +2398,7 @@ function VaultWindow() {
   function reorderFor(container: string, index: number, fieldType: string, pinned = false): ReorderControl {
     return {
       container,
+      dragging: fieldDrag.dragging?.container === container && fieldDrag.dragging.index === index,
       index,
       onKeyboardMove: (delta) => {
         if (container === 'urls') {
@@ -2580,7 +2468,8 @@ function VaultWindow() {
       label,
       labelInput,
       onRemove: () => removeCustomField(index),
-      reorder: reorderFor(container, position, field.field_type),
+      // The credential card's rows sit in a fixed order: nothing there has a handle.
+      reorder: container === 'login' ? undefined : reorderFor(container, position, field.field_type),
     }
 
     if (field.field_type === 'sign_in_with') {
@@ -2788,23 +2677,19 @@ function VaultWindow() {
               </EditFieldRow>
             )
           })}
-          <AddRowButton
-            expanded={sectionMenuIndex === index}
-            onClick={(trigger) => toggleSectionMenu(index, trigger)}
-            zone={{ container, index: children.length }}
-          >
-            <Plus aria-hidden="true" size={16} />
-            {t('fieldRows.sectionAddMore')}
-          </AddRowButton>
         </div>
-        {sectionMenuIndex === index ? (
-          <SectionAddMenu
-            onPick={(type) => addSectionChild(index, type)}
-            options={sectionChildOptions}
-            sheet={isMobileLayout}
-            style={sectionMenuAnchor?.style}
-          />
-        ) : null}
+        <AddMoreControl
+          attachments={features.attachments}
+          context="section"
+          dropIndicator={fieldDrag.dropAt(container, children.length)}
+          dropZone={{ container, index: children.length }}
+          onPick={(entry) => {
+            if (entry.kind === 'field') addSectionChild(index, entry.id)
+          }}
+          onToggle={() => toggleSectionMenu(index)}
+          open={sectionMenuIndex === index}
+          sheet={isMobileLayout}
+        />
       </div>
     )
   }
@@ -3748,56 +3633,17 @@ function VaultWindow() {
                         renderEditSection(run.entry.field, run.entry.index, run.entry.position)
                       ),
                     )}
-                    <div className="add-more-wrap" data-field-menu="">
-                      <button
-                        className={
-                          addMoreMenuAnchor?.placement === 'above' ? 'add-more-button placement-top' : 'add-more-button'
-                        }
-                        onClick={(event) => toggleAddMoreMenu(event.currentTarget)}
-                        type="button"
-                      >
-                        <Plus size={16} />
-                        {t('vault.addMore')}
-                        <ChevronDown size={16} />
-                      </button>
-                      {showAddMore ? (
-                        <div className="add-more-menu" style={addMoreMenuAnchor?.style}>
-                          {addMoreOptions
-                            .filter((option) => option.type !== 'file' || features.attachments)
-                            .map((option) => (
-                              <button
-                                className={
-                                  option.type === 'section' || option.type === 'file'
-                                    ? 'menu-option with-icon separated'
-                                    : 'menu-option with-icon'
-                                }
-                                key={option.type}
-                                onClick={() => addCustomField(option.type)}
-                                type="button"
-                              >
-                                <option.icon aria-hidden="true" size={15} />
-                                <span className="menu-option-label">
-                                  <span>{t(option.labelKey)}</span>
-                                  {'descriptionKey' in option ? <small>{t(option.descriptionKey)}</small> : null}
-                                </span>
-                              </button>
-                            ))}
-                          {relationMenuOptions.map((option, index) => (
-                            <button
-                              className={index === 0 ? 'menu-option with-icon separated' : 'menu-option with-icon'}
-                              key={option.kind}
-                              onClick={() => openRelationPicker(option.kind)}
-                              type="button"
-                            >
-                              <option.icon aria-hidden="true" size={15} />
-                              <span className="menu-option-label">
-                                <span>{t(option.labelKey)}</span>
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
+                    <AddMoreControl
+                      attachments={features.attachments}
+                      context="item"
+                      onPick={(entry) => {
+                        if (entry.kind === 'relation') openRelationPicker(entry.id)
+                        else void addCustomField(entry.id)
+                      }}
+                      onToggle={toggleAddMoreMenu}
+                      open={showAddMore}
+                      sheet={isMobileLayout}
+                    />
                     {isEditing && features.attachments ? (
                       <div className={isDraggingFiles ? 'attachment-dropzone is-active' : 'attachment-dropzone'}>
                         <Paperclip aria-hidden="true" size={15} />

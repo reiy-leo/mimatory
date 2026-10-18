@@ -103,9 +103,9 @@ describe('i18n', () => {
   it('translates the keys built at runtime', () => {
     const app = readFileSync('src/App.tsx', 'utf8')
     const itemTypes = [...app.matchAll(/icon: \w+, itemType: '([a-z_]+)' \}/g)].map((match) => match[1])
-    /* The lookbehind keeps `field_type` and `item_type` out of the sweep — only the add-field menu's
-       own `type:` values pick a placeholder, and an item type is not one of them. */
-    const fieldTypes = [...app.matchAll(/(?<![A-Za-z_])type: '([a-z_]+)'/g)].map((match) => match[1])
+    /* The Add More menu's field entries (addMoreOptions.ts) each pick a default label and a placeholder. */
+    const addMore = readFileSync('src/app/addMoreOptions.ts', 'utf8')
+    const fieldTypes = [...addMore.matchAll(/id: '([a-z_]+)',\s*kind: 'field'/g)].map((match) => match[1])
     const tagSource = readFileSync('src/app/tagIcons.ts', 'utf8')
     const tagIcons = [...tagSource.matchAll(/\{ icon: \w+, name: '([a-z-]+)' \}/g)].map((match) => match[1])
     /* The "no colour" swatch is stored as an empty string, so its key is the one name the source does

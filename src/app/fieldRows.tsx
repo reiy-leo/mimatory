@@ -11,12 +11,14 @@ import {
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { usePlatformState } from '../skin/runtime'
+import { useAnchoredPanel } from './anchoredPanel'
 import { type UrlMatchType, vaultApi, type WebsiteScope } from './vaultApi'
 
 /**
  * The editor's half of the one field row (1Password 8, owner screenshots 2026-10-17): every editable field is
- * a `.field-slot` — a drag handle in a gutter *outside* the card, then a `.field-row` cell inside it with the
- * label above the value and the trailing buttons (type buttons, then the red remove). The read-only view draws
+ * a `.field-slot` — the `.field-row` cell with the label above the value and the trailing buttons (type
+ * buttons, then the red remove), and, for a movable row, a drag handle hung *outside* the card in the pane's
+ * padding, so every card lines up with the item icon (owner, 2026-10-18). The read-only view draws
  * the same `.field-row` cell (`FieldView`), so both modes share padding, type, separators and the action area;
  * editing adds the gutter, the whole-cell focus ring and the remove button. Nothing in the form draws a field
  * any other way — `designContract.test.ts` checks it.
@@ -34,6 +36,8 @@ export type DragSource = {
 
 export type ReorderControl = {
   container: string
+  /** This row is the one being dragged right now: its handle draws at full strength. */
+  dragging?: boolean
   index: number
   /** Alt+↑ / Alt+↓ on the handle. */
   onKeyboardMove: (delta: -1 | 1) => void
@@ -49,7 +53,7 @@ export function ReorderHandle({ control, label }: { control: ReorderControl; lab
       <button
         aria-describedby={hintId}
         aria-label={t('fieldRows.reorder', { label })}
-        className="field-reorder-handle"
+        className={control.dragging ? 'field-reorder-handle is-dragging' : 'field-reorder-handle'}
         onKeyDown={(event: ReactKeyboardEvent<HTMLButtonElement>) => {
           if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return
           event.preventDefault()
@@ -59,7 +63,7 @@ export function ReorderHandle({ control, label }: { control: ReorderControl; lab
         title={t('fieldRows.reorderHint')}
         type="button"
       >
-        <Menu aria-hidden="true" size={18} />
+        <Menu aria-hidden="true" size={16} />
       </button>
       <span className="sr-only" id={hintId}>
         {t('fieldRows.reorderHint')}
@@ -100,11 +104,17 @@ export function EditFieldRow({
   const { t } = useTranslation()
   return (
     <div
-      className={['field-slot', drop ? `is-drop-${drop}` : ''].filter(Boolean).join(' ')}
+      className={['field-slot', drop ? `is-drop-${drop}` : '', reorder?.dragging ? 'is-dragging' : '']
+        .filter(Boolean)
+        .join(' ')}
       data-reorder-container={reorder?.container}
       data-reorder-index={reorder?.index}
     >
-      <span className="field-slot-handle">{reorder ? <ReorderHandle control={reorder} label={label} /> : null}</span>
+      {reorder ? (
+        <span className="field-slot-handle">
+          <ReorderHandle control={reorder} label={label} />
+        </span>
+      ) : null}
       <div className={['field-row', 'is-edit', className].filter(Boolean).join(' ')}>
         <div className="field-row-main">
           {labelInput ? (
@@ -162,7 +172,6 @@ export function AddRowButton({
       data-reorder-index={zone?.index}
       data-reorder-zone={zone ? '' : undefined}
     >
-      <span className="field-slot-handle" />
       <div className="field-row is-edit is-add">
         <button
           aria-expanded={expanded}
@@ -368,22 +377,18 @@ export function AutofillBehaviorButton({
   }, [anchor])
 
   const panelWidth = 380
+  // Same placement as the Add More menu: flips above near the window's foot, never leaves the window.
+  const { style: placed } = useAnchoredPanel(anchor !== null && !sheet, buttonRef, panelRef, {
+    align: 'end',
+    width: panelWidth,
+  })
   const panel = anchor ? (
     <div
       aria-labelledby={titleId}
       className={sheet ? 'autofill-panel is-sheet' : 'autofill-panel'}
       ref={panelRef}
       role="dialog"
-      style={
-        sheet
-          ? undefined
-          : {
-              left: Math.max(8, Math.min(anchor.right - panelWidth + 24, window.innerWidth - panelWidth - 8)),
-              position: 'fixed',
-              top: anchor.bottom + 6,
-              width: panelWidth,
-            }
-      }
+      style={sheet ? undefined : { ...placed, overflowY: 'auto' }}
     >
       <p className="autofill-panel-title" id={titleId}>
         {t('fieldRows.autofillTitle')}
