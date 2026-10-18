@@ -3759,3 +3759,9 @@
 .list-sort-option svg {
   color: var(--color-accent);
 }
+
+/* A settings hit in the toolbar search: a gear in the same slot the item icons use beside it. */
+.top-search-settings-icon {
+  color: var(--color-text-subtle);
+  background: var(--color-background-neutral-subtle-pressed);
+}

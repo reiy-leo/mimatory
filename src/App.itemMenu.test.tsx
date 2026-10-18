@@ -191,7 +191,7 @@ describe('vault window', () => {
     // ⌘↑ / Ctrl+↑ (whichever the platform's primary modifier is), but never while typing in a field.
     fireEvent.keyDown(document.body, { ctrlKey: true, key: 'ArrowUp', metaKey: true })
     await waitFor(() => expect(screen.getByRole('button', { name: /Bravo/ })).toHaveClass('active'))
-    fireEvent.keyDown(screen.getByLabelText('Search all item titles'), {
+    fireEvent.keyDown(screen.getByLabelText('Search items and settings'), {
       ctrlKey: true,
       key: 'ArrowDown',
       metaKey: true,
@@ -265,5 +265,25 @@ describe('vault window', () => {
     })
     await waitFor(() => expect(screen.getByRole('button', { name: 'Favorite' })).toHaveClass('active'))
     items[0].favorite = false
+  })
+
+  it('finds settings from the toolbar search as well as items', async () => {
+    await renderUnlocked()
+    fireEvent.change(screen.getByLabelText('Search items and settings'), { target: { value: 'clip' } })
+    expect(await screen.findByRole('button', { name: /Clipboard/ })).toHaveTextContent('Settings ▸ Security')
+  })
+
+  it('remembers the dragged column widths', async () => {
+    localStorage.setItem('passless-column-widths', JSON.stringify({ itemList: 240, sidebar: 9999 }))
+    await renderUnlocked()
+    const shell = document.querySelector('.app-shell') as HTMLElement
+    expect(shell.style.getPropertyValue('--item-list-width')).toBe('240px')
+    expect(shell.style.getPropertyValue('--sidebar-width')).toBe('220px')
+    const handle = screen.getByRole('button', { name: 'Resize item list' })
+    fireEvent.mouseDown(handle, { clientX: 400 })
+    fireEvent.mouseMove(window, { clientX: 390 })
+    fireEvent.mouseUp(window)
+    expect(JSON.parse(localStorage.getItem('passless-column-widths') ?? '{}')).toEqual({ itemList: 230, sidebar: 9999 })
+    localStorage.removeItem('passless-column-widths')
   })
 })

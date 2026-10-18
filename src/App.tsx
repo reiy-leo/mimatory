@@ -45,6 +45,7 @@ import {
   ScanQrCode,
   Search,
   Server,
+  Settings,
   Shapes,
   Share,
   Star,
@@ -283,6 +284,31 @@ const quickAccessCloseDelayMs = 400
 // starts the column at, and the two gutter handles below are the only thing that changes it.
 const itemListWidthLimits = { default: 220, max: 250, min: 180 }
 const sidebarWidthLimits = { default: 220, max: 220, min: 150 }
+
+// Column widths the user dragged survive relaunches (owner 2026-10-18), clamped in case the limits changed.
+const columnWidthStorageKey = 'passless-column-widths'
+
+function readColumnWidth(key: 'itemList' | 'sidebar', limits: { default: number; max: number; min: number }) {
+  try {
+    const stored = JSON.parse(globalThis.localStorage?.getItem(columnWidthStorageKey) ?? '{}')?.[key]
+    if (typeof stored === 'number' && Number.isFinite(stored)) return Math.min(limits.max, Math.max(limits.min, stored))
+  } catch {
+    // Unreadable store: fall back to the default width.
+  }
+  return limits.default
+}
+
+function storeColumnWidth(key: 'itemList' | 'sidebar', width: number) {
+  try {
+    const current = JSON.parse(globalThis.localStorage?.getItem(columnWidthStorageKey) ?? '{}')
+    globalThis.localStorage?.setItem(
+      columnWidthStorageKey,
+      JSON.stringify({ ...(current && typeof current === 'object' ? current : {}), [key]: width }),
+    )
+  } catch {
+    // Private mode or a full store: the width still holds for this session.
+  }
+}
 const settingsWindowSize = { height: 680, width: 920 }
 
 function createFormId() {
@@ -640,6 +666,32 @@ const settingsTabLabels: Record<SettingsTab, string> = {
   watchtower: 'settings.tabs.watchtower',
 }
 
+/**
+ * What the toolbar search can find in Settings (owner 2026-10-18: the search covers settings too, not just item
+ * titles): each pane's section headings, plus the pane itself. Picking one opens Settings on that pane.
+ */
+const settingsSearchEntries: Array<{ key: string; requires?: 'autostart' | 'browserExtension' | 'keyboardShortcuts'; tab: SettingsTab }> = [
+  { key: 'settings.language', tab: 'general' },
+  { key: 'settings.siteIcons', tab: 'general' },
+  { key: 'settings.autostart', requires: 'autostart', tab: 'general' },
+  { key: 'settings.vaultStatus', tab: 'general' },
+  { key: 'settings.appearance', tab: 'appearance' },
+  { key: 'settings.toastPosition', tab: 'appearance' },
+  { key: 'integrations.browserExtension', requires: 'browserExtension', tab: 'browser' },
+  { key: 'integrations.watchtower', tab: 'watchtower' },
+  { key: 'security.unlock', tab: 'security' },
+  { key: 'security.autoLock', tab: 'security' },
+  { key: 'security.clipboard', tab: 'security' },
+  { key: 'shortcuts.title', requires: 'keyboardShortcuts', tab: 'shortcuts' },
+]
+
+/** Settings opened from the toolbar search land on this pane: the window's URL for a new one, an event otherwise. */
+const settingsTabEvent = 'passless://settings-tab'
+
+function isSettingsTab(value: unknown): value is SettingsTab {
+  return typeof value === 'string' && (settingsTabs as string[]).includes(value)
+}
+
 export function App() {
   const view = new URLSearchParams(window.location.search).get('view')
 
@@ -800,8 +852,8 @@ function VaultWindow() {
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [vaults, setVaults] = useState<VaultSummary[]>([])
   const [activeVaultId, setActiveVaultId] = useState('personal')
-  const [itemListWidth, setItemListWidth] = useState(itemListWidthLimits.default)
-  const [sidebarWidth, setSidebarWidth] = useState(sidebarWidthLimits.default)
+  const [itemListWidth, setItemListWidth] = useState(() => readColumnWidth('itemList', itemListWidthLimits))
+  const [sidebarWidth, setSidebarWidth] = useState(() => readColumnWidth('sidebar', sidebarWidthLimits))
   const [activeNavigation, setActiveNavigation] = useState<ActiveNavigation>('vaults')
   const [topSearch, setTopSearch] = useState('')
   const [masterPassword, setMasterPassword] = useState('')
@@ -1201,6 +1253,18 @@ function VaultWindow() {
     if (!normalizedQuery) return []
     return allScope.filter((item) => item.title.toLowerCase().includes(normalizedQuery)).slice(0, 8)
   }, [items, topSearch])
+
+  const topSettingsResults = useMemo(() => {
+    const normalizedQuery = topSearch.trim().toLowerCase()
+    if (!normalizedQuery) return []
+    const seen = new Set<string>()
+    return settingsSearchEntries
+      .filter((entry) => !entry.requires || features[entry.requires])
+      .map((entry) => ({ ...entry, label: t(entry.key), paneLabel: t(settingsTabLabels[entry.tab]) }))
+      .filter(({ label, paneLabel }) => `${label} ${paneLabel}`.toLowerCase().includes(normalizedQuery))
+      .filter(({ label }) => (seen.has(label) ? false : (seen.add(label), true)))
+      .slice(0, 5)
+  }, [features, t, topSearch])
 
   const template = useMemo(() => getItemTemplate(form.item_type), [form.item_type])
 
@@ -1899,15 +1963,23 @@ function VaultWindow() {
   // its own limits instead of drifting once the cursor has run past them.
   function beginColumnResize(
     event: ReactMouseEvent<HTMLButtonElement>,
-    input: { limits: { max: number; min: number }; onWidth: (width: number) => void; startWidth: number },
+    input: {
+      key: 'itemList' | 'sidebar'
+      limits: { max: number; min: number }
+      onWidth: (width: number) => void
+      startWidth: number
+    },
   ) {
     event.preventDefault()
     const startX = event.clientX
+    let width = input.startWidth
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const nextWidth = input.startWidth + (moveEvent.clientX - startX)
-      input.onWidth(Math.min(input.limits.max, Math.max(input.limits.min, nextWidth)))
+      width = Math.min(input.limits.max, Math.max(input.limits.min, nextWidth))
+      input.onWidth(width)
     }
     const handleMouseUp = () => {
+      storeColumnWidth(input.key, width)
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
@@ -1916,11 +1988,11 @@ function VaultWindow() {
   }
 
   function beginItemListResize(event: ReactMouseEvent<HTMLButtonElement>) {
-    beginColumnResize(event, { limits: itemListWidthLimits, onWidth: setItemListWidth, startWidth: itemListWidth })
+    beginColumnResize(event, { key: 'itemList', limits: itemListWidthLimits, onWidth: setItemListWidth, startWidth: itemListWidth })
   }
 
   function beginSidebarResize(event: ReactMouseEvent<HTMLButtonElement>) {
-    beginColumnResize(event, { limits: sidebarWidthLimits, onWidth: setSidebarWidth, startWidth: sidebarWidth })
+    beginColumnResize(event, { key: 'sidebar', limits: sidebarWidthLimits, onWidth: setSidebarWidth, startWidth: sidebarWidth })
   }
 
   function updateUrl(index: number, patch: Partial<ItemUrl>) {
@@ -3150,16 +3222,18 @@ function VaultWindow() {
   // A window created without a position is centred on tauri's *primary* monitor, so with a second display
   // open the settings landed where the user was not looking. Main's own frame decides where it goes, and
   // `parent` is what puts the two windows on the same macOS Space and keeps them travelling together.
-  async function openSettingsWindow() {
+  async function openSettingsWindow(tab?: SettingsTab) {
     setError(null)
     // Phones have one window: Settings is a tab in it.
     if (!featuresFor(currentPlatformState().platform).settingsWindow) {
       setMobileTab('settings')
+      if (tab) window.dispatchEvent(new CustomEvent(settingsTabEvent, { detail: tab }))
       return
     }
     try {
       const existing = await WebviewWindow.getByLabel('settings')
       if (existing) {
+        if (tab) await emit(settingsTabEvent, tab)
         await existing.show()
         await existing.setFocus()
         return
@@ -3189,7 +3263,7 @@ function VaultWindow() {
         shadow: true,
         skipTaskbar: true,
         title: 'Passless Settings',
-        url: '/?view=settings',
+        url: tab ? `/?view=settings&tab=${tab}` : '/?view=settings',
         width: settingsWindowSize.width,
         // Title bar and window material per platform (macOS: overlay + sidebar vibrancy, as before).
         ...settingsWindowChrome(currentPlatformState().platform),
@@ -3554,7 +3628,27 @@ function VaultWindow() {
                   </span>
                 </button>
               ))}
-              {topSearchResults.length === 0 ? <p>{t('vault.noSearchResults')}</p> : null}
+              {topSettingsResults.map((entry) => (
+                <button
+                  key={entry.key}
+                  onClick={() => {
+                    setTopSearch('')
+                    void openSettingsWindow(entry.tab)
+                  }}
+                  type="button"
+                >
+                  <span aria-hidden="true" className="item-icon top-search-settings-icon">
+                    <Settings size={18} />
+                  </span>
+                  <span>
+                    <strong>{entry.label}</strong>
+                    <small>{t('vault.searchSettingsIn', { pane: entry.paneLabel })}</small>
+                  </span>
+                </button>
+              ))}
+              {topSearchResults.length === 0 && topSettingsResults.length === 0 ? (
+                <p>{t('vault.noSearchResults')}</p>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -4934,7 +5028,34 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
     (id) => (id !== 'browser' || features.browserExtension) && (id !== 'shortcuts' || features.keyboardShortcuts),
   )
   const quickAccess = quickAccessKeys(platform)
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general')
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab')
+    return isSettingsTab(requested) ? requested : 'general'
+  })
+  // The toolbar search in the main window can ask an open Settings for another pane.
+  useEffect(() => {
+    const onLocal = (event: Event) => {
+      const tab = (event as CustomEvent<unknown>).detail
+      if (isSettingsTab(tab)) setActiveTab(tab)
+    }
+    window.addEventListener(settingsTabEvent, onLocal)
+    if (embedded) return () => window.removeEventListener(settingsTabEvent, onLocal)
+    let unlisten: (() => void) | null = null
+    let disposed = false
+    listen<unknown>(settingsTabEvent, (event) => {
+      if (isSettingsTab(event.payload)) setActiveTab(event.payload)
+    })
+      .then((stop) => {
+        if (disposed) stop()
+        else unlisten = stop
+      })
+      .catch(() => {})
+    return () => {
+      disposed = true
+      unlisten?.()
+      window.removeEventListener(settingsTabEvent, onLocal)
+    }
+  }, [embedded])
   const [status, setStatus] = useState<AppStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [operationMessage, setOperationMessage] = useState<string | null>(null)
