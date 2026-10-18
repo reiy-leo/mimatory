@@ -12,6 +12,7 @@ import {
   Braces,
   Car,
   CaseUpper,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -3543,10 +3544,12 @@ function VaultWindow() {
             {isEditing ? (
               <>
                 <button className="secondary-button" onClick={handleCancelEdit} type="button">
+                  <X size={15} />
                   {t('vault.cancelEditing')}
                 </button>
                 {/* The submit button sits outside the form it submits, so it has to name it. */}
                 <button className="primary-button" disabled={saving} form="item-detail-form" type="submit">
+                  <Check size={15} />
                   {saving ? t('vault.saving') : selectedItem ? t('vault.saveChanges') : t('vault.createItem')}
                 </button>
               </>
