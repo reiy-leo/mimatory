@@ -1,15 +1,82 @@
 const PASSLESS_BRIDGE = 'http://127.0.0.1:17891'
 
+const visible = (element) => Boolean(element) && element.getClientRects().length > 0 && !element.disabled
+
+const USERNAME_SELECTOR = [
+  'input[autocomplete="username"]',
+  'input[autocomplete="email"]',
+  'input[type="email"]',
+  'input[name*="user" i]',
+  'input[name*="login" i]',
+  'input[name*="email" i]',
+  'input[id*="user" i]',
+  'input[id*="email" i]',
+  'input[id*="login" i]',
+].join(', ')
+
+/* The sign-in on screen: a visible password field with the username field before it, or — on an
+   identifier-first page (Google, Microsoft, Apple…) — the username field on its own, whose "Next" brings the
+   password step. */
 function findLoginForm() {
-  const password = document.querySelector('input[type="password"]')
-  if (!password) return null
-  const form = password.closest('form') || document
+  const password = [...document.querySelectorAll('input[type="password"]')].find(visible) || null
+  const scope = password?.closest('form') || document
   const username =
-    form.querySelector('input[autocomplete="username"]') ||
-    form.querySelector('input[type="email"]') ||
-    form.querySelector('input[name*="user" i]') ||
-    form.querySelector('input[type="text"]')
-  return { form, password, username }
+    [...scope.querySelectorAll(USERNAME_SELECTOR)].find((input) => visible(input) && input.type !== 'password') ||
+    (password ? [...scope.querySelectorAll('input[type="text"]')].find(visible) : null) ||
+    null
+  if (!password && !username) return null
+  return { form: (password || username).closest('form') || document, password, username }
+}
+
+/* Frameworks (React, Vue, Angular) track an input's value through its own setter; writing through the native
+   prototype setter and firing input + change is what makes them see a filled value as typed. */
+function setFieldValue(input, value) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+  input.focus({ preventScroll: true })
+  if (setter) setter.call(input, value)
+  else input.value = value
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+  input.dispatchEvent(new Event('change', { bubbles: true }))
+}
+
+const SUBMIT_WORDS =
+  /^(sign\s*in|log\s*in|login|next|continue|submit|go|ok|下一步|继续|登录|登入|確認|确认|提交|次へ|ログイン|サインイン|続行)$/i
+
+/* The page's own "Next" / "Sign in": the form's submit button, else a visible button whose words say so. */
+function findSubmitButton(field) {
+  const form = field?.closest('form')
+  const label = (element) =>
+    [element.getAttribute('aria-label'), element.value, element.textContent]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  if (form) {
+    const submit = [...form.querySelectorAll('button[type="submit"], input[type="submit"], button:not([type])')].find(
+      visible,
+    )
+    if (submit) return submit
+  }
+  const scope = form || document
+  return [...scope.querySelectorAll('button, [role="button"], input[type="button"]')]
+    .filter(visible)
+    .find((element) => SUBMIT_WORDS.test(label(element)))
+}
+
+function submitLogin(field) {
+  const button = findSubmitButton(field)
+  if (button) {
+    button.click()
+    return
+  }
+  const form = field?.closest('form')
+  if (form?.requestSubmit) {
+    form.requestSubmit()
+    return
+  }
+  for (const type of ['keydown', 'keypress', 'keyup']) {
+    field?.dispatchEvent(new KeyboardEvent(type, { bubbles: true, code: 'Enter', key: 'Enter', keyCode: 13 }))
+  }
 }
 
 async function fetchMatches() {
@@ -86,20 +153,45 @@ async function fillFromPassless(itemId) {
     if (button) highlightProviderButton(button)
     return { found: Boolean(button), kind: 'signInWith', provider: item.sign_in_with }
   }
-  const login = findLoginForm()
-  if (!login) return { kind: 'noLoginForm' }
-  if (login.username) {
-    login.username.value = item.username
-    login.username.dispatchEvent(new Event('input', { bubbles: true }))
-  }
-  login.password.value = item.password
-  login.password.dispatchEvent(new Event('input', { bubbles: true }))
-  return { kind: 'filled' }
+  return fillLogin(item, { submit: false }) ? { kind: 'filled' } : { kind: 'noLoginForm' }
 }
+
+/* Fills what the page shows of the sign-in. With `submit`, it then presses the page's own Next / Sign in;
+   on an identifier-first page that leaves the item pending for a minute, so the password step that follows
+   (same page or the next one on this origin) is filled and submitted too. */
+function fillLogin(item, { submit }) {
+  const login = findLoginForm()
+  if (!login) return false
+  // Filling moves focus through the fields; that is not the user asking for the menu again.
+  suppressMenuUntil = Date.now() + 1500
+  if (login.username && item.username) setFieldValue(login.username, item.username)
+  if (login.password) setFieldValue(login.password, item.password || '')
+  lastFilled = { password: item.password || '', username: item.username || '' }
+  if (!submit) return true
+  if (login.password) clearPendingStep()
+  else {
+    rememberPendingStep(item.id)
+    watchPendingStep()
+  }
+  window.setTimeout(() => submitLogin(login.password || login.username), 60)
+  return true
+}
+
+let suppressMenuUntil = 0
+
+// What Passless itself just filled: submitting it unchanged is not a new login to offer saving.
+let lastFilled = null
 
 async function saveToPassless() {
   const login = findLoginForm()
-  if (!login || !login.password.value) return
+  if (!login?.password?.value) return
+  if (
+    lastFilled &&
+    lastFilled.password === login.password.value &&
+    lastFilled.username === (login.username?.value || '')
+  ) {
+    return
+  }
   const { passlessToken } = await chrome.storage.local.get(['passlessToken'])
   await fetch(`${PASSLESS_BRIDGE}/save`, {
     body: JSON.stringify({
@@ -113,12 +205,16 @@ async function saveToPassless() {
   }).catch(() => {})
 }
 
-const login = findLoginForm()
-if (login?.form && login.form.addEventListener) {
-  login.form.addEventListener('submit', () => {
-    saveToPassless()
-  })
-}
+// Any sign-in form, including one rendered after load, offers its new login to Passless on submit.
+document.addEventListener(
+  'submit',
+  (event) => {
+    if (event.target instanceof HTMLFormElement && event.target.querySelector('input[type="password"]')) {
+      saveToPassless()
+    }
+  },
+  true,
+)
 
 /* Open & Fill from the Passless app: the app opens the item's website with `#passless-fill=<item id>` in the
    fragment (never sent to the server). The marker is removed from the address bar at once, then this one item
@@ -340,3 +436,259 @@ window.addEventListener('message', (event) => {
   if (data?.__passless !== 'passkey-created' || !rpIdFitsPage(data.rpId)) return
   showPasskeyPrompt({ rpId: String(data.rpId), userName: String(data.userName || '') })
 })
+
+/* ── Inline fill menu (owner, 2026-10-18: "like 1Password") ──────────────────────────────────────────────
+   Focusing or clicking a sign-in field on a site Passless has logins for opens a small menu under the field
+   with those logins. Picking one fills the username and password and presses the page's own Next / Sign in.
+   On an identifier-first page the item stays pending for a minute, so the password step that follows is
+   filled and submitted as well. A "Sign in with…" login only points at the provider's button, as before.
+   The menu lives in a closed shadow root: the site's CSS cannot restyle it and its scripts cannot read it. */
+
+const PENDING_KEY = 'passless-pending-step'
+const PENDING_TTL_MS = 60 * 1000
+
+function rememberPendingStep(itemId) {
+  try {
+    sessionStorage.setItem(PENDING_KEY, JSON.stringify({ at: Date.now(), itemId }))
+  } catch {}
+}
+
+function clearPendingStep() {
+  try {
+    sessionStorage.removeItem(PENDING_KEY)
+  } catch {}
+}
+
+function pendingStepItemId() {
+  try {
+    const pending = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null')
+    if (pending && Date.now() - pending.at < PENDING_TTL_MS) return pending.itemId
+  } catch {}
+  clearPendingStep()
+  return null
+}
+
+const MENU_STYLE = `
+  :host { all: initial; }
+  .menu {
+    --text: #000000d9; --text-subtle: #00000099; --surface: #f6f6f6; --border: #0000001a;
+    --accent: #007aff; --hover: #0000000d; --selected: #007aff; --on-selected: #ffffff;
+    position: fixed; z-index: 2147483647; box-sizing: border-box; min-width: 240px; max-width: 360px;
+    max-height: 280px; overflow: auto; margin: 0; padding: 4px; list-style: none;
+    font: 13px/16px -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", sans-serif;
+    color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 8px 24px #00000026, 0 0 0 0.5px #0000001f; -webkit-font-smoothing: antialiased;
+  }
+  @media (prefers-color-scheme: dark) {
+    .menu {
+      --text: #ffffffd9; --text-subtle: #ffffff8c; --surface: #323234; --border: #ffffff1a;
+      --accent: #0a84ff; --hover: #ffffff14; --selected: #0a84ff;
+      box-shadow: 0 8px 24px #00000066, 0 0 0 0.5px #ffffff1a;
+    }
+  }
+  .heading { padding: 4px 8px 6px; color: var(--text-subtle); font-size: 11px; line-height: 14px; font-weight: 600; }
+  .option { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 8px; align-items: center;
+    padding: 6px 8px; border-radius: 6px; cursor: default; }
+  .option:hover { background: var(--hover); }
+  .option[aria-selected="true"] { background: var(--selected); color: var(--on-selected); }
+  .option[aria-selected="true"] .sub { color: inherit; opacity: 0.85; }
+  .badge { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center;
+    background: var(--accent); color: #ffffff; font-weight: 600; font-size: 12px; }
+  .title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+  .sub { display: block; color: var(--text-subtle); font-size: 12px; line-height: 15px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+`
+
+let menuHost = null
+let menuState = null
+let matchesCache = null
+
+/* One /fill per page view while the menu is used; a failure (app locked, not paired) shows no menu. */
+async function cachedMatches() {
+  if (!matchesCache) {
+    matchesCache = fetchMatches()
+      .then((items) => (Array.isArray(items) ? items : []))
+      .catch(() => [])
+    window.setTimeout(() => {
+      matchesCache = null
+    }, 30 * 1000)
+  }
+  return matchesCache
+}
+
+function isLoginField(target) {
+  if (!(target instanceof HTMLInputElement) || !visible(target)) return false
+  if (target.type === 'password') return true
+  const login = findLoginForm()
+  return Boolean(login && login.username === target)
+}
+
+function closeMenu() {
+  menuHost?.remove()
+  menuHost = null
+  menuState = null
+}
+
+function placeMenu() {
+  if (!menuState) return
+  const rect = menuState.field.getBoundingClientRect()
+  if (rect.width === 0 && rect.height === 0) {
+    closeMenu()
+    return
+  }
+  const { menu } = menuState
+  const below = window.innerHeight - rect.bottom
+  menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8))}px`
+  menu.style.minWidth = `${Math.max(240, Math.min(rect.width, 360))}px`
+  if (below < menu.offsetHeight + 12 && rect.top > below) {
+    menu.style.top = `${Math.max(8, rect.top - menu.offsetHeight - 4)}px`
+  } else {
+    menu.style.top = `${rect.bottom + 4}px`
+  }
+}
+
+function selectOption(index) {
+  if (!menuState) return
+  const options = [...menuState.menu.querySelectorAll('.option')]
+  menuState.selected = (index + options.length) % options.length
+  options.forEach((option, i) => {
+    option.setAttribute('aria-selected', String(i === menuState.selected))
+  })
+  options[menuState.selected]?.scrollIntoView({ block: 'nearest' })
+}
+
+function pickItem(item) {
+  closeMenu()
+  if (item.sign_in_with) {
+    const button = findProviderButton(item.sign_in_with)
+    if (button) highlightProviderButton(button)
+    return
+  }
+  fillLogin(item, { submit: true })
+}
+
+async function openMenu(field) {
+  if (menuState?.field === field || Date.now() < suppressMenuUntil) return
+  const items = (await cachedMatches()).filter((item) => item.sign_in_with || item.password || item.username)
+  // The field may have lost focus while the bridge answered.
+  if (!items.length || document.activeElement !== field) return
+  closeMenu()
+
+  const host = el('div', { 'data-passless-menu': '' })
+  const root = host.attachShadow({ mode: 'closed' })
+  root.append(el('style', { text: MENU_STYLE }))
+  const menu = el('ul', { 'aria-label': msg('inlineMenuLabel'), class: 'menu', role: 'listbox' })
+  menu.append(el('li', { 'aria-hidden': 'true', class: 'heading', role: 'presentation', text: msg('inlineMenuLabel') }))
+  for (const item of items) {
+    const title = item.title || location.hostname
+    const sub = item.sign_in_with
+      ? msg('signInWithProvider', [PROVIDER_NAMES[item.sign_in_with]?.[0] || item.sign_in_with])
+      : item.username || ''
+    const option = el('li', { 'aria-selected': 'false', class: 'option', role: 'option' }, [
+      el('span', { 'aria-hidden': 'true', class: 'badge', text: title.trim().charAt(0).toUpperCase() || '•' }),
+      el('span', {}, [el('span', { class: 'title', text: title }), el('span', { class: 'sub', text: sub })]),
+    ])
+    // mousedown, not click: the field keeps focus, so the page never sees a blur between focus and fill.
+    option.addEventListener('mousedown', (event) => {
+      event.preventDefault()
+      pickItem(item)
+    })
+    menu.append(option)
+  }
+  root.append(menu)
+  document.documentElement.append(host)
+  menuHost = host
+  menuState = { field, items, menu, selected: -1 }
+  placeMenu()
+}
+
+document.addEventListener(
+  'focusin',
+  (event) => {
+    if (event.target === menuHost) return
+    if (isLoginField(event.target)) openMenu(event.target)
+    else closeMenu()
+  },
+  true,
+)
+
+document.addEventListener(
+  'mousedown',
+  (event) => {
+    if (event.target === menuHost) return
+    if (isLoginField(event.target)) {
+      // Clicking a field that already has focus reopens a menu Escape closed.
+      if (!menuState) openMenu(event.target)
+      return
+    }
+    closeMenu()
+  },
+  true,
+)
+
+// Arrow keys move through the logins, Return fills the highlighted one, Escape closes; typing closes it too.
+document.addEventListener(
+  'keydown',
+  (event) => {
+    if (!menuState || event.target !== menuState.field) return
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      selectOption(menuState.selected + (event.key === 'ArrowDown' ? 1 : -1))
+    } else if (event.key === 'Enter' && menuState.selected >= 0) {
+      event.preventDefault()
+      event.stopPropagation()
+      pickItem(menuState.items[menuState.selected])
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      closeMenu()
+    } else if (event.key.length === 1) {
+      closeMenu()
+    }
+  },
+  true,
+)
+
+window.addEventListener('scroll', placeMenu, true)
+window.addEventListener('resize', placeMenu)
+
+/* The password step of an identifier-first sign-in: when the item picked on the username step is still
+   pending and a password field shows up (in place, or after the page moved on within this origin), it is
+   filled and submitted. Watching stops once the step is done or the minute runs out. */
+let continuing = false
+let pendingObserver = null
+
+async function continuePendingStep() {
+  if (continuing) return
+  const itemId = pendingStepItemId()
+  if (!itemId) {
+    pendingObserver?.disconnect()
+    return
+  }
+  const login = findLoginForm()
+  if (!login?.password) return
+  continuing = true
+  try {
+    const item = (await cachedMatches()).find((match) => match.id === itemId)
+    clearPendingStep()
+    pendingObserver?.disconnect()
+    if (item) fillLogin(item, { submit: true })
+  } finally {
+    continuing = false
+  }
+}
+
+function watchPendingStep() {
+  pendingObserver?.disconnect()
+  pendingObserver = new MutationObserver(() => continuePendingStep())
+  pendingObserver.observe(document.documentElement, { attributes: true, childList: true, subtree: true })
+  const observer = pendingObserver
+  window.setTimeout(() => observer.disconnect(), PENDING_TTL_MS)
+}
+
+if (pendingStepItemId()) {
+  watchPendingStep()
+  continuePendingStep()
+}
+
+// A sign-in field the page focused on load gets its menu too.
+if (isLoginField(document.activeElement)) openMenu(document.activeElement)

@@ -14,6 +14,10 @@
 	"footerHint": {
 		"message": "请保持 Passless 桌面应用处于解锁状态，才能使用自动填充和保存提示。"
 	},
+	"inlineMenuLabel": {
+		"description": "Passless 中保存的此网站登录项",
+		"message": "Passless"
+	},
 	"noLoginForm": {
 		"message": "此页面上未找到登录表单。"
 	},

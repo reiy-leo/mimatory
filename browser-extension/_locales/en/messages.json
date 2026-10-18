@@ -14,6 +14,10 @@
 	"footerHint": {
 		"message": "Keep the Passless desktop app unlocked for autofill and save prompts."
 	},
+	"inlineMenuLabel": {
+		"description": "Logins saved in Passless for this site",
+		"message": "Passless"
+	},
 	"noLoginForm": {
 		"message": "No login form found on this page."
 	},
