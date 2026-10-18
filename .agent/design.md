@@ -266,6 +266,14 @@ from a shadow token; a popup colour that drifts from the app's.
 - **The read-only row's hover is a faint accent wash** (`--color-field-hovered`) and its menu is a full-height
   segment with a hairline (`--color-field-segment`), as in 1Password 8.
 
+- **Edit-page drag handles hang in the pane's padding** (owner 2026-10-18: "所有的字段要和icon的左侧对齐，drag handle要
+  颜色淡一点，drag时浓一点"): every card starts at the item icon's left edge; the 24pt handle is centred in the 28pt
+  padding (24pt on phones). Colour: the icon colour at 32% at rest, `icon-subtle` while its row is hovered or
+  focused, `icon` under the pointer, the accent while dragged or keyboard-focused. Judgment, not HIG.
+- **Pop-up menus are as wide as their items** (`menus.md`), 220–280pt, aligned to the trigger's leading edge,
+  opening below or above whichever fits and never leaving the window (8pt margin; a menu taller than the room
+  scrolls).
+
 ## Per-platform skins (2026-10-17)
 
 The owner asked for every OS to get the design Mindough gives it. The mapping, detection and layout switch are in

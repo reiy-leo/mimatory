@@ -124,6 +124,28 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
   leave their section (the template finds them by key there); built-in username/password have no handle (they are
   columns, not list entries). (5) The view's old two-factor card (reveal / copy key / copy setup link buttons and the
   warning) became a row in the credentials card; Copy Secret Key and Copy Setup Link moved into its menu.
+- **Edit-page polish + passkeys (2026-10-18) — unverified parts.** Checked in Vite + Chromium against the stub
+  (macOS/Windows/Android skins, light/dark; Add More menus at 1280×1300, 800×600, 960×500) and the extension prompt
+  in a stubbed page. Never seen: the handle hanging in the pane padding inside the real WebKit/WebView2 windows
+  (scroller `margin-inline` bleed), touch drag on a phone, and the extension end to end — the MAIN-world
+  `passkey-observer.js` (needs Chrome ≥ 111 / Firefox ≥ 128 for `"world": "MAIN"`) against a real site's
+  `navigator.credentials.create`, the closed-shadow prompt on sites with strict CSP, and `/passkey-event` with
+  `item_id` / `new_item` through the live bridge. The extension no longer reports passkey *sign-ins* (`get`):
+  they used to write silently; nothing is written without the prompt now.
+- **needs-owner-decision — Passless as a real passkey provider: store private keys, answer
+  `navigator.credentials.get`.** Today Passless records passkey *metadata* only (relying party + account handle on
+  a login); the private key stays with the browser's or the device's authenticator, and Passless cannot sign in
+  with it. Becoming a provider means generating and storing keys in the vault, answering `create`/`get` for the
+  page (extension-side WebAuthn emulation or the OS credential-provider APIs: macOS/iOS AuthenticationServices
+  extension, Android Credential Manager, Windows plugin authenticators), attestation choices and sync semantics —
+  a large, security-critical feature. Not started.
+- **needs-owner-decision — edit-page polish.** (1) The section's Add More is now the same bar as the item's, so a
+  section card is followed by its own full-width "Add More" bar (two bars stack under the last section). (2) A
+  section's menu also leaves out Attach File and Passkey (a section's JSON children cannot hold an attachment;
+  passkeys are never added by hand) besides the six named. (3) The credential card's order is fixed for the
+  sign-in method too: Username, Password, Sign in with…, Passkeys, One-time passwords — none has a handle.
+  (4) The item pane's side padding went from 20 to 28pt (24pt phones) on every skin, view mode included, so the
+  handle fits beside the cards.
 
 ## Never yet seen in a running app
 

@@ -121,6 +121,7 @@ src/                  # React frontend
   app/itemFields.ts fieldFormats.ts fieldControls.tsx  # typed item fields: template bridge, rules, view/edit components
   app/fieldActions.ts fieldActionControls.tsx largeType.ts clipboard.ts  # 1Password-style field actions: per-type primary + menu, action sheet, Large Type, the one clipboard writer
   app/fieldRows.tsx fieldReorder.ts  # the editor's field row (handle, cell, remove), drag/keyboard reorder, the Autofill Behavior popover
+  app/addMoreOptions.ts addMoreMenu.tsx anchoredPanel.ts  # the one Add More list (item / section), its bar + menu, measured popover placement
   app/itemRelations.ts relationControls.tsx  # parent / child / related / sign-in links: draft diffing, picker rules, the row group
   app/siteIcons.ts itemIcon.tsx  # website icons: which sites to ask, the window's icon store, the item tile
   app/signInProviders.ts signInControls.tsx providerMarks.tsx  # "Sign in with…": field rules, sheet + row, bundled marks
@@ -148,7 +149,7 @@ src-tauri/src/        # Rust backend
 src-tauri/tauri.conf.json + tauri.{macos,windows,linux,ios,android}.conf.json  # per-platform windows (merge patch)
 src-tauri/capabilities/  # main.json (all), desktop.json, global-shortcut.json (platform-scoped)
 .github/workflows/    # ci.yml, build.yml (desktop + Android, v* tags → draft prerelease), ios.yml (manual)
-browser-extension/    # Manifest V3 extension (not built by Vite), desktop only
+browser-extension/    # Manifest V3 extension (not built by Vite), desktop only; passkey-observer.js runs in the page world
 ```
 
 ## Runtime, windows and shell
@@ -573,17 +574,36 @@ Wayland; X11 is not supported.
   list. In the view a non-default behaviour shows a one-line note under the address, and a `never` site offers Open,
   not Open & Fill (also for ⇧⌘F), as 1Password 8.10.80 does.
 - **Field rows** (2026-10-17, owner: "要做到所有的字段样式都是统一的"). Every field in both modes is one `.field-row`
-  cell: `FieldView` / `OtpFieldView` read-only, `EditFieldRow` editing (a `.field-slot` = handle gutter outside the
-  card + the cell; the cells draw the card so the handle can sit outside it). Per-type differences are the value
+  cell: `FieldView` / `OtpFieldView` read-only, `EditFieldRow` editing (a `.field-slot` = the cell, plus for a
+  movable row a handle hung *outside* the card in the pane's padding, so every card lines up with the item icon —
+  owner 2026-10-18). The handle needs `--measure-detail-inline` ≥ `--measure-field-handle`, and `.detail-fieldset`
+  bleeds into the pane padding (`margin-inline` negative, `padding-inline` back) because it is the scroller: a
+  handle outside its padding box would be clipped. `.field-slot` carries `min-w-0` (a grid item; without it a long
+  value widens one card past the others on a phone). Per-type differences are the value
   control and trailing buttons in `renderEditField`, never a row shape; `designContract.test.ts` fails on a retired
-  row class or a form control outside `EditFieldRow`. Reorder: containers `urls`, `login` (OTP / passkey / sign-in
-  in the credentials card), `top` (loose fields and sections) and `section:<index>`; `fieldReorder.ts` moves an
+  row class or a form control outside `EditFieldRow`. Reorder: containers `urls`, `login` (sign-in / passkey / OTP
+  in the credentials card — a **fixed** order, `orderCredentialFields`, no handles, owner 2026-10-18), `top` (loose fields and sections) and `section:<index>`; `fieldReorder.ts` moves an
   entry (fields cross into and out of sections, sections only among top entries, nothing into `login`, template
   children stay in their section) and Alt+↑/↓ on the handle steps across a section's edge. Drag is pointer events
   on the handle with capture (`useFieldDrag`), hit-testing the innermost `[data-reorder-container]` row. The OTP
   edit row stores normalized base32 (a pasted `otpauth://` link gives up its `secret` — the Rust TOTP reads bare
   keys only), shows it in lowercase groups of four while focused and masked otherwise; its QR button reads a copied
   image, else opens an image picker (the phone's camera / library).
+- **Add More is one component** (`addMoreMenu.tsx` + the entry list in `addMoreOptions.ts`, owner 2026-10-18):
+  the item's bar and every section's bar, `context: 'item' | 'section'`; a section leaves out Sign in with, OTP,
+  Section, Parent / Child / Related (and what a section's JSON children cannot hold: attachments). The menu renders
+  in a portal (`data-field-menu` keeps the window's outside-click handler off it) and places itself after measuring
+  (`useAnchoredPanel` → `placeAnchoredPanel`): below or above, height capped to the room, 8px inside the window,
+  220–280px wide. Phones get the action sheet. The Autofill Behavior popover uses the same hook, and
+  `getMenuAnchorStyle` (item/tag/vault menus) now caps `maxHeight` the same way (code only; never seen capping in a screenshot). Never re-add a per-menu
+  `position: fixed` with a guessed height: that is how a tall menu ran off the top of a short window.
+- **Passkeys are never added by hand** (owner 2026-10-18: "通行密钥不能手动添加"). No Add More entry offers one
+  (`addMoreOptions.test.ts` guards it). The extension's MAIN-world `passkey-observer.js` reports a *completed*
+  `navigator.credentials.create`; `content.js` checks the rp id fits the page's host (a page may only name its own
+  host or a parent domain), asks in a closed-shadow prompt (a login for this site, or New Item), and only Save posts
+  `/passkey-event` with `item_id` / `new_item` (`VaultService::save_passkey`, `PasskeyTarget`). A content script's
+  isolated world cannot see the page's `navigator.credentials` calls — the old observer there never fired. Passless
+  stores metadata only; the private key stays with the platform authenticator.
 
 ## Testing and verification
 
