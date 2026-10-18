@@ -158,6 +158,7 @@ import {
 } from './app/itemTags'
 import { findTemplateField, getItemTemplate, sshFingerprintLabelKey, type TemplateField } from './app/itemTemplates'
 import { itemTypeArtFor } from './app/itemTypeArt'
+import { EditBannerPattern } from './app/editBanner'
 import { getLockScreenVariant, shouldShowTouchIdUnlock } from './app/lockScreen'
 import { getMenuAnchorStyle, type MenuAnchor } from './app/menuPlacement'
 import { type NavigationItem, navigationItems } from './app/navigation'
@@ -1203,6 +1204,9 @@ function VaultWindow() {
   // Unsaved edits lock the rest of the window (owner 2026-10-18): until the form is saved or cancelled
   // nothing else — sidebar, list, toolbar, settings, shortcuts — may act, so no edit is ever left behind.
   const editLocked = isEditing && hasUnsavedChanges
+  const editBannerHue = `var(--color-icon-accent-${(
+    categoryItems.find((entry) => entry.itemType === form.item_type)?.colorClass ?? 'text-accent-icon-gray'
+  ).replace('text-accent-icon-', '')})`
   editLockedRef.current = editLocked
   // inert does the work where the webview supports it; the capture guard swallows any click that still gets
   // through (older WebKitGTK, jsdom) before a row's own handler sees it.
@@ -3561,7 +3565,19 @@ function VaultWindow() {
       <section aria-label={t('landmarks.itemDetails')} className="detail-pane">
         {/* Everything the pane can do to the item lives in its top-right corner: the type is the only
             thing named on the left, and the row under the fields went with it. */}
-        <div className="detail-topbar" data-tauri-drag-region="deep">
+        {/* Editing turns the top bar into a banner in the item category's hue and texture (owner 2026-10-18,
+            after 1Password 8): every category has its own SVG tile, so the mode and the kind read at once. */}
+        <div
+          className={isEditing ? 'detail-topbar is-editing' : 'detail-topbar'}
+          data-tauri-drag-region="deep"
+          style={isEditing ? ({ '--edit-hue': editBannerHue } as CSSProperties) : undefined}
+        >
+          {isEditing ? (
+            <>
+              <EditBannerPattern itemType={form.item_type} />
+              <span className="edit-banner-label">{t('vault.editingBanner')}</span>
+            </>
+          ) : null}
           {isMobileLayout ? (
             <button
               aria-label={t('mobile.back')}

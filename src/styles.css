@@ -3698,3 +3698,38 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* The edit banner (owner 2026-10-18): the top bar bleeds to the pane's edges, tinted with the category's accent
+   and textured with its SVG tile; the label takes the accent too. Unlayered so the skins' top-bar rules can't
+   strip it. */
+.detail-topbar.is-editing {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin-inline: calc(var(--measure-detail-inline, 0px) * -1);
+  padding-inline: var(--measure-detail-inline, var(--space-200));
+  max-width: none;
+  color: var(--edit-hue);
+  background: color-mix(in srgb, var(--edit-hue) 16%, var(--color-surface));
+  border-bottom: 1px solid color-mix(in srgb, var(--edit-hue) 30%, transparent);
+}
+
+.edit-banner-pattern {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+.edit-banner-label {
+  color: color-mix(in srgb, var(--edit-hue) 80%, var(--color-text));
+  font-weight: 600;
+  @apply text-title-3;
+}
+
+.detail-topbar.is-editing .unsaved-hint {
+  color: var(--color-text-subtle);
+}
