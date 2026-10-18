@@ -1613,7 +1613,7 @@
     border-color: var(--color-border);
     -webkit-backdrop-filter: var(--material-filter);
     backdrop-filter: var(--material-filter);
-    @apply col-span-4 col-start-2 grid min-h-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-100 border-b px-100 py-050;
+    @apply col-span-4 col-start-2 grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-100 border-b px-100 py-050;
   }
 
   /* A disabled toolbar button (the first or last item, an empty list) dims its glyph and drops the hover fill. */
