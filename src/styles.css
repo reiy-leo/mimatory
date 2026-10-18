@@ -2648,9 +2648,10 @@
     @apply min-h-0 flex-1 overflow-auto pb-200;
   }
 
+  /* Same size and inset as the edit header's filled title field, so the name doesn't jump when switching modes. */
   .detail-title {
     color: var(--color-text);
-    @apply m-0 min-w-0 flex-1 truncate text-title-2 font-semibold;
+    @apply m-0 min-w-0 flex-1 truncate px-150 text-title-1 font-semibold;
   }
 
   .detail-view-body {

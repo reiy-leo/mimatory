@@ -456,7 +456,8 @@
   z-index: 60;
 }
 /* The edit header on a phone: Title 2 in the filled title field, so a usual title still fits beside the icon. */
-:root[data-layout="mobile"] .title-input.is-filled {
+:root[data-layout="mobile"] .title-input.is-filled,
+:root[data-layout="mobile"] .detail-title {
   font-size: 1.0625rem;
   line-height: 1.375rem;
 }
