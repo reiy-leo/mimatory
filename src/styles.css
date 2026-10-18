@@ -3674,7 +3674,8 @@
    only says so. */
 .app-shell.is-edit-locked > .sidebar,
 .app-shell.is-edit-locked > .top-search-bar,
-.app-shell.is-edit-locked > .item-list {
+.app-shell.is-edit-locked > .item-list,
+.app-shell.is-edit-locked > .column-resize-handle {
   opacity: 0.5;
   cursor: not-allowed;
 }
