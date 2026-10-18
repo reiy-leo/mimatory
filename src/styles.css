@@ -2114,39 +2114,6 @@
     @apply text-callout text-text-subtle;
   }
 
-  .password-strength {
-    @apply flex items-center justify-between gap-100;
-  }
-
-  .password-strength-bar {
-    @apply flex gap-025;
-  }
-
-  .password-strength-segment {
-    background: var(--color-background-neutral-subtle-pressed);
-    @apply h-050 w-200 rounded-full;
-  }
-
-  .password-strength-label {
-    @apply flex items-center gap-050 text-callout text-text-subtle;
-  }
-
-  .password-strength.is-weak .password-strength-segment.filled {
-    background: var(--color-background-danger-bold);
-  }
-
-  .password-strength.is-fair .password-strength-segment.filled {
-    background: var(--color-background-warning-bold);
-  }
-
-  .password-strength.is-strong .password-strength-segment.filled {
-    background: var(--color-icon-information);
-  }
-
-  .password-strength.is-excellent .password-strength-segment.filled {
-    background: var(--color-background-success-bold);
-  }
-
   /* Inline banners: a tinted fill in the status hue; the prose stays in the label colour. */
   .error-banner {
     color: var(--color-text);

@@ -158,9 +158,8 @@
   max-width: none;
 }
 
-/* A phone is narrow: codes and the strength caption must not break mid-value. */
-:root[data-layout="mobile"] .otp-code,
-:root[data-layout="mobile"] .password-strength-label {
+/* A phone is narrow: codes must not break mid-value. */
+:root[data-layout="mobile"] .otp-code {
   white-space: nowrap;
 }
 

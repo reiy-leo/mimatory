@@ -54,8 +54,6 @@ export type FieldMeta = {
 /** Fixed length, so a masked value does not give its length away. */
 const maskedText = '••••••••'
 
-const strengthLevels = ['weak', 'fair', 'strong', 'excellent'] as const
-
 export function optionLabel(t: (key: string) => string, set: OptionSetName | undefined, value: string): string {
   if (set && (optionSets[set] as readonly string[]).includes(value)) return t(optionLabelKey(set, value))
   return value
@@ -64,57 +62,6 @@ export function optionLabel(t: (key: string) => string, set: OptionSetName | und
 function cardBrandLabel(t: (key: string) => string, value: string): string | null {
   const brand = detectCardBrand(value)
   return brand ? t(optionLabelKey('cardBrand', brand)) : null
-}
-
-export function PasswordStrengthMeter({ strength }: { strength: PasswordStrength }) {
-  const { t } = useTranslation()
-  return (
-    <div className={`password-strength is-${strength.level}`}>
-      <span aria-hidden="true" className="password-strength-bar">
-        {strengthLevels.map((level) => (
-          <span
-            className={
-              strengthLevels.indexOf(level) <= strengthLevels.indexOf(strength.level)
-                ? 'password-strength-segment filled'
-                : 'password-strength-segment'
-            }
-            key={level}
-          />
-        ))}
-      </span>
-      <span className="password-strength-label">
-        <span>{t(`vault.strength.${strength.level}`)}</span>
-        <span>{t('vault.strengthBits', { bits: strength.bits })}</span>
-      </span>
-    </div>
-  )
-}
-
-function useStrength(value: string, measure?: (value: string) => Promise<PasswordStrength | null>) {
-  const [strength, setStrength] = useState<PasswordStrength | null>(null)
-  // The caller's function is a fresh closure every render; only the value decides when to measure.
-  const measureRef = useRef(measure)
-  measureRef.current = measure
-  const canMeasure = Boolean(measure)
-  useEffect(() => {
-    const current = measureRef.current
-    if (!canMeasure || !current || !value) {
-      setStrength(null)
-      return
-    }
-    let stale = false
-    current(value)
-      .then((next) => {
-        if (!stale) setStrength(next)
-      })
-      .catch(() => {
-        if (!stale) setStrength(null)
-      })
-    return () => {
-      stale = true
-    }
-  }, [canMeasure, value])
-  return strength
 }
 
 /** Expired / expires soon, said in words with its own glyph, never by colour alone. */
@@ -463,7 +410,6 @@ export function FieldEditor({
   const [revealed, setRevealed] = useState(false)
   const [focused, setFocused] = useState(false)
   const hintId = useId()
-  const strength = useStrength(fieldType === 'password' ? value : '', measureStrength)
   const issue = focused ? null : fieldIssue(fieldType, value, meta?.validation)
   const common = {
     'aria-describedby': issue ? hintId : undefined,
@@ -609,7 +555,6 @@ export function FieldEditor({
           />
         ) : null}
       </div>
-      {strength ? <PasswordStrengthMeter strength={strength} /> : null}
       {footer}
       {issue ? (
         <p className="field-hint" id={hintId}>

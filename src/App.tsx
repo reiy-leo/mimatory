@@ -94,7 +94,6 @@ import {
   type FieldMeta,
   FieldView,
   openUrlExternally,
-  PasswordStrengthMeter,
   SshFingerprintCaption,
   SshFingerprintView,
 } from './app/fieldControls'
@@ -237,7 +236,6 @@ import {
   type LoginItem,
   type LoginItemInput,
   type PasswordGeneratorOptions,
-  type PasswordStrength,
   parseCustomFields,
   parseTags,
   type Tag,
@@ -904,7 +902,6 @@ function VaultWindow() {
   const [vaultEditor, setVaultEditor] = useState<{ color: string; icon: string; id: string; name: string } | null>(null)
   const [vaultDissolveTarget, setVaultDissolveTarget] = useState<VaultSummary | null>(null)
   const [vaultDissolveInto, setVaultDissolveInto] = useState('')
-  const [passwordStrength, setPasswordStrength] = useState<PasswordStrength | null>(null)
   const [showAddMore, setShowAddMore] = useState(false)
   const [sectionMenuIndex, setSectionMenuIndex] = useState<number | null>(null)
   const [fieldTotpPreviews, setFieldTotpPreviews] = useState<Record<number, FieldTotpPreview>>({})
@@ -1402,23 +1399,6 @@ function VaultWindow() {
     // The scroll above already chose where the row lands; focus would otherwise scroll it again.
     row.focus({ preventScroll: true })
   }, [categoryToFocus])
-
-  useEffect(() => {
-    if (!form.password) {
-      setPasswordStrength(null)
-      return
-    }
-    let stale = false
-    vaultApi
-      .passwordStrength(form.password)
-      .then((next) => {
-        if (!stale) setPasswordStrength(next)
-      })
-      .catch(() => setPasswordStrength(null))
-    return () => {
-      stale = true
-    }
-  }, [form.password])
 
   useEffect(() => {
     if (!Object.keys(fieldTotpPreviews).length) return
@@ -3884,7 +3864,6 @@ function VaultWindow() {
                             type={showPassword ? 'text' : 'password'}
                             value={form.password}
                           />
-                          {passwordStrength ? <PasswordStrengthMeter strength={passwordStrength} /> : null}
                         </EditFieldRow>
                       ) : null}
                       {loginSectionFields.map(({ field, index }, position) =>
@@ -3991,10 +3970,11 @@ function VaultWindow() {
                       open={showAddMore}
                       sheet={isMobileLayout}
                     />
-                    {isEditing && features.attachments ? (
-                      <div className={isDraggingFiles ? 'attachment-dropzone is-active' : 'attachment-dropzone'}>
+                    {/* No standing drop hint (owner 2026-10-18: removed); the target appears only while files are dragged over. */}
+                    {isEditing && features.attachments && isDraggingFiles ? (
+                      <div className="attachment-dropzone is-active">
                         <Paperclip aria-hidden="true" size={15} />
-                        <span>{isDraggingFiles ? t('vault.dropToAttachHere') : t('vault.dropToAttach')}</span>
+                        <span>{t('vault.dropToAttachHere')}</span>
                       </div>
                     ) : null}
                   </div>
@@ -4130,7 +4110,6 @@ function VaultWindow() {
                     {form.password ? (
                       <FieldView
                         fieldType="password"
-                        footer={passwordStrength ? <PasswordStrengthMeter strength={passwordStrength} /> : null}
                         label={passwordLabel}
                         onCopy={copyFieldValue}
                         revealAll={revealAllSecure}
