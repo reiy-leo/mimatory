@@ -1086,9 +1086,10 @@
     background: var(--color-background-brand-subtlest);
   }
 
+  /* Same size as every other field value (owner 2026-10-18); monospace keeps the digits easy to read. */
   .otp-code {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    @apply text-title-1;
+    @apply text-title-3;
   }
 
   .otp-countdown {
