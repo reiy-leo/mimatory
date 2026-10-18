@@ -150,6 +150,7 @@ import {
   tagRows,
 } from './app/itemTags'
 import { findTemplateField, getItemTemplate, sshFingerprintLabelKey, type TemplateField } from './app/itemTemplates'
+import { itemTypeArtFor } from './app/itemTypeArt'
 import { getLockScreenVariant, shouldShowTouchIdUnlock } from './app/lockScreen'
 import { getMenuAnchorStyle, type MenuAnchor } from './app/menuPlacement'
 import { type NavigationItem, navigationItems } from './app/navigation'
@@ -4046,18 +4047,24 @@ function VaultWindow() {
           with — the old flow defaulted to a login and let the dropdown convert it afterwards, and the
           dropdown is gone. The grid is the sidebar's own category list, in the sidebar's own order. */}
       {itemTypePickerOpen ? (
-        <div className="confirm-layer">
+        <div className="confirm-layer is-item-type-picker">
           <button
             aria-label={t('common.close')}
             className="confirm-backdrop"
             onClick={() => setItemTypePickerOpen(false)}
             type="button"
           />
-          <div aria-labelledby="item-type-picker-title" aria-modal="true" className="confirm-dialog" role="dialog">
+          <div
+            aria-labelledby="item-type-picker-title"
+            aria-modal="true"
+            className="confirm-dialog item-type-dialog"
+            role="dialog"
+          >
             <h2 id="item-type-picker-title">{t('vault.chooseItemType')}</h2>
             <div className="item-type-grid">
               {categoryItems.map((category, index) => {
                 const Icon = category.icon
+                const art = itemTypeArtFor(category.itemType)
                 return (
                   <button
                     className="item-type-option"
@@ -4066,7 +4073,11 @@ function VaultWindow() {
                     ref={index === 0 ? itemTypeFirstOptionRef : undefined}
                     type="button"
                   >
-                    <Icon aria-hidden="true" className={category.colorClass} size={16} />
+                    {art ? (
+                      <img alt="" className="item-type-art" draggable={false} src={art} />
+                    ) : (
+                      <Icon aria-hidden="true" className={category.colorClass} size={16} />
+                    )}
                     <span>{t(`itemTypes.${category.itemType}`)}</span>
                   </button>
                 )

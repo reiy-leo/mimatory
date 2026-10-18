@@ -241,6 +241,8 @@
     --measure-lock-panel: 360px;
     --measure-lock-field: 260px;
     --measure-modal: 420px;
+    /* The New Item picker: two 64pt-tall columns of type tiles, each wide enough for "Social Security Number". */
+    --measure-type-picker: 600px;
     /* The attachment text preview: wide enough for an 80-column line of the callout mono, and its scrolling
        well at most this tall, so the sheet's buttons stay on screen. */
     --measure-text-preview: 640px;
@@ -2077,21 +2079,36 @@
     @apply mx-0 min-h-300 rounded-small px-100 py-050 text-body;
   }
 
-  /* A new item's type is picked from the same list the sidebar shows, so the option reads the way the
-     row it will focus reads: an accent-worn icon and the type's own name. */
+  /* A new item's type is picked from the same list the sidebar shows (owner 2026-10-18, after 1Password's
+     picker): two columns of 64pt tiles on the dialog's own material — no grey fill, a hairline bezel — each a
+     40pt full-colour Fluent Emoji and the type's name. Hover is the quaternary fill; keyboard focus is the
+     base ring on the tile's own corner. */
+  .item-type-dialog {
+    @apply max-w-type-picker;
+  }
+
   .item-type-grid {
-    @apply mt-200 grid grid-cols-2 gap-075;
+    @apply mt-200 grid grid-cols-2 gap-150;
   }
 
   .item-type-option {
-    background: var(--color-background-control);
-    border-color: transparent;
-    box-shadow: var(--shadow-control);
-    @apply flex min-h-400 items-center gap-100 rounded-medium border px-100 text-left text-body text-inherit transition-colors;
+    color: var(--color-text);
+    background: transparent;
+    border-color: var(--color-border-bold);
+    box-shadow: none;
+    @apply flex min-h-800 items-center gap-150 rounded-large border px-150 text-left text-title-3 transition-colors;
   }
 
   .item-type-option:hover {
     background: var(--color-background-neutral-subtle-hovered);
+  }
+
+  .item-type-option:active {
+    background: var(--color-background-neutral-subtle-pressed);
+  }
+
+  .item-type-art {
+    @apply h-500 w-500 shrink-0;
   }
 
   .unsaved-hint {
