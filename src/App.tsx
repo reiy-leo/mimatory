@@ -3199,6 +3199,25 @@ function VaultWindow() {
     setSelectedId((current) => current ?? nextItems[0]?.id ?? null)
   }
 
+  // The browser extension writes through the app's bridge (a saved login, a new passkey, a use): the list
+  // reloads when the bridge says the vault changed, instead of on the next unlock.
+  const refreshItemsRef = useRef(refreshItems)
+  refreshItemsRef.current = refreshItems
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    let unsubscribed = false
+    listen('vault:changed', () => {
+      refreshItemsRef.current().catch(() => {})
+    }).then((nextUnlisten) => {
+      if (unsubscribed) nextUnlisten()
+      else unlisten = nextUnlisten
+    })
+    return () => {
+      unsubscribed = true
+      unlisten?.()
+    }
+  }, [])
+
   async function loadArchivedItems() {
     setArchivedItems(await vaultApi.archived())
   }

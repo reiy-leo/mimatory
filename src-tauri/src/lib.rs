@@ -738,9 +738,8 @@ pub fn run() {
     let session = Arc::new(Mutex::new(None));
     let biometric_session = Arc::new(Mutex::new(None));
     let bridge_token = Arc::new(Mutex::new(None));
-    // The extension lives in a desktop browser; iOS and Android get no loopback listener at all.
     #[cfg(desktop)]
-    browser_bridge::start_browser_bridge(session.clone(), bridge_token.clone());
+    let bridge_session = (session.clone(), bridge_token.clone());
 
     let builder = tauri::Builder::default();
     #[cfg(desktop)]
@@ -750,7 +749,7 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| {
+        .setup(move |app| {
             // Phones have no `dirs::data_dir()` worth trusting (None on Android), so the vault goes in the
             // app's own sandboxed data directory there.
             #[cfg(mobile)]
@@ -758,6 +757,14 @@ pub fn run() {
                 use tauri::Manager;
                 storage::set_app_data_directory(app.path().app_data_dir()?);
             }
+            // The extension lives in a desktop browser; iOS and Android get no loopback listener at all.
+            // Started here so its writes can tell the window to reload (`vault:changed`).
+            #[cfg(desktop)]
+            browser_bridge::start_browser_bridge(
+                bridge_session.0.clone(),
+                bridge_session.1.clone(),
+                app.handle().clone(),
+            );
             #[cfg(desktop)]
             shell::setup(app)?;
             #[cfg(mobile)]

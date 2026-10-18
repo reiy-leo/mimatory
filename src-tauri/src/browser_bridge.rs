@@ -7,6 +7,7 @@ use crate::vault::{
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use tauri::{AppHandle, Emitter};
 use tiny_http::{Header, Method, Response, Server, StatusCode};
 
 pub type SharedSession = Arc<Mutex<Option<Session>>>;
@@ -115,7 +116,7 @@ struct BridgeError {
     error: String,
 }
 
-pub fn start_browser_bridge(session: SharedSession, bridge_token: SharedBridgeToken) {
+pub fn start_browser_bridge(session: SharedSession, bridge_token: SharedBridgeToken, app: AppHandle) {
     thread::spawn(move || {
         let Ok(server) = Server::http("127.0.0.1:17891") else {
             return;
@@ -124,6 +125,7 @@ pub fn start_browser_bridge(session: SharedSession, bridge_token: SharedBridgeTo
         for mut request in server.incoming_requests() {
             let method = request.method().clone();
             let path = request.url().to_string();
+            let writes = matches!(path.as_str(), "/save" | "/passkey-event" | "/passkey/create" | "/passkey/get");
             let response = match (method, path.as_str()) {
                 (Method::Get, "/health") => json_response(&serde_json::json!({ "ok": true })),
                 (Method::Options, _) => empty_response(),
@@ -193,6 +195,10 @@ pub fn start_browser_bridge(session: SharedSession, bridge_token: SharedBridgeTo
                 }
                 _ => error_response(StatusCode(404), "not found".to_string()),
             };
+            // Anything the extension saved shows up in the open window without a manual refresh.
+            if writes && response.status_code().0 < 300 {
+                let _ = app.emit("vault:changed", ());
+            }
             let _ = request.respond(response);
         }
     });
