@@ -2083,8 +2083,10 @@
      picker): two columns of 64pt tiles on the dialog's own material — no grey fill, a hairline bezel — each a
      40pt full-colour Fluent Emoji and the type's name. Hover is the quaternary fill; keyboard focus is the
      base ring on the tile's own corner. */
+  /* 17 tiles run to ~780pt; at the 760pt minimum window the sheet scrolls inside it rather than off it. */
   .item-type-dialog {
-    @apply max-w-type-picker;
+    max-height: calc(100dvh - var(--space-400));
+    @apply max-w-type-picker overflow-y-auto;
   }
 
   .item-type-grid {

@@ -171,6 +171,9 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 - Password generator popover (2026-10-18): placement, focus trap, Escape and the switches were seen only in Vite +
   Chromium screenshots (work/screens/generator/) and jsdom tests; never in WKWebView/WebView2/Android WebView.
   The native `<select>` pop-up and the range slider will look different in each real webview.
+- Colour item-type art (2026-10-18) is in the New Item picker only. Using it as the list / item-header fallback
+  (non-login items, or a login with no site icon) was left out: it changes the selected-row tile rule (white tint on
+  the accent) and the letter tiles everywhere — an owner call. Seen only in Chromium screenshots (work/screens/type-picker/).
 
 Everything in this list is written and unit-proven or not proven at all; none of it has been observed.
 

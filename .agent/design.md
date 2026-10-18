@@ -273,6 +273,11 @@ from a shadow token; a popup colour that drifts from the app's.
 - **Pop-up menus are as wide as their items** (`menus.md`), 220–280pt, aligned to the trigger's leading edge,
   opening below or above whichever fits and never leaving the window (8pt margin; a menu taller than the room
   scrolls).
+- **The New Item picker wears full-colour art** (owner 2026-10-18, after 1Password's picker; "灰色背景很丑"): 64pt
+  tiles on the dialog's own material with a `border-bold` hairline and no fill, a 40pt Microsoft Fluent Emoji per type
+  (MIT, `src/assets/item-icons/` + its LICENSE; never 1Password's artwork), hover = quaternary fill. An exception to
+  "icons are lucide at 16pt": illustration, not a glyph, and only here. The sidebar, list and item header keep the
+  lucide glyphs / letter tiles. Phones get it as a bottom sheet (`.confirm-layer.is-item-type-picker`).
 
 ## Per-platform skins (2026-10-17)
 
