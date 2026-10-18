@@ -264,6 +264,8 @@
     /* Show in Large Type: one glyph per tile, sized to be read across a room (1Password's large type). */
     --measure-large-type-glyph: 2.25rem;
     --measure-large-type-cell: 3rem;
+    /* The edit header's item icon (1Password 8: a 60pt tile with the chevron badge on its corner). */
+    --measure-edit-icon: 3.75rem;
     /* The item pane's side padding. The edit form's drag handles hang in it, left of the cards, so every card
        lines up with the item icon (owner, 2026-10-18); the handle's hit area is --measure-field-handle wide. */
     --measure-detail-inline: 1.75rem;
@@ -3579,4 +3581,58 @@
 .has-site-icon img {
   image-rendering: auto;
   @apply block h-full w-full object-contain;
+}
+
+/* The detail header's tile when no website icon shows: the item type's colour art on a raised rounded
+   square with a hairline, the way a website icon sits on its white tile (owner 2026-10-18). Unlayered for the
+   same reason as the site-icon tile above. */
+.large-icon.is-art {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  @apply overflow-hidden p-100;
+}
+
+.large-icon.is-art img {
+  @apply block h-full w-full object-contain;
+}
+
+/* The edit header (1Password 8, owner 2026-10-18): a 60pt icon with a small square chevron badge hanging off its
+   bottom-right corner, then the title as a filled 44pt field in Title 1 semibold, centred on the icon. The
+   icon's left edge is still the pane's content edge, so the cards below keep lining up with it. */
+.detail-header.is-edit {
+  @apply items-center gap-200;
+}
+
+.item-icon-well {
+  @apply relative shrink-0;
+}
+
+.detail-header.is-edit .large-icon {
+  width: var(--measure-edit-icon);
+  height: var(--measure-edit-icon);
+  @apply rounded-xlarge text-title-1;
+}
+
+.item-icon-badge {
+  color: var(--color-icon);
+  background: var(--color-surface-overlay);
+  border: var(--border-width-default) solid var(--color-border-bold);
+  box-shadow: var(--shadow-control);
+  @apply absolute -bottom-050 -right-050 grid h-250 w-250 place-items-center rounded-small p-0;
+}
+
+.item-icon-badge:hover,
+.item-icon-badge[aria-expanded="true"] {
+  background: var(--color-background-neutral-subtle-pressed);
+}
+
+.title-input.is-filled,
+.title-input.is-filled:focus,
+.title-input.is-filled:focus-visible {
+  background-color: var(--color-background-neutral-subtle-hovered);
+}
+
+.title-input.is-filled {
+  color: var(--color-text);
+  @apply h-11 min-w-0 max-w-none flex-1 rounded-large px-150 text-title-1 font-semibold;
 }

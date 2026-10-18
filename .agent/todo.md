@@ -174,6 +174,10 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 - Colour item-type art (2026-10-18) is in the New Item picker only. Using it as the list / item-header fallback
   (non-login items, or a login with no site icon) was left out: it changes the selected-row tile rule (white tint on
   the accent) and the letter tiles everywhere — an owner call. Seen only in Chromium screenshots (work/screens/type-picker/).
+- Edit-header icon badge (2026-10-18) offers only what exists: Use Website Icon / Don't Use Website Icon (the
+  stored `icon_mode`, applied at once like the item menu's rows) and Refresh Icon; it is hidden for items with no
+  website and while composing. A custom image or a per-item choice of type icon would need a new stored field —
+  not built. Seen only in Chromium screenshots.
 
 Everything in this list is written and unit-proven or not proven at all; none of it has been observed.
 

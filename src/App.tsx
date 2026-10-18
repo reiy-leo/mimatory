@@ -42,6 +42,7 @@ import {
   ScanQrCode,
   Search,
   Server,
+  Shapes,
   Share,
   ShieldCheck,
   Star,
@@ -125,6 +126,7 @@ import {
   stringifySectionChildren,
 } from './app/itemFields'
 import { ItemIcon } from './app/itemIcon'
+import { type ItemIconChoice, ItemIconMenuButton } from './app/itemIconMenu'
 import {
   emptyRelationDraft,
   filterByTitle,
@@ -2142,6 +2144,44 @@ function VaultWindow() {
     }
   }
 
+  // The detail header's tile when no website icon shows: the item type's colour art (the list keeps its letter).
+  const headerArtUrl = itemTypeArtFor(form.item_type)
+  const headerArt = headerArtUrl ? (
+    <span className="large-icon is-art">
+      <img alt="" draggable={false} src={headerArtUrl} />
+    </span>
+  ) : undefined
+  // The edit header's icon badge: what the app can do with this item's icon. These act on the stored item, like
+  // the same rows in the item menu, so they are offered only once it is saved and has a website.
+  const iconChoices: ItemIconChoice[] =
+    selectedItem && siteIconDomain(selectedItem)
+      ? [
+          selectedItem.icon_mode === 'letter'
+            ? {
+                icon: Globe,
+                id: 'website',
+                label: t('vault.siteIcon.useWebsite'),
+                onSelect: () => void handleIconMode('auto'),
+              }
+            : {
+                icon: Shapes,
+                id: 'type',
+                label: t('vault.siteIcon.hideWebsite'),
+                onSelect: () => void handleIconMode('letter'),
+              },
+          ...(siteIconsEnabled
+            ? [
+                {
+                  icon: RefreshCw,
+                  id: 'refresh',
+                  label: t('vault.siteIcon.refresh'),
+                  onSelect: () => void handleRefreshIcon(),
+                },
+              ]
+            : []),
+        ]
+      : []
+
   async function handleIconMode(mode: 'auto' | 'letter') {
     if (!selectedItem) return
     closeFieldMenus()
@@ -3481,27 +3521,30 @@ function VaultWindow() {
           isEditing ? (
             <form className="detail-form" id="item-detail-form" onSubmit={handleSave}>
               <fieldset className="detail-fieldset" disabled={!isEditing} onScroll={closeFieldMenus}>
-                <div className="detail-header">
-                  <ItemIcon
-                    className="large-icon"
-                    item={{
-                      icon_mode: selectedItem?.icon_mode,
-                      title: form.title,
-                      urls: selectedItem?.urls ?? [],
-                      website: selectedItem?.website ?? '',
-                    }}
-                    placeholder="+"
-                  />
-                  <div>
-                    <input
-                      aria-label={t('vault.loginTitle')}
-                      className="title-input"
-                      onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                      placeholder={t('vault.loginTitle')}
-                      value={form.title}
+                {/* 1Password 8's edit header (owner 2026-10-18): a 60pt icon with a chevron badge for the icon
+                    choices, the title in a filled field beside it. */}
+                <div className="detail-header is-edit">
+                  <div className="item-icon-well">
+                    <ItemIcon
+                      className="large-icon"
+                      fallback={headerArt}
+                      item={{
+                        icon_mode: selectedItem?.icon_mode,
+                        title: form.title,
+                        urls: selectedItem?.urls ?? [],
+                        website: selectedItem?.website ?? '',
+                      }}
+                      placeholder="+"
                     />
-                    <p>{selectedItem ? t(`itemTypes.${form.item_type}`) : t('vault.newLoginItem')}</p>
+                    <ItemIconMenuButton choices={iconChoices} label={t('vault.siteIcon.menu')} />
                   </div>
+                  <input
+                    aria-label={t('vault.loginTitle')}
+                    className="title-input is-filled"
+                    onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+                    placeholder={selectedItem ? t('vault.loginTitle') : t('vault.newLoginItem')}
+                    value={form.title}
+                  />
                   <button
                     aria-label={t('vault.favorite')}
                     className={form.favorite ? 'icon-button active' : 'icon-button'}
@@ -3780,6 +3823,7 @@ function VaultWindow() {
               <div className="detail-header">
                 <ItemIcon
                   className="large-icon"
+                  fallback={headerArt}
                   item={{
                     icon_mode: selectedItem?.icon_mode,
                     title: form.title,

@@ -218,7 +218,7 @@ describe('one field row for every field, read-only and editing', () => {
       .split(/<EditFieldRow[\s\S]*?<\/EditFieldRow>/)
       .join('')
       .match(/<(?:input|textarea|select|FieldEditor)\b[^>]*>/g)
-    expect(editForm).toContain('className="title-input"')
+    expect(editForm).toContain('className="title-input is-filled"')
     expect(editForm).toContain('type="file"')
     expect(loose?.length).toBe(2)
   })

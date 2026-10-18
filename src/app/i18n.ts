@@ -787,6 +787,8 @@ const resources = {
           usedBy: 'Used to Sign In To',
         },
         siteIcon: {
+          hideWebsite: "Don't Use Website Icon",
+          menu: 'Icon Options',
           refresh: 'Refresh Icon',
           useLetter: 'Use Letter Icon',
           useWebsite: 'Use Website Icon',
@@ -1584,6 +1586,8 @@ const resources = {
           usedBy: 'サインインに使用',
         },
         siteIcon: {
+          hideWebsite: 'Webサイトのアイコンを使わない',
+          menu: 'アイコンのオプション',
           refresh: 'アイコンを更新',
           useLetter: '文字アイコンを使う',
           useWebsite: 'Webサイトのアイコンを使う',
@@ -2374,6 +2378,8 @@ const resources = {
           usedBy: '用于登录',
         },
         siteIcon: {
+          hideWebsite: '不使用网站图标',
+          menu: '图标选项',
           refresh: '刷新图标',
           useLetter: '使用字母图标',
           useWebsite: '使用网站图标',

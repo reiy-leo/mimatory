@@ -278,6 +278,11 @@ from a shadow token; a popup colour that drifts from the app's.
   (MIT, `src/assets/item-icons/` + its LICENSE; never 1Password's artwork), hover = quaternary fill. An exception to
   "icons are lucide at 16pt": illustration, not a glyph, and only here. The sidebar, list and item header keep the
   lucide glyphs / letter tiles. Phones get it as a bottom sheet (`.confirm-layer.is-item-type-picker`).
+- **The edit header is 1Password 8's** (owner 2026-10-18): a 60pt icon tile (`--measure-edit-icon`; website icon,
+  else the type's colour art on a raised hairline tile — the view header uses the same fallback) with a 20pt square
+  chevron badge on its bottom-right corner, then the title as a filled 44pt field in Title 1 semibold (Title 2 on
+  phones). The icon's left edge is the pane's content edge, so the cards still line up with it. WinUI and Material
+  restyle the title field as their own text field (underline / outline) like every other input.
 
 ## Per-platform skins (2026-10-17)
 
