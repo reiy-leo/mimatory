@@ -138,7 +138,7 @@ fn save_passkey_event(
         PasskeyTarget::Matching
     };
     service
-        .save_passkey(
+        .save_passkey_everywhere(
             &session,
             input.event_type == "create",
             &input.origin,
@@ -189,7 +189,7 @@ fn list_matches(session: &SharedSession, origin: &str) -> Result<Vec<BridgeMatch
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let service = VaultService::new(connection);
     service
-        .list_login_items_for_origin(&session, origin)
+        .list_login_items_for_origin_everywhere(&session, origin)
         .map(|items| items.into_iter().map(BridgeMatch::from).collect())
         .map_err(|error| error.to_string())
 }
@@ -198,15 +198,15 @@ fn save_login(session: &SharedSession, input: SaveRequest) -> Result<LoginItem, 
     let session = current_session(session)?;
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let mut service = VaultService::new(connection);
+    // Every open vault (owner 2026-10-18): a password change updates the login in the vault it lives in;
+    // a login seen for the first time is saved to the open vault.
     let existing = service
-        .list_login_items_for_site(&session, &input.website)
-        .map_err(|error| error.to_string())?
-        .into_iter()
-        .find(|item| item.username == input.username);
-    if let Some(existing) = existing {
+        .find_site_login_everywhere(&session, &input.website, &input.username)
+        .map_err(|error| error.to_string())?;
+    if let Some((vault, existing)) = existing {
         return service
             .update_login_item(
-                &session,
+                &vault,
                 LoginItemUpdate {
                     id: existing.id,
                     item_type: "login".to_string(),

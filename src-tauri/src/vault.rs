@@ -1157,6 +1157,90 @@ impl VaultService {
         Ok(items)
     }
 
+    /// The browser extension reads every open vault (owner 2026-10-18), the open one first so its
+    /// items lead the list and win a tie.
+    pub fn open_vault_sessions(&self, session: &Session) -> Result<Vec<Session>, VaultError> {
+        let mut ids = self.open_vault_ids()?;
+        if let Some(position) = ids.iter().position(|id| id == &session.vault_id) {
+            let current = ids.remove(position);
+            ids.insert(0, current);
+        }
+        Ok(ids.iter().map(|id| session.for_vault(id)).collect())
+    }
+
+    /// Autofill candidates for a page from every open vault.
+    pub fn list_login_items_for_origin_everywhere(
+        &self,
+        session: &Session,
+        origin: &str,
+    ) -> Result<Vec<LoginItem>, VaultError> {
+        let mut matches = Vec::new();
+        for vault in self.open_vault_sessions(session)? {
+            matches.extend(self.list_login_items_for_origin(&vault, origin)?);
+        }
+        Ok(matches)
+    }
+
+    /// The login a save from this page updates, wherever it lives, with the session of its vault.
+    pub fn find_site_login_everywhere(
+        &self,
+        session: &Session,
+        origin: &str,
+        username: &str,
+    ) -> Result<Option<(Session, LoginItem)>, VaultError> {
+        for vault in self.open_vault_sessions(session)? {
+            if let Some(item) = self
+                .list_login_items_for_site(&vault, origin)?
+                .into_iter()
+                .find(|item| item.username == username)
+            {
+                return Ok(Some((vault, item)));
+            }
+        }
+        Ok(None)
+    }
+
+    /// A passkey reported by the extension goes to the item it names or matches in whichever open vault
+    /// holds it; a new item (or no match anywhere) is created in the open vault.
+    pub fn save_passkey_everywhere(
+        &mut self,
+        session: &Session,
+        overwrite: bool,
+        origin: &str,
+        rp_id: &str,
+        user_name: &str,
+        target: &PasskeyTarget,
+    ) -> Result<LoginItem, VaultError> {
+        let holder = match target {
+            PasskeyTarget::NewItem => None,
+            PasskeyTarget::Item(id) => {
+                let mut found = None;
+                for vault in self.open_vault_sessions(session)? {
+                    if self.list_live_items(&vault, None)?.iter().any(|item| &item.id == id) {
+                        found = Some(vault);
+                        break;
+                    }
+                }
+                Some(found.ok_or(VaultError::PasskeyItemNotFound)?)
+            }
+            PasskeyTarget::Matching => {
+                let rp = rp_id.trim();
+                let mut found = None;
+                for vault in self.open_vault_sessions(session)? {
+                    if self.list_live_items(&vault, None)?.iter().any(|item| {
+                        item.item_type != PASSKEY_ITEM_TYPE && item_matches_rp_id(item, rp)
+                    }) {
+                        found = Some(vault);
+                        break;
+                    }
+                }
+                found
+            }
+        };
+        let vault = holder.unwrap_or_else(|| session.clone());
+        self.save_passkey(&vault, overwrite, origin, rp_id, user_name, target)
+    }
+
     /// Tags belong to All, not to a vault (owner 2026-10-18): one entry per name across the open vaults,
     /// styled as the open vault styles it, else as the first vault that has it.
     pub fn list_all_tags(&self, session: &Session) -> Result<Vec<Tag>, VaultError> {
@@ -3667,6 +3751,44 @@ mod tests {
         // An archived vault drops out of All.
         service.set_vault_archived(&personal, &work_vault.id, true).expect("archive work");
         assert_eq!(service.list_all_login_items(&personal).expect("all items").len(), 1);
+    }
+
+    #[test]
+    fn the_browser_extension_reads_every_open_vault() {
+        let path = test_database_path("vault-bridge-all");
+        initialize_database(&path).expect("database should initialize");
+        let connection = open_database(&path).expect("database should open");
+        let mut service = VaultService::new(connection);
+        let personal = service.setup_master_password("master-password").expect("setup");
+        let work_vault = service.create_vault(&personal, "Work").expect("work vault");
+        let work = service.session_for_vault(&personal, &work_vault.id).expect("work session");
+        let theirs = service.create_login_item(&work, login_input("Theirs", vec![])).expect("theirs");
+
+        // The open vault is Personal, yet the Work login fills and is the one a save updates.
+        let matches = service
+            .list_login_items_for_origin_everywhere(&personal, "https://example.com")
+            .expect("matches");
+        assert_eq!(matches.iter().map(|item| item.id.clone()).collect::<Vec<_>>(), vec![theirs.id.clone()]);
+        let (vault, found) = service
+            .find_site_login_everywhere(&personal, "https://example.com", "user@example.com")
+            .expect("lookup")
+            .expect("found in work");
+        assert_eq!(found.id, theirs.id);
+        assert_eq!(vault.vault_id, work_vault.id);
+
+        // A passkey for the matching login lands in Work, not as a new Personal item.
+        let saved = service
+            .save_passkey_everywhere(&personal, true, "https://example.com", "example.com", "rei", &PasskeyTarget::Matching)
+            .expect("passkey");
+        assert_eq!(saved.id, theirs.id);
+        assert!(service.list_login_items(&personal, None).expect("personal").is_empty());
+
+        // An archived vault is out of reach.
+        service.set_vault_archived(&personal, &work_vault.id, true).expect("archive work");
+        assert!(service
+            .list_login_items_for_origin_everywhere(&personal, "https://example.com")
+            .expect("matches")
+            .is_empty());
     }
 
     #[test]
