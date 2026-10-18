@@ -168,6 +168,7 @@ export default {
       },
       maxHeight: {
         'picker-list': 'var(--measure-picker-list)',
+        'text-preview': 'var(--measure-text-preview-height)',
       },
       /* Documented layout measures (see styles.css `--measure-*`), not spacing steps. */
       maxWidth: {
@@ -177,6 +178,7 @@ export default {
         'lock-panel': 'var(--measure-lock-panel)',
         modal: 'var(--measure-modal)',
         settings: 'var(--measure-settings-max)',
+        'text-preview': 'var(--measure-text-preview)',
       },
       minWidth: {
         'item-list': 'var(--measure-item-list-min)',

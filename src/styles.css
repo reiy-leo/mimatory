@@ -241,6 +241,10 @@
     --measure-lock-panel: 360px;
     --measure-lock-field: 260px;
     --measure-modal: 420px;
+    /* The attachment text preview: wide enough for an 80-column line of the callout mono, and its scrolling
+       well at most this tall, so the sheet's buttons stay on screen. */
+    --measure-text-preview: 640px;
+    --measure-text-preview-height: 60vh;
     /* The item picker's list: about seven 40pt rows before it scrolls. */
     --measure-picker-list: 288px;
     --measure-detail-header: 720px;
@@ -1801,6 +1805,37 @@
     @apply mt-200;
   }
 
+  /* The `.txt` attachment preview (owner, 2026-10-18): the same sheet, wider, its text read-only in a scrolling
+     monospace well on the content surface — the well is content, so it is opaque (materials.md). */
+  .confirm-dialog.text-preview-dialog {
+    @apply max-w-text-preview;
+  }
+
+  .text-preview-title {
+    @apply truncate;
+  }
+
+  .text-preview-body {
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    background: var(--color-surface);
+    border-color: var(--color-border-input);
+    @apply mt-150 max-h-text-preview overflow-auto rounded-medium border p-150 font-mono text-callout;
+  }
+
+  .confirm-dialog p.text-preview-note {
+    @apply text-callout;
+  }
+
+  .confirm-dialog p.text-preview-status.is-error {
+    color: var(--color-text-danger);
+  }
+
+  .text-preview-dialog .confirm-actions .secondary-button {
+    @apply inline-flex items-center gap-075;
+  }
+
   /* Nothing open and nobody drafting: the pane names its own state instead of showing a blank form. */
   .detail-empty {
     @apply m-auto flex max-w-modal flex-col items-center px-200 py-400 text-center;
@@ -2936,6 +2971,27 @@
     @apply top-050;
   }
 
+  /* A section's Add More is the last cell of the section's own card (owner, 2026-10-18: it must read as part of
+     the section, no gap): the same fill, side hairlines and bottom corners as a field cell, a hairline above it,
+     and the bar's own bezel and top margin dropped. The item-level bar below the cards keeps its look. */
+  .field-group.is-edit > .add-more-wrap.is-section {
+    background: var(--color-field-edit);
+    border-color: var(--color-border);
+    @apply min-w-0 rounded-b-large border-x border-b border-t;
+  }
+
+  .add-more-wrap.is-section > .add-more-button {
+    @apply mt-0 min-h-500 rounded-none rounded-b-large border-0 bg-transparent px-200;
+  }
+
+  .add-more-wrap.is-section > .add-more-button:hover {
+    background: var(--color-background-brand-subtlest);
+  }
+
+  .add-more-wrap.is-section.is-drop-before::before {
+    @apply -top-025;
+  }
+
   /* The Add More menu floats in a portal layer at its own content width (220–280px set inline), placed and
      height-capped by placeAnchoredPanel() so it never leaves the window. */
   .add-more-menu.is-floating {
@@ -3331,7 +3387,8 @@
   }
 }
 
-/* Website icons (2026-10-17): the site's own artwork, re-encoded by Rust as a 64px PNG, on a white tile
+/* Website icons (2026-10-17; sources and resolution changed 2026-10-18): the artwork re-encoded by Rust at its
+   own resolution, up to 192px, and downscaled here by the browser (smooth, never pixelated), on a white tile
    with a hairline in every appearance and every state, so a dark logo stays legible in Dark Mode and a
    selected row never tints it. Unlayered on purpose: the skins' selected-row rules are unlayered too, and
    a layered rule loses to them whatever its specificity. */
@@ -3350,5 +3407,6 @@
 }
 
 .has-site-icon img {
+  image-rendering: auto;
   @apply block h-full w-full object-contain;
 }

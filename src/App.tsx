@@ -57,6 +57,7 @@ import {
   type ClipboardEvent as ReactClipboardEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -66,6 +67,13 @@ import {
 import { useTranslation } from 'react-i18next'
 import { AddMoreControl } from './app/addMoreMenu'
 import type { AddMoreFieldType } from './app/addMoreOptions'
+import {
+  AttachmentEditActions,
+  attachmentId,
+  isTextPreviewable,
+  TextPreviewDialog,
+  type TextPreviewState,
+} from './app/attachmentControls'
 import { copyText } from './app/clipboard'
 import {
   FieldActionMenu,
@@ -98,6 +106,7 @@ import {
   AutofillBehaviorButton,
   autofillViewNote,
   EditFieldRow,
+  EditSectionCard,
   type ReorderControl,
   useFieldDrag,
 } from './app/fieldRows'
@@ -770,6 +779,12 @@ function VaultWindow() {
   // The item whose permanent delete is being confirmed. There is no native confirm in this webview,
   // so the question is state the window has to render itself.
   const [purgeTarget, setPurgeTarget] = useState<LoginItem | null>(null)
+  const [textPreview, setTextPreview] = useState<TextPreviewState | null>(null)
+  const textPreviewRequest = useRef(0)
+  const closeTextPreview = useCallback(() => {
+    textPreviewRequest.current += 1
+    setTextPreview(null)
+  }, [])
   // A new vault's name. window.prompt() answers null here without showing a box, so the question is
   // drawn in the page with the same modal recipe as the purge confirmation above.
   const [isCreatingVault, setIsCreatingVault] = useState(false)
@@ -2260,6 +2275,24 @@ function VaultWindow() {
     }
   }
 
+  // A `.txt` attachment opens in the preview sheet. The latest request wins, so a slow read of one file never
+  // replaces a sheet the user has since opened for another (or closed).
+  async function openTextPreview(field: CustomField) {
+    const id = attachmentId(field.value)
+    if (!id) return
+    const request = textPreviewRequest.current + 1
+    textPreviewRequest.current = request
+    const fileName = field.label.trim()
+    setTextPreview({ fileName, status: 'loading' })
+    try {
+      const result = await vaultApi.readAttachmentText(id)
+      if (textPreviewRequest.current === request) setTextPreview({ fileName, result, status: 'ready' })
+    } catch (nextError) {
+      if (textPreviewRequest.current === request)
+        setTextPreview({ error: String(nextError), fileName, status: 'error' })
+    }
+  }
+
   function updateSectionChild(sectionIndex: number, childIndex: number, patch: Partial<CustomField>) {
     setForm((current) => {
       const customFields = current.custom_fields.map((field, fieldIndex) => {
@@ -2529,23 +2562,14 @@ function VaultWindow() {
         <EditFieldRow
           key={key}
           {...common}
+          // An attachment is never replaced once added, only removed (owner, 2026-10-18).
           trailing={
-            <>
-              {field.value.startsWith('attachment://') ? (
-                <button className="field-text-button" onClick={() => openAttachment(field)} type="button">
-                  {t('vault.exportAttachment')}
-                </button>
-              ) : null}
-              <button
-                aria-label={field.value ? t('vault.changeAttachment') : t('vault.chooseAttachment')}
-                className="field-type-button"
-                onClick={() => chooseAttachmentForField(index)}
-                title={field.value ? t('vault.changeAttachment') : t('vault.chooseAttachment')}
-                type="button"
-              >
-                <Paperclip size={18} />
-              </button>
-            </>
+            <AttachmentEditActions
+              field={field}
+              onChoose={() => void chooseAttachmentForField(index)}
+              onExport={() => void openAttachment(field)}
+              onPreview={() => void openTextPreview(field)}
+            />
           }
         >
           <span className="field-row-value" title={field.value}>
@@ -2619,7 +2643,22 @@ function VaultWindow() {
         data-reorder-index={position}
         key={`section-${index}`}
       >
-        <div className="field-group is-edit">
+        <EditSectionCard
+          addMore={
+            <AddMoreControl
+              attachments={features.attachments}
+              context="section"
+              dropIndicator={fieldDrag.dropAt(container, children.length)}
+              dropZone={{ container, index: children.length }}
+              onPick={(entry) => {
+                if (entry.kind === 'field') addSectionChild(index, entry.id)
+              }}
+              onToggle={() => toggleSectionMenu(index)}
+              open={sectionMenuIndex === index}
+              sheet={isMobileLayout}
+            />
+          }
+        >
           <EditFieldRow
             className="is-section-header"
             label={title || t('vault.sectionName')}
@@ -2677,19 +2716,7 @@ function VaultWindow() {
               </EditFieldRow>
             )
           })}
-        </div>
-        <AddMoreControl
-          attachments={features.attachments}
-          context="section"
-          dropIndicator={fieldDrag.dropAt(container, children.length)}
-          dropZone={{ container, index: children.length }}
-          onPick={(entry) => {
-            if (entry.kind === 'field') addSectionChild(index, entry.id)
-          }}
-          onToggle={() => toggleSectionMenu(index)}
-          open={sectionMenuIndex === index}
-          sheet={isMobileLayout}
-        />
+        </EditSectionCard>
       </div>
     )
   }
@@ -3888,6 +3915,11 @@ function VaultWindow() {
                             </button>
                           ) : undefined
                         }
+                        activate={
+                          isTextPreviewable(field)
+                            ? { label: t('attachments.preview'), run: () => void openTextPreview(field) }
+                            : undefined
+                        }
                         display={
                           field.field_type === 'related_item'
                             ? itemTitleById(items, field.value)
@@ -4494,6 +4526,22 @@ function VaultWindow() {
           showing anything, so the question is drawn in the page. Its dismiss is a real button behind
           the card, not a click handler on a div: it stays keyboard reachable, and a click inside the
           card cannot reach it. */}
+      {textPreview ? (
+        <TextPreviewDialog
+          onClose={closeTextPreview}
+          onCopy={async (text) => {
+            try {
+              // An attachment in a password vault may well hold a secret: it honours the 90-second clear.
+              await copySecretText(text, true)
+              return true
+            } catch (nextError) {
+              setError(String(nextError))
+              return false
+            }
+          }}
+          state={textPreview}
+        />
+      ) : null}
       {purgeTarget ? (
         <div className="confirm-layer">
           <button

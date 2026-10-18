@@ -132,6 +132,9 @@ function ExpiryBadge({ fieldType, value }: { fieldType: string; value: string })
 export type FieldViewProps = {
   /** Replaces the copy button, for a value that is not text worth copying (an attachment). */
   actions?: ReactNode
+  /** Makes the whole row a button for something other than the type's own actions (a `.txt` attachment's
+      preview); `label` is its trailing hint. */
+  activate?: { label: string; run: () => void }
   /** Open & Fill can reach the browser extension (desktop); without it a website only opens. */
   canFill?: boolean
   /** What the copy button writes; defaults to the stored value (card numbers copy digits only). */
@@ -168,6 +171,7 @@ export function openUrlExternally(url: string) {
  */
 export function FieldView({
   actions,
+  activate,
   canFill = false,
   copyValue,
   display,
@@ -279,7 +283,7 @@ export function FieldView({
   }
 
   const primary = available.primary
-  const hint = copied ? t('fieldActions.copied') : primary ? fieldActionLabel(t, primary) : null
+  const hint = copied ? t('fieldActions.copied') : primary ? fieldActionLabel(t, primary) : (activate?.label ?? null)
   const openMenu = (anchor: FieldMenuAnchor) => {
     if (available.menu.length) setMenuAnchor(anchor)
   }
@@ -288,7 +292,7 @@ export function FieldView({
     <div
       className={[
         'field-row',
-        primary ? 'is-actionable' : '',
+        primary || activate ? 'is-actionable' : '',
         copied ? 'is-copied' : '',
         menuAnchor ? 'is-menu-open' : '',
       ]
@@ -301,7 +305,7 @@ export function FieldView({
       }}
       ref={rowRef}
     >
-      {primary ? (
+      {primary || activate ? (
         // The whole row is the primary action, drawn as a transparent button under the content so the
         // trailing buttons stay their own targets (a button cannot hold the strength meter's blocks).
         <button
@@ -310,7 +314,8 @@ export function FieldView({
           className="field-row-primary"
           onClick={() => {
             if (longPress.consumeClick()) return
-            run(primary)
+            if (primary) run(primary)
+            else activate?.run()
           }}
           onKeyDown={(event) => {
             if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {

@@ -25,6 +25,15 @@ function getStoredLanguage(): string | null {
 const resources = {
   en: {
     translation: {
+      attachments: {
+        done: 'Done',
+        empty: 'This file is empty.',
+        loading: 'Loading…',
+        lossy: 'Some bytes are not UTF-8 text and are shown as �.',
+        preview: 'Preview',
+        previewNamed: 'Preview {{name}}',
+        truncated: 'Showing the first {{shown}} of {{total}}. Export the attachment to see all of it.',
+      },
       common: {
         archivedVaults: 'Archived Vaults',
         categories: 'Categories',
@@ -461,7 +470,7 @@ const resources = {
         session: 'Session',
         siteIcons: 'Website Icons',
         siteIconsDescription:
-          'Passless asks each website for its icon directly, never through a third-party service, and keeps it encrypted in your vault. Turning this off deletes the saved icons.',
+          'Passless looks up each website’s icon through Google’s favicon service, then the website itself, and keeps it encrypted in your vault. Google sees the website addresses it is asked about. Turning this off stops all lookups and deletes the saved icons.',
         subtitle: 'Passless preferences',
         system: 'System',
         tabs: {
@@ -580,7 +589,6 @@ const resources = {
         cancelEditing: 'Cancel',
         cardBrandDetected: 'Detected {{brand}}',
         cardNumberPlaceholder: '1234 5678 9012 3456',
-        changeAttachment: 'Change Attachment',
         chooseAttachment: 'Choose Attachment',
         chooseItemType: 'Choose an Item Type',
         chooseRelatedItem: 'Choose related item',
@@ -798,6 +806,16 @@ const resources = {
   },
   ja: {
     translation: {
+      attachments: {
+        done: '完了',
+        empty: 'このファイルは空です。',
+        loading: '読み込み中…',
+        lossy: 'UTF-8 テキストではないバイトを � で表示しています。',
+        preview: 'プレビュー',
+        previewNamed: '{{name}} をプレビュー',
+        truncated:
+          '{{total}} のうち最初の {{shown}} を表示しています。すべて見るには添付ファイルを書き出してください。',
+      },
       common: {
         archivedVaults: 'アーカイブ済みの保管庫',
         categories: 'カテゴリ',
@@ -1234,7 +1252,7 @@ const resources = {
         session: 'セッション',
         siteIcons: 'Webサイトのアイコン',
         siteIconsDescription:
-          '各Webサイトに直接アイコンを要求し（第三者のサービスは使いません）、保管庫に暗号化して保存します。オフにすると保存済みのアイコンを削除します。',
+          '各WebサイトのアイコンをGoogleのファビコンサービス、次にWebサイト自体から取得し、保管庫に暗号化して保存します。問い合わせたWebサイトのアドレスはGoogleに伝わります。オフにするとすべての取得を止め、保存済みのアイコンを削除します。',
         subtitle: 'Passless の環境設定',
         system: 'システム',
         tabs: {
@@ -1353,7 +1371,6 @@ const resources = {
         cancelEditing: 'キャンセル',
         cardBrandDetected: '{{brand}} と判定',
         cardNumberPlaceholder: '1234 5678 9012 3456',
-        changeAttachment: '添付ファイルを変更',
         chooseAttachment: '添付ファイルを選択',
         chooseItemType: '項目の種類を選択',
         chooseRelatedItem: '関連項目を選択',
@@ -1571,6 +1588,15 @@ const resources = {
   },
   zh: {
     translation: {
+      attachments: {
+        done: '完成',
+        empty: '此文件为空。',
+        loading: '正在载入…',
+        lossy: '部分字节不是 UTF-8 文本，以 � 显示。',
+        preview: '预览',
+        previewNamed: '预览 {{name}}',
+        truncated: '仅显示 {{total}} 中的前 {{shown}}。导出附件可查看全部内容。',
+      },
       common: {
         archivedVaults: '已归档的保险库',
         categories: '分类',
@@ -2002,7 +2028,7 @@ const resources = {
         session: '会话',
         siteIcons: '网站图标',
         siteIconsDescription:
-          '直接向各网站请求其图标（从不经过第三方服务），并加密保存在保险库中。关闭后会删除已保存的图标。',
+          '先通过 Google 的网站图标服务、再向网站本身获取各网站的图标，并加密保存在保险库中。Google 会看到被查询的网站地址。关闭后将停止所有查询并删除已保存的图标。',
         subtitle: 'Passless 偏好设置',
         system: '跟随系统',
         tabs: {
@@ -2121,7 +2147,6 @@ const resources = {
         cancelEditing: '取消',
         cardBrandDetected: '识别为{{brand}}',
         cardNumberPlaceholder: '1234 5678 9012 3456',
-        changeAttachment: '更换附件',
         chooseAttachment: '选择附件',
         chooseItemType: '选择条目类型',
         chooseRelatedItem: '选择关联项目',

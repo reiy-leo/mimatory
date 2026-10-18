@@ -196,7 +196,8 @@ describe('one field row for every field, read-only and editing', () => {
 
   it('draws the shared cell in both components', () => {
     expect(rows).toMatch(/className=\{\['field-row', 'is-edit'/)
-    expect(controls).toMatch(/'field-row',\n\s+primary \? 'is-actionable'/)
+    // `activate`: a row whose whole cell does something other than the type's actions (a `.txt` preview).
+    expect(controls).toMatch(/'field-row',\n\s+primary (\|\| activate )?\? 'is-actionable'/)
   })
 
   it('keeps the retired per-type row shapes out of the form, the view and the stylesheets', () => {

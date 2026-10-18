@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react'
 import { type CachedSiteIcon, type LoginItem, vaultApi } from './vaultApi'
 
-// Website icons for item tiles. Rust fetches each one from the site itself and keeps it encrypted
-// in the vault (favicon.rs); this module decides *which* sites to ask about, remembers the answers
+// Website icons for item tiles. Rust fetches each one (Google's favicon service first, then the site itself)
+// and keeps it encrypted in the vault (favicon.rs); this module decides *which* sites to ask about, remembers the answers
 // for the window's lifetime and hands each tile its data URL. Nothing here talks to the network.
 
 // The "Download website icons" setting. Device-local like the theme and language, on by default.

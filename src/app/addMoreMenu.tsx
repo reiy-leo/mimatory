@@ -23,7 +23,8 @@ export type AddMoreControlProps = {
 }
 
 /**
- * The item's and every section's "Add More": a full-width bar with a chevron that opens one menu of field types
+ * The item's and every section's "Add More": a full-width bar with a chevron (a section's sits inside its card as
+ * the last row — the caller renders it there), that opens one menu of field types
  * (icons + labels) in a portal layer, so no scroll container or card can clip it. `data-field-menu` keeps the
  * window's outside-click handler (App.tsx) from closing it on its own clicks.
  */
@@ -95,7 +96,10 @@ export function AddMoreControl({
 
   return (
     <div
-      className={['add-more-wrap', dropIndicator ? `is-drop-${dropIndicator}` : ''].filter(Boolean).join(' ')}
+      // `is-section`: the section's Add More is drawn as the last cell of its card (styles.css).
+      className={['add-more-wrap', `is-${context}`, dropIndicator ? `is-drop-${dropIndicator}` : '']
+        .filter(Boolean)
+        .join(' ')}
       data-field-menu=""
       data-reorder-container={dropZone?.container}
       data-reorder-index={dropZone?.index}

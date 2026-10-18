@@ -152,6 +152,19 @@ export function EditFieldRow({
   )
 }
 
+/**
+ * A section's card in the editor: its header and field rows, then its Add More as the card's **last row** — inside
+ * the same `.field-group`, so it reads as part of the section with no gap (owner, 2026-10-18).
+ */
+export function EditSectionCard({ addMore, children }: { addMore: ReactNode; children: ReactNode }) {
+  return (
+    <div className="field-group is-edit">
+      {children}
+      {addMore}
+    </div>
+  )
+}
+
 /** The blue "+ add more" / "add another website" line that closes a card, in the card's own cell. */
 export function AddRowButton({
   children,
