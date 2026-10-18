@@ -1255,9 +1255,6 @@
     @apply rounded-large border border-border-danger bg-background-danger px-100 py-100 text-body text-text;
   }
 
-  .success-banner {
-    @apply rounded-large border border-border-success bg-background-success px-100 py-100 text-body text-text;
-  }
 
   .integration-panel {
     @apply mt-600 grid max-w-content gap-300 border-t border-border pt-100;
@@ -2158,11 +2155,54 @@
     @apply rounded-large border px-150 py-100 text-body;
   }
 
-  .success-banner {
+  /* A confirmation toast (owner 2026-10-18): floats over the window on the menu material, tinted in the success
+     hue, and clears itself after 3s. Settings ▸ Appearance picks the corner or edge it sits at. */
+  .toast {
     color: var(--color-text);
-    background: var(--color-background-success);
-    border-color: transparent;
-    @apply rounded-large border px-150 py-100 text-body;
+    background:
+      linear-gradient(var(--color-background-success), var(--color-background-success)),
+      var(--color-surface-overlay);
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-overlay);
+    max-width: min(calc(100vw - var(--space-400)), var(--measure-modal));
+    animation: toast-in 160ms ease-out;
+    @apply pointer-events-none fixed z-30 rounded-large border px-150 py-100 text-body;
+  }
+
+  .toast[data-position='top-right'] {
+    top: var(--space-600);
+    right: var(--space-200);
+  }
+
+  .toast[data-position='bottom-right'] {
+    right: var(--space-200);
+    bottom: var(--space-200);
+  }
+
+  .toast[data-position='top-center'],
+  .toast[data-position='bottom-center'] {
+    left: 50%;
+    translate: -50% 0;
+  }
+
+  .toast[data-position='top-center'] {
+    top: var(--space-600);
+  }
+
+  .toast[data-position='bottom-center'] {
+    bottom: var(--space-200);
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toast {
+      animation: none;
+    }
   }
 
   /* The settings window (settings.md): a source list of panes, the pane title at the top, and each

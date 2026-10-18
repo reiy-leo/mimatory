@@ -208,6 +208,7 @@ import {
   tagIconOptions,
 } from './app/tagIcons'
 import { applyTheme, getInitialTheme, type Theme, themeOptions } from './app/theme'
+import { Toast, toastPositions, useToastPosition, writeToastPosition } from './app/toast'
 import {
   buildOtpAuthUri,
   formatOtpSecret,
@@ -226,12 +227,10 @@ import {
   type ItemUrl,
   type LoginItem,
   type LoginItemInput,
-  type PasswordGeneratorMode,
   type PasswordGeneratorOptions,
   type PasswordStrength,
   parseCustomFields,
   parseTags,
-  randomGeneratorOptions,
   type Tag,
   tagsToInput,
   type UrlMatchType,
@@ -271,13 +270,6 @@ type FieldTotpPreview = {
 
 const defaultWebsiteLabel = 'website'
 const defaultUrlMatchType: UrlMatchType = 'domain'
-const generatorModes: PasswordGeneratorMode[] = ['random', 'passphrase', 'pin']
-const randomGeneratorChecks = ['exclude_ambiguous', 'lowercase', 'numbers', 'symbols', 'uppercase'] as const
-// A range input with no step divides its span into 100 equal shares, so a 16-word or 12-character
-// slider landed on .16 of a word. Every step here divides its span evenly.
-const passphraseWordLimits = { max: 9, min: 3, step: 1 }
-const pinLengthLimits = { max: 12, min: 4, step: 1 }
-const randomLengthLimits = { max: 128, min: 8, step: 4 }
 const quickAccessMaxResults = 8
 const quickAccessCloseDelayMs = 400
 // Each drag-resized column keeps its own clamp; `default` is what `--measure-*` in styles.css also
@@ -288,10 +280,6 @@ const settingsWindowSize = { height: 680, width: 920 }
 
 function createFormId() {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
-}
-
-function clampNumber(value: number, limits: { max: number; min: number }) {
-  return Math.min(Math.max(value, limits.min), limits.max)
 }
 
 function toUrlFormState(url: ItemUrl): UrlFormState {
@@ -1218,7 +1206,8 @@ function VaultWindow() {
       const itemType = activeNavigation.replace('category:', '')
       return t(`itemTypes.${itemType}`)
     }
-    if (activeNavigation === 'vault') return vaults.find((vault) => vault.id === activeVaultId)?.name ?? t('listTitle.vaults')
+    if (activeNavigation === 'vault')
+      return vaults.find((vault) => vault.id === activeVaultId)?.name ?? t('listTitle.vaults')
     return t('listTitle.vaults')
   }, [activeNavigation, activeTagName, activeVaultId, t, vaults])
 
@@ -4149,8 +4138,8 @@ function VaultWindow() {
         )}
 
         {/* Outside the two branches, because the action that most needs to say it just moved the item
-            out of the pane — a banner only the detail form can carry would never be read. */}
-        {operationMessage ? <div className="success-banner mt-300 max-w-content">{operationMessage}</div> : null}
+            out of the pane. A toast that clears itself, placed where Appearance says. */}
+        <Toast message={operationMessage} onDismiss={() => setOperationMessage(null)} />
       </section>
 
       {/* Phone layout only: Settings as a tab of the one window, and the tab bar that switches panes
@@ -4754,14 +4743,7 @@ function VaultWindow() {
 
 type SettingsTab = 'general' | 'appearance' | 'browser' | 'watchtower' | 'security' | 'shortcuts'
 
-const settingsTabs: SettingsTab[] = [
-  'general',
-  'appearance',
-  'browser',
-  'watchtower',
-  'security',
-  'shortcuts',
-]
+const settingsTabs: SettingsTab[] = ['general', 'appearance', 'browser', 'watchtower', 'security', 'shortcuts']
 
 /**
  * Settings: its own window on desktop, a tab of the one window on phones (`embedded`). What a pane offers
@@ -4781,6 +4763,7 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
   const [error, setError] = useState<string | null>(null)
   const [operationMessage, setOperationMessage] = useState<string | null>(null)
   const [siteIconsOn, setSiteIconsOn] = useState(() => readSiteIconsEnabled())
+  const toastPosition = useToastPosition()
   const [watchtower, setWatchtower] = useState<WatchtowerReport | null>(null)
   const [breachResult, setBreachResult] = useState<BreachCheckResult | null>(null)
   const [browserToken, setBrowserToken] = useState('')
@@ -4889,10 +4872,6 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
     setBrowserToken(await vaultApi.generateBrowserPairingToken())
   }
 
-  async function closeSettingsWindow() {
-    await getCurrentWebviewWindow().close()
-  }
-
   async function updateTheme(nextTheme: Theme) {
     setTheme(nextTheme)
     await emit('passless-theme-changed', nextTheme)
@@ -4980,7 +4959,7 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
         </header>
 
         {error ? <div className="error-banner">{error}</div> : null}
-        {operationMessage ? <div className="success-banner">{operationMessage}</div> : null}
+        <Toast message={operationMessage} onDismiss={() => setOperationMessage(null)} />
 
         {activeTab === 'general' ? (
           <div className="settings-section">
@@ -5060,6 +5039,23 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
                     type="button"
                   >
                     {t(`settings.${option}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="integration-card">
+              <h2>{t('settings.toastPosition')}</h2>
+              <p>{t('settings.toastPositionDescription')}</p>
+              <div className="segmented-control">
+                {toastPositions.map((option) => (
+                  <button
+                    aria-pressed={toastPosition === option}
+                    className="segment-button secondary-button"
+                    key={option}
+                    onClick={() => writeToastPosition(option)}
+                    type="button"
+                  >
+                    {t(`settings.toastPositions.${option}`)}
                   </button>
                 ))}
               </div>
