@@ -1750,7 +1750,9 @@
 
   /* In the item list the tile is as tall as the two text lines beside it (Body 16pt + 4pt + Callout 15pt). */
   .item-row .item-icon {
-    @apply h-[2.1875rem] w-[2.1875rem] text-body;
+    width: calc(theme('fontSize.body.1.lineHeight') + theme('spacing.050') + theme('fontSize.callout.1.lineHeight'));
+    height: calc(theme('fontSize.body.1.lineHeight') + theme('spacing.050') + theme('fontSize.callout.1.lineHeight'));
+    @apply text-body;
   }
 
   .item-row strong {
