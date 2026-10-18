@@ -35,6 +35,15 @@ export type CachedSiteIcon = {
   icon: string | null
 }
 
+// A plain-text attachment decoded by Rust for the preview sheet (lossy UTF-8, cut at 256KB).
+export type AttachmentText = {
+  file_name: string
+  lossy: boolean
+  text: string
+  total_bytes: number
+  truncated: boolean
+}
+
 // One linked item, as much as the detail pane needs to draw it and navigate to it.
 export type RelatedItemRef = {
   archived: boolean
@@ -216,7 +225,7 @@ export const vaultApi = {
   duplicate: (id: string, title: string) => invoke<LoginItem>('duplicate_login_item', { id, title }),
   exportAttachmentToTemp: (id: string) => invoke<string>('export_attachment_to_temp', { id }),
   favorite: (id: string, favorite: boolean) => invoke<void>('set_login_favorite', { favorite, id }),
-  // Asks the site itself (Rust, favicon.rs) and caches the answer; `force` ignores a recent one.
+  // Asks Google's favicon service, then the site (Rust, favicon.rs), and caches the answer; `force` ignores a recent one.
   fetchSiteIcon: (domain: string, force: boolean) => invoke<string | null>('fetch_site_icon', { domain, force }),
   generateBrowserPairingToken: () => invoke<string>('generate_browser_pairing_token'),
   generatePassword: (options: PasswordGeneratorOptions) => invoke<string>('generate_password_command', { options }),
@@ -234,6 +243,8 @@ export const vaultApi = {
   passwordStrength: (password: string) => invoke<PasswordStrength>('password_strength', { password }),
   pickAttachmentFile: () => invoke<string | null>('pick_attachment_file'),
   purge: (id: string) => invoke<void>('purge_login_item', { id }),
+  // Decrypted in memory only, unlike exportAttachmentToTemp, which writes a file.
+  readAttachmentText: (id: string) => invoke<AttachmentText>('read_attachment_text', { id }),
   restore: (id: string) => invoke<void>('restore_login_item', { id }),
   restoreFromTrash: (id: string) => invoke<void>('restore_trashed_login_item', { id }),
   setAutostart: (enabled: boolean) => invoke<void>('set_autostart', { enabled }),

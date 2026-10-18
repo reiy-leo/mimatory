@@ -223,6 +223,59 @@ pub struct AttachmentExport {
     pub bytes: Vec<u8>,
 }
 
+/// A plain-text attachment as the preview sheet shows it: decoded as UTF-8 (invalid bytes become
+/// U+FFFD), cut at `TEXT_PREVIEW_LIMIT` bytes on a character boundary.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct AttachmentText {
+    pub file_name: String,
+    pub text: String,
+    /// Bytes in the stored file, so the sheet can say how much it left out.
+    pub total_bytes: usize,
+    pub truncated: bool,
+    /// Some bytes were not UTF-8 and were replaced.
+    pub lossy: bool,
+}
+
+/// The most of a text attachment the preview decodes and sends across the bridge (256KB).
+pub const TEXT_PREVIEW_LIMIT: usize = 256 * 1024;
+
+/// Decodes up to `limit` bytes of a text file for the preview. A UTF-8 byte-order mark is dropped,
+/// and a cut that lands inside a multi-byte character backs up to its start rather than showing
+/// half of it as a replacement character.
+pub fn text_preview(file_name: &str, bytes: &[u8], limit: usize) -> AttachmentText {
+    let body = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
+    let truncated = body.len() > limit;
+    let mut slice = &body[..body.len().min(limit)];
+    if truncated {
+        // Look back at most three bytes for the lead byte of a character the cut split.
+        for back in 1..=3.min(slice.len()) {
+            let lead = slice[slice.len() - back];
+            let width = match lead {
+                0xC0..=0xDF => 2,
+                0xE0..=0xEF => 3,
+                0xF0..=0xF7 => 4,
+                _ => 0,
+            };
+            if width > back {
+                slice = &slice[..slice.len() - back];
+                break;
+            }
+            if width != 0 || lead < 0x80 {
+                break;
+            }
+        }
+    }
+    let decoded = String::from_utf8_lossy(slice);
+    let lossy = matches!(decoded, std::borrow::Cow::Owned(_));
+    AttachmentText {
+        file_name: file_name.to_string(),
+        text: decoded.into_owned(),
+        total_bytes: bytes.len(),
+        truncated,
+        lossy,
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct LoginItemInput {
     #[serde(default = "default_item_type")]
@@ -4288,6 +4341,31 @@ mod tests {
         assert_eq!(matches[0].custom_fields[0].label, "number");
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn text_previews_decode_utf8_lossily_and_cut_on_a_character_boundary() {
+        let plain = text_preview("notes.txt", "hello\nworld".as_bytes(), 1024);
+        assert_eq!(plain.text, "hello\nworld");
+        assert!(!plain.truncated && !plain.lossy);
+        assert_eq!(plain.total_bytes, 11);
+
+        let bom = text_preview("bom.txt", b"\xEF\xBB\xBFabc", 1024);
+        assert_eq!(bom.text, "abc");
+
+        let invalid = text_preview("latin1.txt", b"caf\xE9 au lait", 1024);
+        assert_eq!(invalid.text, "caf\u{FFFD} au lait");
+        assert!(invalid.lossy);
+
+        // "密码" is two 3-byte characters; a 4-byte cut keeps the first whole and drops the split one.
+        let cut = text_preview("zh.txt", "密码".as_bytes(), 4);
+        assert_eq!(cut.text, "密");
+        assert!(cut.truncated && !cut.lossy);
+        assert_eq!(cut.total_bytes, 6);
+
+        let ascii_cut = text_preview("long.txt", &[b'a'; 10], 4);
+        assert_eq!(ascii_cut.text, "aaaa");
+        assert!(ascii_cut.truncated);
     }
 
     #[test]

@@ -572,6 +572,19 @@ fn export_attachment_to_temp(id: String, state: State<AppState>) -> Result<Strin
     Ok(path.to_string_lossy().to_string())
 }
 
+/// A plain-text attachment for the in-app preview (a `.txt` row opens it). Read from the vault
+/// and decoded in memory: unlike Export, nothing decrypted is written to disk.
+#[tauri::command]
+fn read_attachment_text(id: String, state: State<AppState>) -> Result<vault::AttachmentText, String> {
+    let session = current_session(&state)?;
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let service = VaultService::new(connection);
+    let attachment = service
+        .export_attachment(&session, &id)
+        .map_err(String::from)?;
+    Ok(vault::text_preview(&attachment.file_name, &attachment.bytes, vault::TEXT_PREVIEW_LIMIT))
+}
+
 #[tauri::command]
 fn generate_browser_pairing_token(state: State<AppState>) -> Result<String, String> {
     // The extension bridge only listens on desktop (see `run`); a token on a phone would pair nothing.
@@ -771,6 +784,7 @@ pub fn run() {
             pick_attachment_file,
             attach_file_to_item,
             export_attachment_to_temp,
+            read_attachment_text,
             generate_browser_pairing_token,
             can_use_biometrics,
             unlock_with_biometrics,
