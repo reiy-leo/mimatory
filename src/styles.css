@@ -1274,6 +1274,14 @@
     @apply m-0 text-body;
   }
 
+  .pairing-token-row {
+    @apply flex items-center gap-100;
+  }
+
+  .pairing-token-row code {
+    @apply min-w-0 flex-1 break-all;
+  }
+
   .integration-actions {
     @apply flex flex-wrap gap-100;
   }

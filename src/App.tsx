@@ -5064,6 +5064,7 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
   const [watchtower, setWatchtower] = useState<WatchtowerReport | null>(null)
   const [breachResult, setBreachResult] = useState<BreachCheckResult | null>(null)
   const [browserToken, setBrowserToken] = useState('')
+  const [tokenCopied, setTokenCopied] = useState(false)
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
   const [autostartEnabled, setAutostartEnabled] = useState(false)
   const [theme, setTheme] = useState<Theme>(() => getInitialTheme(localStorage.getItem('passless-theme')))
@@ -5165,7 +5166,19 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
     }
   }
 
+  async function copyPairingToken() {
+    // The token unlocks the bridge, so it follows the same 90-second clipboard clear as a password.
+    const copied = await copyText(browserToken, {
+      clearAfter90Seconds: loadSecurityPreferences().clearClipboardAfter90Seconds,
+      sensitive: true,
+    }).catch(() => false)
+    if (!copied) return
+    setTokenCopied(true)
+    window.setTimeout(() => setTokenCopied(false), 1500)
+  }
+
   async function generatePairingToken() {
+    setTokenCopied(false)
     setBrowserToken(await vaultApi.generateBrowserPairingToken())
   }
 
@@ -5369,7 +5382,20 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
               <button className="secondary-button" disabled={locked} onClick={generatePairingToken} type="button">
                 {t('integrations.generatePairingToken')}
               </button>
-              {browserToken ? <code>{browserToken}</code> : null}
+              {browserToken ? (
+                <div className="pairing-token-row">
+                  <code>{browserToken}</code>
+                  <button
+                    aria-label={tokenCopied ? t('fieldActions.copied') : t('fieldActions.copy')}
+                    className="icon-button pairing-token-copy"
+                    onClick={copyPairingToken}
+                    title={tokenCopied ? t('fieldActions.copied') : t('fieldActions.copy')}
+                    type="button"
+                  >
+                    {tokenCopied ? <Check aria-hidden="true" size={16} /> : <Copy aria-hidden="true" size={16} />}
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}
