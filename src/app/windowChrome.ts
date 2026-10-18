@@ -31,13 +31,13 @@ export function settingsWindowChrome(platform: Platform): Partial<WindowOptions>
 }
 
 /**
- * Windows draws its own title bar (and Mica) and GTK its own window theme, so an in-app Light/Dark override
- * has to reach the native window too or the chrome stays in the system appearance around a page that does
- * not. macOS is left to follow the system, as it always has (see .agent/todo.md, vibrancy check).
+ * The native window keeps its own appearance — macOS's sidebar vibrancy, Windows' title bar and Mica, GTK's
+ * window theme — so an in-app Light/Dark override has to reach the window too, or the transparent sidebar
+ * stays dark around a light page (owner 2026-10-18). `null` hands the window back to the system appearance.
  */
 export function syncWindowTheme(theme: Theme, platform: Platform) {
   if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return
-  if (platform !== 'windows' && platform !== 'linux') return
+  if (platform !== 'macos' && platform !== 'windows' && platform !== 'linux') return
   void getCurrentWindow()
     .setTheme(theme === 'system' ? null : theme)
     .catch(() => {})
