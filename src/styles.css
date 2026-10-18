@@ -2021,7 +2021,7 @@
     color: var(--color-text);
     background: transparent;
     box-shadow: none;
-    @apply min-h-300 flex-1 rounded-small border-0 px-150 text-body font-regular transition-colors;
+    @apply min-h-300 flex-1 whitespace-nowrap rounded-small border-0 px-150 text-body font-regular transition-colors;
   }
 
   .generator-mode-tab:hover,
@@ -2305,6 +2305,12 @@
   .security-group .security-inline-row {
     border-color: var(--color-border);
     @apply min-h-500 border-t;
+  }
+
+  /* The group title sits straight on its first row: hairlines run between rows only. */
+  .security-group h2 + .security-check-row,
+  .security-group h2 + .security-inline-row {
+    @apply border-t-0;
   }
 
   .security-group .security-help {

@@ -1,5 +1,5 @@
 export type DeviceUnlockDuration = 'off' | '10m' | '1h' | '4h' | '8h' | '1d' | '7d' | '14d' | '30d' | 'always'
-export type AccountPasswordRequirement = '1d' | '7d' | '14d' | '30d' | 'never'
+export type AccountPasswordRequirement = '1d' | '7d' | '14d' | '30d' | '90d' | '180d' | 'never'
 export type AutoLockIdleDuration = '1m' | '2m' | '5m' | '10m' | '15m' | '30m' | '1h' | '4h' | '8h' | 'never'
 
 export type SecurityPreferences = {
@@ -38,7 +38,7 @@ export const deviceUnlockOptions: DeviceUnlockDuration[] = [
   '30d',
   'always',
 ]
-export const accountPasswordOptions: AccountPasswordRequirement[] = ['1d', '7d', '14d', '30d', 'never']
+export const accountPasswordOptions: AccountPasswordRequirement[] = ['1d', '7d', '14d', '30d', '90d', '180d', 'never']
 export const autoLockIdleOptions: AutoLockIdleDuration[] = [
   '1m',
   '2m',

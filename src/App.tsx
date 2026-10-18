@@ -612,7 +612,6 @@ const settingsTabLabels: Record<SettingsTab, string> = {
   appearance: 'settings.tabs.appearance',
   browser: 'settings.tabs.browser',
   general: 'settings.tabs.general',
-  generator: 'settings.tabs.generator',
   security: 'settings.tabs.security',
   shortcuts: 'settings.tabs.shortcuts',
   watchtower: 'settings.tabs.watchtower',
@@ -4732,13 +4731,12 @@ function VaultWindow() {
   )
 }
 
-type SettingsTab = 'general' | 'appearance' | 'browser' | 'generator' | 'watchtower' | 'security' | 'shortcuts'
+type SettingsTab = 'general' | 'appearance' | 'browser' | 'watchtower' | 'security' | 'shortcuts'
 
 const settingsTabs: SettingsTab[] = [
   'general',
   'appearance',
   'browser',
-  'generator',
   'watchtower',
   'security',
   'shortcuts',
@@ -4765,17 +4763,6 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
   const [watchtower, setWatchtower] = useState<WatchtowerReport | null>(null)
   const [breachResult, setBreachResult] = useState<BreachCheckResult | null>(null)
   const [browserToken, setBrowserToken] = useState('')
-  const [totpSecret, setTotpSecret] = useState('')
-  const [totpCode, setTotpCode] = useState('')
-  const [generatorOptions, setGeneratorOptions] = useState<PasswordGeneratorOptions>(() => ({
-    ...randomGeneratorOptions,
-  }))
-  const generatorLengthLimits = generatorOptions.mode === 'pin' ? pinLengthLimits : randomLengthLimits
-  // The backend answers "needs at least one character set" when all four are off, which the panel
-  // would otherwise show as a spinner that never stops.
-  const allCharacterSetsOff =
-    !generatorOptions.uppercase && !generatorOptions.lowercase && !generatorOptions.numbers && !generatorOptions.symbols
-  const [generatedPassword, setGeneratedPassword] = useState('')
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
   const [autostartEnabled, setAutostartEnabled] = useState(false)
   const [theme, setTheme] = useState<Theme>(() => getInitialTheme(localStorage.getItem('passless-theme')))
@@ -4879,34 +4866,6 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
 
   async function generatePairingToken() {
     setBrowserToken(await vaultApi.generateBrowserPairingToken())
-  }
-
-  function handleGeneratorModeChange(mode: PasswordGeneratorMode) {
-    setGeneratorOptions((current) => {
-      if (mode === 'passphrase') return { ...current, mode }
-      const limits = mode === 'pin' ? pinLengthLimits : randomLengthLimits
-      return { ...current, length: clampNumber(current.length, limits), mode }
-    })
-  }
-
-  async function generateStandalonePassword() {
-    setError(null)
-    try {
-      setGeneratedPassword(await vaultApi.generatePassword(generatorOptions))
-    } catch (nextError) {
-      setError(String(nextError))
-    }
-  }
-
-  async function copyGeneratedPassword() {
-    if (generatedPassword) {
-      await navigator.clipboard.writeText(generatedPassword)
-    }
-  }
-
-  async function generateTotp() {
-    const code = await vaultApi.generateTotp(totpSecret)
-    setTotpCode(`${code.code} (${code.seconds_remaining}s)`)
   }
 
   async function closeSettingsWindow() {
@@ -5101,121 +5060,6 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
           </div>
         ) : null}
 
-        {activeTab === 'generator' ? (
-          <div className="settings-section">
-            <div className="integration-card">
-              <h2>{t('vault.passwordGenerator')}</h2>
-              <p>{t('settings.generatorDescription')}</p>
-              <div className="generator-output">
-                <input
-                  aria-label={t('vault.generatedPassword')}
-                  placeholder={t('vault.generatePassword')}
-                  readOnly
-                  value={generatedPassword}
-                />
-                <button
-                  className="secondary-button"
-                  disabled={!generatedPassword}
-                  onClick={copyGeneratedPassword}
-                  type="button"
-                >
-                  <Copy size={16} />
-                  {t('vault.copyPassword')}
-                </button>
-              </div>
-              <div className="generator-controls">
-                <div className="generator-mode-tabs">
-                  {generatorModes.map((mode) => (
-                    <button
-                      aria-pressed={generatorOptions.mode === mode}
-                      className="generator-mode-tab"
-                      key={mode}
-                      onClick={() => handleGeneratorModeChange(mode)}
-                      type="button"
-                    >
-                      {t(`vault.generatorModes.${mode}`)}
-                    </button>
-                  ))}
-                </div>
-                {generatorOptions.mode === 'passphrase' ? (
-                  <label className="generator-length-control">
-                    <span>{t('vault.generatorWords')}</span>
-                    <input
-                      max={passphraseWordLimits.max}
-                      min={passphraseWordLimits.min}
-                      onChange={(event) =>
-                        setGeneratorOptions((current) => ({ ...current, words: Number(event.target.value) }))
-                      }
-                      step={passphraseWordLimits.step}
-                      type="range"
-                      value={generatorOptions.words}
-                    />
-                    <input readOnly step={passphraseWordLimits.step} type="number" value={generatorOptions.words} />
-                  </label>
-                ) : (
-                  <label className="generator-length-control">
-                    <span>{t('vault.passwordLength')}</span>
-                    <input
-                      max={generatorLengthLimits.max}
-                      min={generatorLengthLimits.min}
-                      onChange={(event) =>
-                        setGeneratorOptions((current) => ({ ...current, length: Number(event.target.value) }))
-                      }
-                      readOnly={generatorOptions.mode === 'pin'}
-                      step={generatorLengthLimits.step}
-                      type="range"
-                      value={generatorOptions.length}
-                    />
-                    <input
-                      max={generatorLengthLimits.max}
-                      min={generatorLengthLimits.min}
-                      onChange={(event) =>
-                        setGeneratorOptions((current) => ({ ...current, length: Number(event.target.value) }))
-                      }
-                      readOnly={generatorOptions.mode === 'pin'}
-                      step={generatorLengthLimits.step}
-                      type="number"
-                      value={generatorOptions.length}
-                    />
-                  </label>
-                )}
-                {generatorOptions.mode === 'random' ? (
-                  <>
-                    {randomGeneratorChecks.map((option) => (
-                      <label className="generator-check-row" key={option}>
-                        <input
-                          checked={generatorOptions[option]}
-                          onChange={(event) =>
-                            setGeneratorOptions((current) => ({ ...current, [option]: event.target.checked }))
-                          }
-                          type="checkbox"
-                        />
-                        {t(`vault.generatorOptions.${option}`)}
-                      </label>
-                    ))}
-                    {!allCharacterSetsOff ? (
-                      <p className="generator-preview">
-                        {t('vault.generatorPreview', { length: generatorOptions.length })}
-                      </p>
-                    ) : null}
-                  </>
-                ) : null}
-              </div>
-              <div className="integration-actions">
-                <button
-                  className="primary-button"
-                  disabled={allCharacterSetsOff}
-                  onClick={generateStandalonePassword}
-                  type="button"
-                >
-                  <KeyRound size={16} />
-                  {t('vault.generatePassword')}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
         {activeTab === 'watchtower' ? (
           <div className="settings-section">
             <div className="integration-card">
@@ -5353,24 +5197,6 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
                 />
                 {t('security.useUniversalClipboard')}
               </label>
-            </div>
-
-            <div className="integration-card">
-              <h2>{t('integrations.totp')}</h2>
-              <p>{t('integrations.totpDescription')}</p>
-              <label>
-                {t('integrations.secret')}
-                <input onChange={(event) => setTotpSecret(event.target.value)} value={totpSecret} />
-              </label>
-              <button
-                className="secondary-button"
-                disabled={!totpSecret || locked}
-                onClick={generateTotp}
-                type="button"
-              >
-                {t('integrations.generateTotp')}
-              </button>
-              {totpCode ? <code>{totpCode}</code> : null}
             </div>
           </div>
         ) : null}
