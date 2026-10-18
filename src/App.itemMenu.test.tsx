@@ -48,6 +48,16 @@ function stubBridge() {
               name: 'Personal',
               updated_at: '2026-10-18T00:00:00Z',
             },
+            {
+              archived: false,
+              color: 'green',
+              created_at: 'Thu 2026-01-01 8:00 AM CST (UTC+08:00)',
+              icon: 'vault',
+              id: 'work',
+              item_count: 0,
+              name: 'Work',
+              updated_at: 'Sun 2026-10-18 8:00 AM CST (UTC+08:00)',
+            },
           ]
         case 'list_tags':
         case 'list_archived_login_items':
@@ -122,6 +132,22 @@ describe('vault window', () => {
       document.body.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
     })
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+  })
+
+  it('swaps in the vault list when Move to is clicked instead of closing the menu', async () => {
+    await renderUnlocked()
+    fireEvent.click(screen.getByRole('button', { name: /Bravo/ }))
+    const trigger = await screen.findByRole('button', { name: 'Item actions' })
+    fireEvent.click(trigger)
+    const moveTo = await screen.findByRole('button', { name: /move to/i })
+    // Flush React between the menu and window, as a real click does, so the clicked row is already gone from
+    // the document when the window's outside-click closer looks at the event.
+    document.addEventListener('click', () => flushSync(() => {}), { once: true })
+    await act(async () => {
+      moveTo.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Work' })).toBeInTheDocument()
   })
 
   it('steps through the list with the toolbar arrows and disables them at the ends', async () => {

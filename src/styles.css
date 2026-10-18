@@ -1177,8 +1177,16 @@
     @apply mt-025 text-callout text-text-subtle;
   }
 
+  /* The hairline sits in the gap above the row, not inside it, so a separated row's hover fill is the
+     same height as every other row's. */
   .menu-option.separated {
-    @apply mt-100 border-t border-border pt-100;
+    @apply relative mt-200;
+  }
+
+  .menu-option.separated::before {
+    content: '';
+    background: var(--color-border);
+    @apply pointer-events-none absolute -inset-x-050 -top-100 h-px;
   }
 
   .detail-header .icon-button {

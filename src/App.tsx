@@ -2045,7 +2045,13 @@ function VaultWindow() {
       return
     const handleClick = (event: MouseEvent) => {
       if (!menuOpen) return
-      if ((event.target as HTMLElement | null)?.closest('[data-field-menu]')) return
+      // composedPath() is fixed when the click is dispatched, so a click that swaps the menu's contents
+      // (移动到 replaces the action list with the vault list) still counts as inside the menu even
+      // though its button is no longer in the document when the click reaches window.
+      const insideMenu = event
+        .composedPath()
+        .some((node) => node instanceof Element && node.hasAttribute('data-field-menu'))
+      if (insideMenu) return
       closeFieldMenus()
     }
     const handleKeyDown = (event: KeyboardEvent) => {
