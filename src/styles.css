@@ -1748,6 +1748,11 @@
     @apply h-300 w-300 rounded-medium text-callout font-semibold;
   }
 
+  /* In the item list the tile is as tall as the two text lines beside it (Body 16pt + 4pt + Callout 15pt). */
+  .item-row .item-icon {
+    @apply h-[2.1875rem] w-[2.1875rem] text-body;
+  }
+
   .item-row strong {
     color: var(--color-text);
     @apply truncate text-body font-medium;

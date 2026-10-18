@@ -3510,7 +3510,7 @@ function VaultWindow() {
                       <span className="row-stamp">{formatItemTimestamp(item.updated_at, i18n.language)}</span>
                     </small>
                   </span>
-                  {item.favorite ? <Star className="row-star" size={14} /> : null}
+                  {item.favorite ? <Star className="row-star" fill="currentColor" size={14} /> : null}
                 </button>
               ))}
           {(stateRows ? stateRows.length === 0 : visibleItems.length === 0) ? (
@@ -3622,7 +3622,7 @@ function VaultWindow() {
                     title={t('vault.favorite')}
                     type="button"
                   >
-                    <Star size={16} />
+                    <Star fill={form.favorite ? 'currentColor' : 'none'} size={16} />
                   </button>
                 </div>
 
@@ -3911,7 +3911,7 @@ function VaultWindow() {
                   title={t('vault.favorite')}
                   type="button"
                 >
-                  <Star size={16} />
+                  <Star fill={form.favorite ? 'currentColor' : 'none'} size={16} />
                 </button>
               </div>
               <div className="detail-view-body">
