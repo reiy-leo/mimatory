@@ -79,6 +79,22 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
   this allows one provider + one account. Also: auto-click the provider button in the extension (deliberately
   not done), and whether the Quick Access row of a sign-in item should do something other than copy an empty
   password.
+- **Owner decision (2026-10-18): website icons are looked up through Google first.** `favicon.rs` asks
+  `t1.gstatic.com/faviconV2` (128px, `fallback_opts` so a miss is a 404, never the globe), then the site itself
+  (icon links, web manifest, `/favicon.ico`) when Google has nothing or less than 128px; the largest wins and is
+  stored at its own size (≤192px). **Privacy tradeoff accepted by the owner:** Google learns every host the user
+  has an item for (the old rule "no third-party favicon service, ever" is retired). No separate setting was added —
+  the existing "Download website icons" switch turns off every lookup, Google's included, and its description now
+  says so. needs-owner-decision: a "site only, no Google" option if wanted. Schema 5 dropped the old 64px cache
+  once. Live-checked from the Linux sandbox (scratch crate, native-tls): github.com 144px via manifest (its 570KB
+  homepage used to exceed the HTML cap and be dropped — pages are now cut instead), slack.com 192, account.apple.com
+  180, figma/notion/openrouter 128 from Google, unknown host → miss. Unseen: macOS/Windows/Android TLS stacks,
+  WKWebView rendering, a proxy.
+- **Attachments (2026-10-18).** A stored `.txt` opens a read-only preview sheet (`read_attachment_text`, decrypted
+  in memory, lossy UTF-8, 256KB cut); other types keep Export. A stored attachment row has no replace button, only
+  remove. Unseen in a real window; a new item's draft attachment (still a local path) has no preview until saved.
+  Follow-up worth asking: the view row's value shows the attachment id (`att-…`) under the file name — pre-existing;
+  1Password shows the size there.
 - **needs-owner-decision — Website icons through a proxy.** The system proxy is honoured; the SSRF check runs on
   this side before the proxy connects, so a host whose DNS differs at the proxy is not caught. The alternative
   (`no_proxy`) leaves users behind a proxy without icons.

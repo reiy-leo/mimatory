@@ -476,26 +476,40 @@ Wayland; X11 is not supported.
   one-line reason while the item has links; Archive sits right above. There is no bulk delete anywhere, so
   there is no bulk path to guard.
 
-- **Website icons** (2026-10-17, owner: "添加链接后自动获取图标"). An item's tile shows its first address's site icon,
-  else the letter as before (`ItemIcon`: list rows, search results, detail header, Quick Access, picker rows).
-  **No third-party favicon service, ever by default** — that would hand someone the user's account list. Rust
-  (`favicon.rs`) asks the site itself: `https://<host>/` → `<link rel=icon|apple-touch-icon>` (SVG skipped,
-  `data:` decoded inline) → `/favicon.ico`; https and the default port only (redirects too, at most 4), every
-  hop's host resolved first and **pinned** with `resolve_to_addrs` so DNS cannot rebind between check and connect;
-  loopback/private/link-local/CGNAT/multicast/unspecified (and v4-mapped forms) refused; no cookies, no referrer,
-  8s timeout, HTML capped at 512KB and icons at 256KB; content type must be image/*, octet-stream or absent **and**
-  the magic bytes a supported raster format; decoded under 2048px/32MB limits and re-encoded as a transparent
-  64×64 PNG. A system proxy is honoured (users behind one reach nothing otherwise); the address check still runs
-  locally first, which is weaker than the pin — accepted. **Cache**: `site_icons` (schema 4) keyed by
-  `HMAC-SHA1(vault key, "site-icon:" + host)`, value the data URL encrypted under the vault key, one table for
-  every vault (they share the key); a NULL icon is a remembered miss. Fresh for 30 days (a miss for 3); stale
-  entries keep showing while the frontend refetches. `cached_site_icons` never touches the network;
-  `fetch_site_icon` (async, blocking thread, at most 2 in flight from `siteIcons.ts`) does. Per item,
-  `items.icon_mode` (`auto`/`letter`, plaintext like `favorite`) and the item menu's Refresh Icon / Use Letter Icon.
-  Settings ▸ General "Download website icons" is device-local (`passless-site-icons` in localStorage, default
-  on); turning it off hides every icon **and** clears the cache. The bridge exposes no icon endpoint, and Quick
-  Access only reads the cache (`download: false`). Tests: `favicon.rs` runs against a local tiny_http server
-  through the same code path with a relaxed `FetchPolicy` (http, private allowed, address pinned, no proxy).
+- **Website icons** (2026-10-17; sources changed 2026-10-18, owner: icons were blurry). An item's tile shows its
+  first address's site icon, else the letter (`ItemIcon`: list rows, search results, detail header, Quick Access,
+  picker rows). **Sources** (`favicon.rs`): Google's favicon service first (`t1.gstatic.com/faviconV2`, size 128,
+  `fallback_opts=TYPE,SIZE,URL` — it answers 404 instead of a globe, and 404 means no icon), then, when that is
+  missing or under 128px, the site itself: `<link rel=icon|apple-touch-icon>` (SVG skipped, `data:` decoded
+  inline), the web manifest's icons (only when the page claims nothing ≥128; `purpose` must include `any`), then
+  `/favicon.ico` (only while nothing ≥64 turned up). The largest source edge wins. **Why it was blurry**: every icon
+  was squeezed into a fixed 64px PNG (and 16/32px favicons nearest-upscaled to it), which the 48–64pt tiles then
+  upscaled again on Retina. Now icons are re-encoded at their own size (never upscaled, Lanczos-capped at 192px) and
+  CSS downscales. **Privacy**: Google learns each host — an owner decision recorded in `.agent/todo.md`; the
+  "Download website icons" switch stops every lookup. Every request (Google's too) goes through the same guard:
+  https and the default port only (redirects too, at most 4), every hop's host resolved first and **pinned** with
+  `resolve_to_addrs`; loopback/private/link-local/CGNAT/multicast/unspecified (and v4-mapped forms) refused; no
+  cookies, no referrer, 8s timeout; a page is **cut** at 512KB (github.com's homepage is larger), an icon over 256KB
+  or a manifest over 64KB is refused; content type image/*, octet-stream or absent **and** supported magic bytes;
+  decoded under 2048px/32MB limits. A system proxy is honoured (check runs locally first — accepted). **Cache**:
+  `site_icons` keyed by `HMAC-SHA1(vault key, "site-icon:" + host)`, value the data URL encrypted under the vault
+  key; a NULL icon is a remembered miss; fresh 30 days (a miss 3). **Schema 5 deletes every cached row once** (the
+  64px ones) — bump the schema the same way if the stored format changes again. `cached_site_icons` never touches
+  the network; `fetch_site_icon` (async, at most 2 in flight from `siteIcons.ts`) does. Per item `items.icon_mode`
+  (`auto`/`letter`) and the item menu's Refresh Icon / Use Letter Icon. The bridge exposes no icon endpoint; Quick
+  Access only reads the cache. Tests: `favicon.rs` runs against a local tiny_http server standing in for both
+  Google (`FetchPolicy.icon_service`) and the site, through the same code path with a relaxed policy.
+
+- **Attachments** (2026-10-18, owner): an attachment is never replaced once added — a stored row offers Export
+  (and Preview for `.txt`) plus remove, never Choose/Change (`AttachmentEditActions`, `attachmentControls.tsx`). A
+  `.txt` (by its label, which Rust sets to the file name) opens `TextPreviewDialog`: `read_attachment_text` decrypts
+  in memory — nothing written to disk, unlike Export's temp copy — and decodes lossy UTF-8 (BOM dropped, cut at
+  256KB on a character boundary). The sheet keeps the app's no-selection rule; Copy (90-second clear: an attachment
+  may hold a secret) is the way out, and arrows/Page keys scroll the `<pre>`. In the view the whole row opens it
+  (`FieldView`'s `activate` prop).
+
+- **A section's Add More is the section card's last row** (`EditSectionCard`, owner 2026-10-18): inside the same
+  `.field-group`, drawn as a field cell by `.add-more-wrap.is-section`. The item-level bar is unchanged.
 
 - **Sign in with…** (2026-10-17, owner: "支持类似1password的 sign in with..."). Two halves, each stored where it
   belongs: the **provider** is the item's one `sign_in_with` custom field, value `google`/`apple`/`github`/
