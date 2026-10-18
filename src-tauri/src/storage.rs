@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-const CURRENT_SCHEMA_VERSION: i64 = 4;
+const CURRENT_SCHEMA_VERSION: i64 = 5;
 
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -303,6 +303,19 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
             "ALTER TABLE items ADD COLUMN icon_mode TEXT NOT NULL DEFAULT 'auto'",
             [],
         )?;
+    }
+
+    // Schema 5 (2026-10-18): icons are now looked up through Google first and stored at their own
+    // resolution (up to 192px) instead of a fixed 64px PNG. The cached 64px icons are dropped once,
+    // so every tile refetches a sharp one without the user doing anything.
+    let stored_version: Option<i64> = connection
+        .query_row("SELECT value FROM meta WHERE key = 'schema_version'", [], |row| {
+            row.get::<_, String>(0)
+        })
+        .ok()
+        .and_then(|value| value.parse().ok());
+    if stored_version.is_some_and(|version| version < 5) {
+        connection.execute("DELETE FROM site_icons", [])?;
     }
 
     connection.execute(
@@ -720,7 +733,43 @@ mod tests {
         let schema_version: String = connection
             .query_row("SELECT value FROM meta WHERE key = 'schema_version'", [], |row| row.get(0))
             .expect("schema version should exist");
-        assert_eq!(schema_version, "4");
+        assert_eq!(schema_version, "5");
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn upgrading_to_version_five_drops_the_low_resolution_icon_cache_once() {
+        let (temp_dir, database_path) = temp_database("icon-cache-v5");
+        fs::create_dir_all(&temp_dir).expect("temp dir should exist");
+        initialize_database(&database_path).expect("database should build");
+        let count = |connection: &Connection| -> i64 {
+            connection.query_row("SELECT count(*) FROM site_icons", [], |row| row.get(0)).unwrap()
+        };
+        {
+            let connection = Connection::open(&database_path).expect("database should open");
+            connection
+                .execute_batch("
+                    INSERT INTO site_icons (domain_hash, icon_ciphertext, fetched_at)
+                    VALUES (x'01', x'02', '2026-10-17T00:00:00Z');
+                    UPDATE meta SET value = '4' WHERE key = 'schema_version';
+                ")
+                .expect("a version four cache row should insert");
+        }
+        initialize_database(&database_path).expect("database should upgrade");
+        let connection = Connection::open(&database_path).expect("database should reopen");
+        assert_eq!(count(&connection), 0);
+        connection
+            .execute(
+                "INSERT INTO site_icons (domain_hash, icon_ciphertext, fetched_at)
+                 VALUES (x'03', x'04', '2026-10-18T00:00:00Z')",
+                [],
+            )
+            .expect("a fresh icon should insert");
+        drop(connection);
+        initialize_database(&database_path).expect("reopening should be harmless");
+        let connection = Connection::open(&database_path).expect("database should reopen");
+        assert_eq!(count(&connection), 1, "a version five cache survives later opens");
 
         let _ = fs::remove_dir_all(temp_dir);
     }
