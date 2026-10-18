@@ -615,7 +615,7 @@ Wayland; X11 is not supported.
   1Password 8 generator). `PasswordGeneratorButton` (`passwordGeneratorPopover.tsx`) serves the login's password
   row and every `password` field (`FieldEditor`'s `onGenerate` now takes the options). Rules in
   `passwordGenerator.ts`: types are the backend's three modes; the popover shows only Numbers / Symbols for Random
-  (letters are forced on, ambiguous-character avoidance stays on) — the Settings ▸ Generator tab keeps the full set.
+  (letters are forced on, ambiguous-character avoidance stays on) — the Settings ▸ Generator tab was removed 2026-10-18 (owner), so the popover is the only generator UI.
   Last-used options are remembered **in memory only** for the window's life (nothing persisted, as before). It owns
   its Escape / outside-click listeners (like the Autofill Behavior popover), so it needs no flag in VaultWindow's
   dismiss effect. The caller's `generate`/`measure` are fresh closures each render; the button wraps them in stable
