@@ -23,6 +23,55 @@
 	"pairingTokenLabel": {
 		"message": "配对令牌"
 	},
+	"passkeyAddToItem": {
+		"message": "添加到“$TITLE$”",
+		"placeholders": {
+			"title": {
+				"content": "$1",
+				"example": "GitHub"
+			}
+		}
+	},
+	"passkeyDone": {
+		"message": "完成"
+	},
+	"passkeyNewItem": {
+		"message": "新建项目"
+	},
+	"passkeyNote": {
+		"message": "通行密钥本身保存在浏览器或设备中，Passless 会在登录项中记录它。"
+	},
+	"passkeyNotNow": {
+		"message": "以后再说"
+	},
+	"passkeySave": {
+		"message": "保存"
+	},
+	"passkeySaveDetail": {
+		"message": "$SITE$ 上的 $ACCOUNT$",
+		"placeholders": {
+			"account": {
+				"content": "$1",
+				"example": "rei@example.com"
+			},
+			"site": {
+				"content": "$2",
+				"example": "example.com"
+			}
+		}
+	},
+	"passkeySaved": {
+		"message": "已保存到 Passless。"
+	},
+	"passkeySaveFailed": {
+		"message": "无法连接 Passless。请解锁应用后重试。"
+	},
+	"passkeySaveTitle": {
+		"message": "保存通行密钥到 Passless？"
+	},
+	"passkeyUnknownAccount": {
+		"message": "此账户"
+	},
 	"providerButtonFound": {
 		"message": "已在此页面上突出显示 $PROVIDER$ 按钮。",
 		"placeholders": {

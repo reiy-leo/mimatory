@@ -314,6 +314,8 @@ pub enum VaultError {
     Locked,
     #[error("vault not found")]
     VaultNotFound,
+    #[error("the item to save the passkey to was not found")]
+    PasskeyItemNotFound,
     #[error("tag name cannot be empty")]
     TagNameEmpty,
     #[error("tag not found")]
@@ -1363,6 +1365,7 @@ impl VaultService {
         Ok(AttachmentExport { file_name, bytes })
     }
 
+    #[cfg(test)]
     pub fn upsert_passkey_event(
         &mut self,
         session: &Session,
@@ -1371,20 +1374,46 @@ impl VaultService {
         rp_id: &str,
         user_name: &str,
     ) -> Result<LoginItem, VaultError> {
+        // A sign-in must not clobber a handle we already stored; a registration may.
+        self.save_passkey(
+            session,
+            event_type == "create",
+            origin,
+            rp_id,
+            user_name,
+            &PasskeyTarget::Matching,
+        )
+    }
+
+    /// Records a passkey's metadata (the relying party and the account handle) on a login. The
+    /// browser extension calls this only after the user pressed Save in its prompt; the private
+    /// key never leaves the platform authenticator.
+    pub fn save_passkey(
+        &mut self,
+        session: &Session,
+        overwrite: bool,
+        origin: &str,
+        rp_id: &str,
+        user_name: &str,
+        target: &PasskeyTarget,
+    ) -> Result<LoginItem, VaultError> {
         let rp_id = rp_id.trim();
-        let target = self
-            .list_live_items(session, None)?
-            .into_iter()
-            .find(|item| item.item_type != PASSKEY_ITEM_TYPE && item_matches_rp_id(item, rp_id));
+        let target = match target {
+            PasskeyTarget::NewItem => None,
+            PasskeyTarget::Matching => self.list_live_items(session, None)?.into_iter().find(|item| {
+                item.item_type != PASSKEY_ITEM_TYPE && item_matches_rp_id(item, rp_id)
+            }),
+            PasskeyTarget::Item(id) => Some(
+                self.list_live_items(session, None)?
+                    .into_iter()
+                    .find(|item| &item.id == id && item.item_type != PASSKEY_ITEM_TYPE)
+                    .ok_or(VaultError::PasskeyItemNotFound)?,
+            ),
+        };
 
         if let Some(target) = target {
-            // A sign-in must not clobber a handle we already stored; a registration may.
-            let custom_fields = upsert_passkey_field(
-                &target.custom_fields,
-                rp_id,
-                user_name,
-                event_type == "create",
-            );
+            let custom_fields =
+                upsert_passkey_field(&target.custom_fields, rp_id, user_name, overwrite);
             return self.update_login_item(
                 session,
                 LoginItemUpdate {
@@ -2528,6 +2557,17 @@ pub fn sign_in_provider_of(item: &LoginItem) -> Option<String> {
 }
 
 const PASSKEY_ITEM_TYPE: &str = "passkey";
+
+/// Where the extension's save prompt sends a passkey.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PasskeyTarget {
+    /// The first live login for the relying party, else a new login.
+    Matching,
+    /// The login the user picked in the prompt.
+    Item(String),
+    /// A new login, even when one for the site exists.
+    NewItem,
+}
 const PASSKEY_NOTE: &str =
     "Passkey detected by the browser extension. The private key stays with the platform authenticator.";
 
@@ -4391,6 +4431,70 @@ mod tests {
             .custom_fields
             .iter()
             .all(|field| field.field_type == "passkey"));
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn a_saved_passkey_goes_where_the_prompt_said() {
+        let path = test_database_path("passkey-target");
+        initialize_database(&path).expect("database should initialize");
+        let connection = open_database(&path).expect("database should open");
+        let mut service = VaultService::new(connection);
+        let session = service
+            .setup_master_password("master-password")
+            .expect("setup");
+        let input = |title: &str| LoginItemInput {
+            item_type: "login".into(),
+            title: title.into(),
+            username: "alice".into(),
+            password: "StrongPass123".into(),
+            website: "https://example.com".into(),
+            urls: vec![],
+            notes: "".into(),
+            tags: vec![],
+            custom_fields: vec![],
+            favorite: false,
+        };
+        let first = service.create_login_item(&session, input("First")).expect("first");
+        let second = service.create_login_item(&session, input("Second")).expect("second");
+
+        let picked = service
+            .save_passkey(
+                &session,
+                true,
+                "https://example.com",
+                "example.com",
+                "alice",
+                &PasskeyTarget::Item(first.id.clone()),
+            )
+            .expect("passkey should save to the picked login");
+        assert_eq!(picked.id, first.id);
+        assert!(passkey_field_of(&picked).is_some());
+
+        let fresh = service
+            .save_passkey(
+                &session,
+                true,
+                "https://example.com",
+                "example.com",
+                "alice",
+                &PasskeyTarget::NewItem,
+            )
+            .expect("passkey should save to a new login");
+        assert_ne!(fresh.id, first.id);
+        assert_ne!(fresh.id, second.id);
+        assert!(passkey_field_of(&fresh).is_some());
+
+        let missing = service.save_passkey(
+            &session,
+            true,
+            "https://example.com",
+            "example.com",
+            "alice",
+            &PasskeyTarget::Item("no-such-item".into()),
+        );
+        assert!(matches!(missing, Err(VaultError::PasskeyItemNotFound)));
 
         let _ = std::fs::remove_file(path);
     }

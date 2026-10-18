@@ -1,7 +1,7 @@
 use crate::storage;
 use crate::vault::{
     default_match_type, sign_in_provider_of, ItemUrl, LoginItem, LoginItemInput, LoginItemUpdate,
-    Session, VaultService,
+    PasskeyTarget, Session, VaultService,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
@@ -30,6 +30,12 @@ struct PasskeyEventRequest {
     origin: String,
     rp_id: String,
     user_name: String,
+    /// The login the user picked in the extension's save prompt.
+    #[serde(default)]
+    item_id: Option<String>,
+    /// The prompt's "New Item" choice.
+    #[serde(default)]
+    new_item: bool,
 }
 
 /// A match as the extension receives it: the item exactly as before, plus the provider of a
@@ -124,13 +130,21 @@ fn save_passkey_event(
     let session = current_session(session)?;
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let mut service = VaultService::new(connection);
+    let target = if input.new_item {
+        PasskeyTarget::NewItem
+    } else if let Some(id) = input.item_id.filter(|id| !id.trim().is_empty()) {
+        PasskeyTarget::Item(id)
+    } else {
+        PasskeyTarget::Matching
+    };
     service
-        .upsert_passkey_event(
+        .save_passkey(
             &session,
-            &input.event_type,
+            input.event_type == "create",
             &input.origin,
             &input.rp_id,
             &input.user_name,
+            &target,
         )
         .map_err(|error| error.to_string())
 }

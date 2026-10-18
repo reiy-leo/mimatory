@@ -23,6 +23,55 @@
 	"pairingTokenLabel": {
 		"message": "ペアリングトークン"
 	},
+	"passkeyAddToItem": {
+		"message": "「$TITLE$」に追加",
+		"placeholders": {
+			"title": {
+				"content": "$1",
+				"example": "GitHub"
+			}
+		}
+	},
+	"passkeyDone": {
+		"message": "完了"
+	},
+	"passkeyNewItem": {
+		"message": "新規アイテム"
+	},
+	"passkeyNote": {
+		"message": "パスキー自体はブラウザまたはデバイスに保存されます。Passless はログイン情報と一緒に記録します。"
+	},
+	"passkeyNotNow": {
+		"message": "今はしない"
+	},
+	"passkeySave": {
+		"message": "保存"
+	},
+	"passkeySaveDetail": {
+		"message": "$SITE$ の $ACCOUNT$",
+		"placeholders": {
+			"account": {
+				"content": "$1",
+				"example": "rei@example.com"
+			},
+			"site": {
+				"content": "$2",
+				"example": "example.com"
+			}
+		}
+	},
+	"passkeySaved": {
+		"message": "Passless に保存しました。"
+	},
+	"passkeySaveFailed": {
+		"message": "Passless に接続できません。アプリのロックを解除してもう一度お試しください。"
+	},
+	"passkeySaveTitle": {
+		"message": "パスキーを Passless に保存しますか？"
+	},
+	"passkeyUnknownAccount": {
+		"message": "このアカウント"
+	},
 	"providerButtonFound": {
 		"message": "このページの $PROVIDER$ ボタンを強調表示しました。",
 		"placeholders": {

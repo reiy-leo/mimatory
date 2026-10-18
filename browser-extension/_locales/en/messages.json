@@ -23,6 +23,55 @@
 	"pairingTokenLabel": {
 		"message": "Pairing token"
 	},
+	"passkeyAddToItem": {
+		"message": "Add to “$TITLE$”",
+		"placeholders": {
+			"title": {
+				"content": "$1",
+				"example": "GitHub"
+			}
+		}
+	},
+	"passkeyDone": {
+		"message": "Done"
+	},
+	"passkeyNewItem": {
+		"message": "New Item"
+	},
+	"passkeyNote": {
+		"message": "The passkey stays with your browser or device. Passless keeps a record of it with your login."
+	},
+	"passkeyNotNow": {
+		"message": "Not Now"
+	},
+	"passkeySave": {
+		"message": "Save"
+	},
+	"passkeySaveDetail": {
+		"message": "$ACCOUNT$ on $SITE$",
+		"placeholders": {
+			"account": {
+				"content": "$1",
+				"example": "rei@example.com"
+			},
+			"site": {
+				"content": "$2",
+				"example": "example.com"
+			}
+		}
+	},
+	"passkeySaved": {
+		"message": "Saved to Passless."
+	},
+	"passkeySaveFailed": {
+		"message": "Couldn’t reach Passless. Unlock the app and try again."
+	},
+	"passkeySaveTitle": {
+		"message": "Save passkey to Passless?"
+	},
+	"passkeyUnknownAccount": {
+		"message": "This account"
+	},
 	"providerButtonFound": {
 		"message": "The $PROVIDER$ button on this page is highlighted.",
 		"placeholders": {
