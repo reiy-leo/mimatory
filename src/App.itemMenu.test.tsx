@@ -176,4 +176,26 @@ describe('vault window', () => {
     fireEvent.keyDown(document.body, { ctrlKey: true, key: 'ArrowDown', metaKey: true })
     await waitFor(() => expect(screen.getByRole('button', { name: /Bravo/ })).toHaveClass('active'))
   })
+
+  it('locks the rest of the window while the edit form has unsaved changes', async () => {
+    await renderUnlocked()
+    fireEvent.click(screen.getByRole('button', { name: /Bravo/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    const title = await screen.findByLabelText('Login title')
+    fireEvent.change(title, { target: { value: 'Bravo edited' } })
+    await screen.findByText(/save or cancel to continue/i)
+    // A list row, a vault and the toolbar arrows all stay put until the edit is saved or cancelled.
+    fireEvent.click(screen.getByRole('button', { name: /Charlie/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next item' }))
+    fireEvent.keyDown(document.body, { ctrlKey: true, key: 'ArrowDown', metaKey: true })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.getByLabelText('Login title')).toHaveValue('Bravo edited')
+    expect(document.querySelector('.item-list')).toHaveAttribute('inert')
+    expect(document.querySelector('.sidebar')).toHaveAttribute('inert')
+    // Cancel lifts the lock.
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(document.querySelector('.item-list')).not.toHaveAttribute('inert'))
+    fireEvent.click(screen.getByRole('button', { name: /Charlie/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Charlie/ })).toHaveClass('active'))
+  })
 })

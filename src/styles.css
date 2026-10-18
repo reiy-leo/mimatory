@@ -694,8 +694,11 @@
     @apply h-full;
   }
 
+  /* The list never grows past its dragged track: min-width 0 (a grid item's auto minimum is its content)
+     and a single shrinkable row column, so narrowing the column truncates the rows' text instead of
+     sliding their right edge under the resizer (owner 2026-10-18). */
   .item-list {
-    @apply col-start-3 row-start-2;
+    @apply col-start-3 row-start-2 min-w-0 overflow-x-hidden;
   }
 
   .detail-pane {
@@ -899,7 +902,8 @@
   }
 
   .rows {
-    @apply grid gap-050;
+    grid-template-columns: minmax(0, 1fr);
+    @apply grid min-w-0 gap-050;
   }
 
   .item-row {
@@ -1744,16 +1748,17 @@
     @apply h-300 w-300 rounded-medium text-callout font-semibold;
   }
 
-  /* In the item list the tile is as tall as the two text lines beside it (Body 16pt + 4pt + Callout 15pt). */
+  /* In the item list the title is a size above its subtitle (owner 2026-10-18: Title 3 over Callout) and the
+     tile is as tall as the two lines beside it (Title 3 20pt + 4pt + Callout 15pt). No timestamp. */
   .item-row .item-icon {
-    width: calc(1rem + var(--space-050) + 0.9375rem);
-    height: calc(1rem + var(--space-050) + 0.9375rem);
+    width: calc(1.25rem + var(--space-050) + 0.9375rem);
+    height: calc(1.25rem + var(--space-050) + 0.9375rem);
     @apply text-body;
   }
 
   .item-row strong {
     color: var(--color-text);
-    @apply truncate text-body font-medium;
+    @apply truncate text-title-3 font-medium;
   }
 
   .item-row .item-row-text {
@@ -1762,10 +1767,6 @@
 
   .item-row .row-subtitle {
     @apply min-w-0 flex-1 truncate;
-  }
-
-  .item-row .row-stamp {
-    @apply shrink-0;
   }
 
   /* A row in a state view has no detail pane to open, so it must not answer to the hover that says it
@@ -2448,8 +2449,9 @@
   }
 
   /* The item actions menu (header ellipsis, row right-click) uses rows 30% taller than a plain menu row
-     (owner 2026-10-18): the extra height goes into the vertical padding, so two-line rows grow too. */
-  .item-actions-menu .menu-option {
+     (owner 2026-10-18), and so does the Add More menu: the extra height goes into the vertical padding, so two-line rows grow too. */
+  .item-actions-menu .menu-option,
+  .add-more-menu .menu-option {
     min-height: calc(var(--space-300) * 1.3);
     padding-block: calc(var(--space-050) + var(--space-300) * 0.15);
   }
@@ -3613,7 +3615,7 @@
 
 /* Website icons (2026-10-17; sources and resolution changed 2026-10-18): the artwork re-encoded by Rust at its
    own resolution, up to 192px, and downscaled here by the browser (smooth, never pixelated), on a white tile
-   with a hairline in every appearance and every state, so a dark logo stays legible in Dark Mode and a
+   with no outline (owner 2026-10-18) in every appearance and every state, so a dark logo stays legible in Dark Mode and a
    selected row never tints it. Unlayered on purpose: the skins' selected-row rules are unlayered too, and
    a layered rule loses to them whatever its specificity. */
 .item-icon.has-site-icon,
@@ -3622,7 +3624,7 @@
 .item-row.active .item-icon.has-site-icon,
 .top-search-results button:hover .item-icon.has-site-icon {
   background: var(--color-site-icon-tile);
-  border: 1px solid var(--color-border);
+  border: 0;
   @apply overflow-hidden p-025;
 }
 
@@ -3636,11 +3638,11 @@
 }
 
 /* The detail header's tile when no website icon shows: the item type's colour art on a raised rounded
-   square with a hairline, the way a website icon sits on its white tile (owner 2026-10-18). Unlayered for the
+   square without an outline, the way a website icon sits on its white tile (owner 2026-10-18). Unlayered for the
    same reason as the site-icon tile above. */
 .large-icon.is-art {
   background: var(--color-surface-raised);
-  border: 1px solid var(--color-border);
+  border: 0;
   @apply overflow-hidden p-100;
 }
 
@@ -3687,4 +3689,12 @@
 .title-input.is-filled {
   color: var(--color-text);
   @apply h-11 min-w-0 max-w-none flex-1 rounded-large px-150 text-title-1 font-semibold;
+}
+/* Unsaved edits lock everything but the detail pane (owner 2026-10-18). The regions are inert; the dimming
+   only says so. */
+.app-shell.is-edit-locked > .sidebar,
+.app-shell.is-edit-locked > .top-search-bar,
+.app-shell.is-edit-locked > .item-list {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

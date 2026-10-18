@@ -47,7 +47,6 @@ import {
   Server,
   Shapes,
   Share,
-  ShieldCheck,
   Star,
   Terminal,
   Trash2,
@@ -61,6 +60,7 @@ import {
   type ClipboardEvent as ReactClipboardEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type SyntheticEvent,
   useCallback,
   useEffect,
   useId,
@@ -165,7 +165,6 @@ import { clipboardImageFile, otpSecretFromQrImage } from './app/otpQrImport'
 import { PasswordGeneratorButton } from './app/passwordGeneratorPopover'
 import { featuresFor, isPrimaryModifier, quickAccessKeys, shortcutLabel } from './app/platformFeatures'
 import { RelationSection } from './app/relationControls'
-import { formatItemTimestamp } from './app/relativeTime'
 import {
   type AccountPasswordRequirement,
   type AutoLockIdleDuration,
@@ -887,6 +886,7 @@ function VaultWindow() {
   // when the selected item changes, and it has to compare the outgoing form against the baseline
   // that form came from.
   const baselineRef = useRef(form)
+  const editLockedRef = useRef(false)
   const draftKeyRef = useRef('')
   const draftsRef = useRef<Record<string, LoginFormState>>({})
   const formRef = useRef(form)
@@ -996,6 +996,10 @@ function VaultWindow() {
     if (mode !== 'unlocked') return
     const handleShortcut = (event: KeyboardEvent) => {
       if (!isPrimaryModifier(event, currentPlatformState().platform)) return
+      if (editLockedRef.current) {
+        if ([',', 'n', 'f', 'k'].includes(event.key.toLowerCase())) event.preventDefault()
+        return
+      }
       const key = event.key.toLowerCase()
       if (key === ',') {
         event.preventDefault()
@@ -1196,6 +1200,21 @@ function VaultWindow() {
   // item is being built under.
   const draftKey = selectedItem?.id ?? `new:${newItemCategory}`
   const hasUnsavedChanges = isFormDirty(baselineRef.current, form)
+  // Unsaved edits lock the rest of the window (owner 2026-10-18): until the form is saved or cancelled
+  // nothing else — sidebar, list, toolbar, settings, shortcuts — may act, so no edit is ever left behind.
+  const editLocked = isEditing && hasUnsavedChanges
+  editLockedRef.current = editLocked
+  // inert does the work where the webview supports it; the capture guard swallows any click that still gets
+  // through (older WebKitGTK, jsdom) before a row's own handler sees it.
+  const swallowWhileLocked = (event: SyntheticEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+  const lockedRegion = (
+    editLocked
+      ? { 'aria-disabled': true, inert: '', onClickCapture: swallowWhileLocked }
+      : {}
+  ) as Record<string, unknown>
 
   const listTitle = useMemo(() => {
     if (activeNavigation === 'favorites') return t('listTitle.favorites')
@@ -1358,12 +1377,6 @@ function VaultWindow() {
       setIsDraggingFiles(false)
     }
   }, [isEditing, selectedId])
-
-  const databaseLabel = useMemo(() => {
-    if (error && mode === 'loading') return t('vault.databaseOffline')
-    if (!status) return t('vault.preparingDatabase')
-    return status.database_ready ? t('vault.databaseReady') : t('vault.databasePending')
-  }, [error, mode, status, t])
 
   async function handleUnlock(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1774,6 +1787,7 @@ function VaultWindow() {
   const previousItemId = adjacentItemId(visibleItemIds, selectedId, -1)
   const nextItemId = adjacentItemId(visibleItemIds, selectedId, 1)
   function stepSelectedItem(step: -1 | 1): boolean {
+    if (editLocked) return false
     const target = step === -1 ? previousItemId : nextItemId
     if (!target) return false
     closeFieldMenus()
@@ -3243,13 +3257,14 @@ function VaultWindow() {
 
   return (
     <main
-      className="app-shell"
+      className={editLocked ? 'app-shell is-edit-locked' : 'app-shell'}
       data-mobile-pane={isMobileLayout ? mobilePane : undefined}
       style={{ '--item-list-width': `${itemListWidth}px`, '--sidebar-width': `${sidebarWidth}px` } as CSSProperties}
     >
       <h1 className="sr-only">{t('landmarks.vaultItems')}</h1>
       {/* On a phone the sidebar is the Browse tab: picking any row there goes back to the list it filters. */}
       <aside
+        {...lockedRegion}
         aria-label={t('landmarks.primaryNavigation')}
         className="sidebar"
         data-tauri-drag-region="deep"
@@ -3396,7 +3411,7 @@ function VaultWindow() {
         type="button"
       />
 
-      <header className="top-search-bar" data-tauri-drag-region="deep">
+      <header {...lockedRegion} className="top-search-bar" data-tauri-drag-region="deep">
         {/* Previous / next item (⌘↑ / ⌘↓), the toolbar's leading control pair; hidden in the phone layout. */}
         <div className="top-item-nav" data-tauri-drag-region="false">
           <button
@@ -3460,13 +3475,16 @@ function VaultWindow() {
         </button>
       </header>
 
-      <section aria-label={t('landmarks.vaultItems')} className="item-list">
+      <section {...lockedRegion} aria-label={t('landmarks.vaultItems')} className="item-list">
         {/* The phone layout's large title (iOS) / top app bar title (Material); the desktop shows none. */}
         <h2 className="mobile-list-title">{listTitle}</h2>
-        <div className="sync-state">
-          {error ? <AlertCircle size={16} /> : <ShieldCheck size={16} />}
-          <span>{error ?? databaseLabel}</span>
-        </div>
+        {/* No standing "database ready" line (owner 2026-10-18); the slot only speaks up for an error. */}
+        {error ? (
+          <div className="sync-state">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        ) : null}
 
         <div className="rows">
           {stateRows
@@ -3479,7 +3497,6 @@ function VaultWindow() {
                     <strong>{item.title}</strong>
                     <small>
                       <span className="row-subtitle">{itemSubtitle(item)}</span>
-                      <span className="row-stamp">{formatItemTimestamp(item.updated_at, i18n.language)}</span>
                     </small>
                     <span className="state-row-actions">
                       <button
@@ -3523,7 +3540,6 @@ function VaultWindow() {
                     <strong>{item.title}</strong>
                     <small>
                       <span className="row-subtitle">{itemSubtitle(item)}</span>
-                      <span className="row-stamp">{formatItemTimestamp(item.updated_at, i18n.language)}</span>
                     </small>
                   </span>
                   {item.favorite ? <Star className="row-star" fill="currentColor" size={14} /> : null}
@@ -3561,7 +3577,11 @@ function VaultWindow() {
             </button>
           ) : null}
           <div className="detail-topbar-actions">
-            {isEditing && hasUnsavedChanges ? <span className="unsaved-hint">{t('vault.unsavedChanges')}</span> : null}
+            {editLocked ? (
+              <span className="unsaved-hint" role="status">
+                {t('vault.unsavedChanges')}
+              </span>
+            ) : null}
             {isEditing ? (
               <>
                 <button className="secondary-button" onClick={handleCancelEdit} type="button">
