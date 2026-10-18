@@ -222,7 +222,15 @@ struct Fetched {
     body: Vec<u8>,
 }
 
-fn get(start: &Url, cap: usize, accept: &str, policy: &FetchPolicy) -> Result<Fetched, FaviconError> {
+/// How a body over its cap is treated: an image or manifest is dropped whole, a page is cut (its
+/// `<head>` is at the top; a big homepage such as github.com's is over the cap).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OverCap {
+    Refuse,
+    Cut,
+}
+
+fn get(start: &Url, cap: usize, accept: &str, policy: &FetchPolicy, over_cap: OverCap) -> Result<Fetched, FaviconError> {
     let mut url = start.clone();
     check_url(&url, policy)?;
     for _ in 0..=MAX_REDIRECTS {
@@ -260,7 +268,7 @@ fn get(start: &Url, cap: usize, accept: &str, policy: &FetchPolicy) -> Result<Fe
         if !status.is_success() {
             return Err(FaviconError::Status(status.as_u16()));
         }
-        if response.content_length().is_some_and(|length| length > cap as u64) {
+        if over_cap == OverCap::Refuse && response.content_length().is_some_and(|length| length > cap as u64) {
             return Err(FaviconError::TooLarge);
         }
         let content_type = response
@@ -269,10 +277,23 @@ fn get(start: &Url, cap: usize, accept: &str, policy: &FetchPolicy) -> Result<Fe
             .and_then(|value| value.to_str().ok())
             .unwrap_or_default()
             .to_ascii_lowercase();
-        let body = read_capped(response, cap)?;
+        let body = match over_cap {
+            OverCap::Refuse => read_capped(response, cap)?,
+            OverCap::Cut => read_prefix(response, cap)?,
+        };
         return Ok(Fetched { url, content_type, body });
     }
     Err(FaviconError::TooManyRedirects)
+}
+
+/// Reads the first `cap` bytes and stops there, whatever the length (pages).
+pub fn read_prefix(reader: impl Read, cap: usize) -> Result<Vec<u8>, FaviconError> {
+    let mut body = Vec::new();
+    reader
+        .take(cap as u64)
+        .read_to_end(&mut body)
+        .map_err(|error| FaviconError::Network(error.to_string()))?;
+    Ok(body)
 }
 
 /// Reads at most `cap` bytes; one byte more means the body was too large and is dropped whole.
@@ -586,7 +607,7 @@ pub fn normalize_icon(bytes: &[u8]) -> Result<Icon, FaviconError> {
 }
 
 fn fetch_icon_at(url: &Url, policy: &FetchPolicy) -> Result<Icon, FaviconError> {
-    let fetched = get(url, ICON_CAP, "image/png,image/x-icon,image/*;q=0.8", policy)?;
+    let fetched = get(url, ICON_CAP, "image/png,image/x-icon,image/*;q=0.8", policy, OverCap::Refuse)?;
     if !acceptable_content_type(&fetched.content_type) {
         return Err(FaviconError::NotAnImage);
     }
@@ -650,7 +671,7 @@ fn fetch_from_site(domain: &str, policy: &FetchPolicy, best: &mut Option<Icon>) 
 
     let mut base = home.clone();
     let mut tried: Vec<Url> = Vec::new();
-    let page = match get(&home, HTML_CAP, "text/html,application/xhtml+xml", policy) {
+    let page = match get(&home, HTML_CAP, "text/html,application/xhtml+xml", policy, OverCap::Cut) {
         Ok(page) => Some(page),
         // Nothing else on this host is worth asking for when the host itself is refused or absent.
         Err(
@@ -685,7 +706,13 @@ fn fetch_from_site(domain: &str, policy: &FetchPolicy, best: &mut Option<Icon>) 
         if !links.iter().any(|candidate| candidate.size >= GOOD_EDGE) {
             if let Some(manifest_url) = parse_manifest_link(&html).and_then(|href| base.join(&href).ok()) {
                 if check_url(&manifest_url, policy).is_ok() {
-                    if let Ok(manifest) = get(&manifest_url, MANIFEST_CAP, "application/manifest+json,application/json", policy) {
+                    if let Ok(manifest) = get(
+                        &manifest_url,
+                        MANIFEST_CAP,
+                        "application/manifest+json,application/json",
+                        policy,
+                        OverCap::Refuse,
+                    ) {
                         let json = String::from_utf8_lossy(&manifest.body);
                         for candidate in parse_manifest_icons(&json) {
                             if let Ok(url) = manifest.url.join(&candidate.href) {
@@ -938,6 +965,21 @@ mod tests {
     fn a_body_over_the_cap_is_dropped_whole() {
         assert_eq!(read_capped(&[1_u8; 10][..], 10).unwrap().len(), 10);
         assert_eq!(read_capped(&[1_u8; 11][..], 10), Err(FaviconError::TooLarge));
+        // A page is cut instead: its head is at the top.
+        assert_eq!(read_prefix(&[1_u8; 11][..], 10).unwrap().len(), 10);
+    }
+
+    #[test]
+    fn a_page_over_the_html_cap_is_cut_and_its_head_still_read() {
+        let mut page = br#"<head><link rel="apple-touch-icon" href="/apple.png"></head><body>"#.to_vec();
+        page.resize(HTML_CAP + 64 * 1024, b'x');
+        let (address, hits) = serve(HashMap::from([
+            ("/", route("text/html", page)),
+            ("/apple.png", route("image/png", png_of(180, 180))),
+        ]));
+        let icon = fetch_site_icon("icons.test", &local_policy(address)).unwrap().expect("an icon");
+        assert_eq!(decoded_size(&icon), (180, 180));
+        assert_eq!(*hits.lock().unwrap(), vec!["/", "/apple.png"]);
     }
 
     #[test]
