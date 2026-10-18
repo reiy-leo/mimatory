@@ -5,7 +5,9 @@ import {
   AlertCircle,
   Archive,
   ArchiveRestore,
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   BadgeCheck,
   Braces,
   Car,
@@ -128,6 +130,7 @@ import {
 } from './app/itemFields'
 import { ItemIcon } from './app/itemIcon'
 import { type ItemIconChoice, ItemIconMenuButton } from './app/itemIconMenu'
+import { adjacentItemId } from './app/itemNavigation'
 import {
   emptyRelationDraft,
   filterByTitle,
@@ -1761,6 +1764,22 @@ function VaultWindow() {
     }
   }
 
+  // The toolbar's previous / next buttons and ⌘↑ / ⌘↓: one step through the list on screen, never wrapping.
+  const visibleItemIds = useMemo(() => visibleItems.map((item) => item.id), [visibleItems])
+  const previousItemId = adjacentItemId(visibleItemIds, selectedId, -1)
+  const nextItemId = adjacentItemId(visibleItemIds, selectedId, 1)
+  function stepSelectedItem(step: -1 | 1): boolean {
+    const target = step === -1 ? previousItemId : nextItemId
+    if (!target) return false
+    closeFieldMenus()
+    setSelectedId(target)
+    const row = Array.from(document.querySelectorAll<HTMLElement>('[data-item-row]')).find(
+      (element) => element.dataset.itemRow === target,
+    )
+    row?.scrollIntoView?.({ block: 'nearest' })
+    return true
+  }
+
   function jumpToSearchResult(itemId: string) {
     setActiveNavigation('vaults')
     setSelectedId(itemId)
@@ -2930,10 +2949,15 @@ function VaultWindow() {
   // ⌥⌘C one-time password, ⇧⌘F Open & Fill, ⌘R reveal or conceal every secure field (Ctrl on Windows/Linux).
   // Read through a ref so the one listener always sees the item on screen, never the one it was added with.
   itemShortcutRef.current = (event: KeyboardEvent) => {
-    if (!features.keyboardShortcuts || !selectedItem || isEditing) return
-    if (!isPrimaryModifier(event, platform)) return
+    if (!features.keyboardShortcuts || !isPrimaryModifier(event, platform)) return
     const target = event.target as HTMLElement | null
     if (target?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"]')) return
+    // ⌘↑ / ⌘↓ step through the list on screen, in view and edit mode alike (an unsaved edit stays a draft).
+    if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && !event.shiftKey && !event.altKey) {
+      if (stepSelectedItem(event.key === 'ArrowUp' ? -1 : 1)) event.preventDefault()
+      return
+    }
+    if (!selectedItem || isEditing) return
     const plain = !event.shiftKey && !event.altKey
     if (event.code === 'KeyC' && plain && form.username) {
       void copyFieldValue(form.username, usernameLabel, false)
@@ -3358,6 +3382,29 @@ function VaultWindow() {
       />
 
       <header className="top-search-bar" data-tauri-drag-region="deep">
+        {/* Previous / next item (⌘↑ / ⌘↓), the toolbar's leading control pair; hidden in the phone layout. */}
+        <div className="top-item-nav" data-tauri-drag-region="false">
+          <button
+            aria-label={t('vault.previousItem')}
+            className="icon-button"
+            disabled={!previousItemId}
+            onClick={() => stepSelectedItem(-1)}
+            title={`${t('vault.previousItem')} (${shortcutLabel('mod+↑', platform)})`}
+            type="button"
+          >
+            <ArrowUp size={16} />
+          </button>
+          <button
+            aria-label={t('vault.nextItem')}
+            className="icon-button"
+            disabled={!nextItemId}
+            onClick={() => stepSelectedItem(1)}
+            title={`${t('vault.nextItem')} (${shortcutLabel('mod+↓', platform)})`}
+            type="button"
+          >
+            <ArrowDown size={16} />
+          </button>
+        </div>
         <div className="top-search-wrap">
           <label className="top-search-box">
             <Search size={16} />
@@ -3439,6 +3486,7 @@ function VaultWindow() {
             : visibleItems.map((item) => (
                 <button
                   className={item.id === selectedId ? 'item-row active' : 'item-row'}
+                  data-item-row={item.id}
                   key={item.id}
                   onClick={() => {
                     setSelectedId(item.id)
@@ -5328,6 +5376,8 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
                   [shortcutLabel('mod+,', platform), 'shortcuts.openSettings'],
                   [shortcutLabel('mod+n', platform), 'shortcuts.newItem'],
                   [shortcutLabel('mod+f', platform), 'shortcuts.focusSearch'],
+                  [shortcutLabel('mod+↑', platform), 'shortcuts.previousItem'],
+                  [shortcutLabel('mod+↓', platform), 'shortcuts.nextItem'],
                   [shortcutLabel('mod+k', platform), 'shortcuts.lockVault'],
                   [shortcutLabel('mod+c', platform), 'shortcuts.copyUsername'],
                   [shortcutLabel('mod+shift+c', platform), 'shortcuts.copyPassword'],

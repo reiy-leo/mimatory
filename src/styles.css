@@ -713,7 +713,12 @@
   .top-search-bar {
     background: var(--color-surface);
     border-color: var(--color-border);
-    @apply col-start-2 col-span-4 grid min-h-0 grid-cols-[1fr_auto] items-center gap-200 border-b px-150;
+    @apply col-start-2 col-span-4 grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-200 border-b px-150;
+  }
+
+  /* Previous / next item: the toolbar's leading pair, before the search field. */
+  .top-item-nav {
+    @apply flex items-center gap-025;
   }
 
   /* A gutter is a hit area, not a divider: it paints nothing at rest, on hover, or while dragged.
@@ -1609,6 +1614,14 @@
     -webkit-backdrop-filter: var(--material-filter);
     backdrop-filter: var(--material-filter);
     @apply col-span-4 col-start-2 grid min-h-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-100 border-b px-100 py-050;
+  }
+
+  /* A disabled toolbar button (the first or last item, an empty list) dims its glyph and drops the hover fill. */
+  .top-item-nav .icon-button:disabled,
+  .top-item-nav .icon-button:disabled:hover {
+    color: var(--color-icon-disabled);
+    background: transparent;
+    @apply cursor-default;
   }
 
   .top-search-wrap {

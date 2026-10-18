@@ -51,6 +51,10 @@
 }
 
 /* ───────── The list pane ───────── */
+:root[data-layout="mobile"] .top-item-nav {
+  display: none;
+}
+
 :root[data-layout="mobile"] .top-search-bar {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-100);

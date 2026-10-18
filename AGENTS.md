@@ -130,7 +130,7 @@ src/                  # React frontend
   app/windowChrome.ts vibrancy.ts  # settings-window chrome per platform, window theme sync, native material flag
   skin/platform.ts runtime.ts  # platform/skin/layout detection (+ ?platform= overrides) → <html data-*>
   skin/tokens.css skins.css mobile.css  # WinUI 3 / Material 3 token values, skin shapes, the phone layout
-  test/setup.ts       # jest-dom matcher import; present but NOT wired (no test uses a matcher)
+  test/setup.ts       # jest-dom matcher import; present but NOT wired (the one DOM test imports jest-dom itself)
 
 src-tauri/src/        # Rust backend
   lib.rs              # All #[tauri::command] handlers + AppState + plugin setup
@@ -631,9 +631,13 @@ Wayland; X11 is not supported.
 ## Testing and verification
 
 - **Frontend tests**: co-located `*.test.ts`. Vitest globals available without imports. The environment is
-  **node**, not jsdom — no test renders a component or touches a DOM global, and booting jsdom per file cost
-  405s against 4.7s of assertions. `src/test/setup.ts` (jest-dom) is on disk but **not wired** via `setupFiles`;
-  re-point it and add `// @vitest-environment jsdom` to the file the first time a real DOM test lands.
+  **node**, not jsdom — booting jsdom per file cost 405s against 4.7s of assertions. `src/test/setup.ts`
+  (jest-dom) is on disk but **not wired** via `setupFiles`. The one DOM test, `src/App.itemMenu.test.tsx`, opts in
+  with `// @vitest-environment jsdom`, imports `@testing-library/jest-dom/vitest` itself and renders the whole
+  `App` against `mockIPC` + `mockWindows`. Trap: a script-dispatched click has no microtask checkpoint between
+  listeners, so React commits only after the event has reached `window` and an "the opening click also closes
+  it" bug stays invisible — the test flushes React (`flushSync`) from a `document` listener to stand in for the
+  checkpoint a real click gets.
   `vite.config.ts` caps the fork pool at 2 so a run cannot fan out to 12 workers.
 - **Rust tests** live in each module's `#[cfg(test)] mod tests`; `src-tauri/tests/` does not exist.
 - **Verifying UI behaviour.** Synthetic pixel clicks are **not** reliable in this webview — macOS accessibility
