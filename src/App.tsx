@@ -68,6 +68,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { AddMoreControl } from './app/addMoreMenu'
 import type { AddMoreFieldType } from './app/addMoreOptions'
+import { useAnchoredPanel } from './app/anchoredPanel'
 import {
   AttachmentEditActions,
   attachmentId,
@@ -831,6 +832,16 @@ function VaultWindow() {
   const [itemMenu, setItemMenu] = useState<'actions' | 'move' | null>(null)
   const [itemMenuSource, setItemMenuSource] = useState<'header' | 'row'>('header')
   const [itemMenuAnchor, setItemMenuAnchor] = useState<MenuAnchor>()
+  // The header's ellipsis menu is measured and placed against its trigger (flips above, never leaves the window);
+  // a row's right-click menu still opens at the cursor.
+  const itemMenuTriggerRef = useRef<HTMLButtonElement>(null)
+  const itemMenuPanelRef = useRef<HTMLDivElement>(null)
+  const { style: itemMenuPlaced } = useAnchoredPanel(
+    itemMenu !== null && itemMenuSource === 'header',
+    itemMenuTriggerRef,
+    itemMenuPanelRef,
+    { align: 'end', width: itemMenuWidth },
+  )
   // A tag's spelling and icon live on the storage row, while which rows the sidebar shows — and how many
   // items each names — is read off the live items, so the two are joined per render. All three panels
   // below address a tag by name, because a name is the only handle an item carries.
@@ -2820,16 +2831,10 @@ function VaultWindow() {
       closeFieldMenus()
       return
     }
-    const rect = trigger.getBoundingClientRect()
+    closeFieldMenus()
+    trigger.focus()
     setItemMenuSource('header')
     setItemMenu('actions')
-    setItemMenuAnchor(
-      getMenuAnchorStyle({
-        menuHeight: itemMenuHeight,
-        rect: { bottom: rect.bottom, left: rect.right - itemMenuWidth, top: rect.top, width: itemMenuWidth },
-        viewportHeight: window.innerHeight,
-      }),
-    )
   }
 
   // Right-clicking a row makes it the selected item first, so every row of the panel acts on the thing
@@ -3505,10 +3510,18 @@ function VaultWindow() {
                 </button>
                 {/* Everything the pane can do to a stored item sits behind one ellipsis, and only in
                     the read-only state: each row acts on what is already saved, not on unsaved typing. */}
+                {/* data-field-menu: the window's outside-click closer is registered by the effect this very
+                    click's state change runs, React 18 flushes it before the click reaches window, so without the
+                    marker the opening click also closed the menu (owner bug report 2026-10-18). */}
                 <button
+                  aria-expanded={itemMenu !== null && itemMenuSource === 'header'}
+                  aria-haspopup="menu"
                   aria-label={t('vault.itemActions')}
                   className="icon-button"
+                  data-field-menu=""
                   onClick={(event) => toggleItemMenu(event.currentTarget)}
+                  ref={itemMenuTriggerRef}
+                  title={t('vault.itemActions')}
                   type="button"
                 >
                   <Ellipsis size={16} />
@@ -4238,7 +4251,13 @@ function VaultWindow() {
       {/* The header's ellipsis. Two sections share one anchor: the vault list swaps in place rather
           than flying out beside a panel that already sits at the right edge of the window. */}
       {itemMenu ? (
-        <div className="add-more-menu" data-field-menu="" style={itemMenuAnchor?.style}>
+        <div
+          className="add-more-menu"
+          data-field-menu=""
+          ref={itemMenuPanelRef}
+          role="menu"
+          style={itemMenuSource === 'header' ? { ...itemMenuPlaced, overflowY: 'auto' } : itemMenuAnchor?.style}
+        >
           {itemMenu === 'move' ? (
             <>
               <button className="menu-option with-icon" onClick={() => setItemMenu('actions')} type="button">
