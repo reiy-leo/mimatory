@@ -40,7 +40,6 @@
     --color-surface-raised: #ffffff;
     --color-surface-overlay: #f6f6f6;
     /* The tile a website icon sits on: white in both appearances, so a dark logo stays legible. */
-    --color-site-icon-tile: #ffffff;
     --color-window: #ececec;
     --color-sidebar: #ebebef;
 
@@ -300,7 +299,6 @@
     --color-surface-sunken: #1e1e1e;
     --color-surface-raised: #2c2c2e;
     --color-surface-overlay: #323234;
-    --color-site-icon-tile: #f5f5f7;
     --color-window: #323232;
     --color-sidebar: #2a2a2d;
     --color-border: #ffffff1a;
@@ -3618,22 +3616,19 @@
 }
 
 /* Website icons (2026-10-17; sources and resolution changed 2026-10-18): the artwork re-encoded by Rust at its
-   own resolution, up to 192px, and downscaled here by the browser (smooth, never pixelated), on a white tile
-   with no outline (owner 2026-10-18) in every appearance and every state, so a dark logo stays legible in Dark Mode and a
-   selected row never tints it. Unlayered on purpose: the skins' selected-row rules are unlayered too, and
+   own resolution, up to 192px, and downscaled here by the browser (smooth, never pixelated), with no tile and no
+   outline (owner 2026-10-18) in every appearance and every state, and a selected row never tints it. Unlayered on purpose: the skins' selected-row rules are unlayered too, and
    a layered rule loses to them whatever its specificity. */
 .item-icon.has-site-icon,
 .large-icon.has-site-icon,
 .picker-icon.has-site-icon,
 .item-row.active .item-icon.has-site-icon,
 .top-search-results button:hover .item-icon.has-site-icon {
-  background: var(--color-site-icon-tile);
+  /* No tile at all (owner 2026-10-18): the website's own artwork, shown as is, so a selected row's accent never
+     frames it in a white square. */
+  background: transparent;
   border: 0;
-  @apply overflow-hidden p-025;
-}
-
-.large-icon.has-site-icon {
-  @apply p-075;
+  @apply overflow-hidden p-0;
 }
 
 .has-site-icon img {
