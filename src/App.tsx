@@ -247,7 +247,9 @@ import { currentPlatformState, usePlatformState } from './skin/runtime'
 type VaultMode = 'loading' | 'setup' | 'locked' | 'unlocked'
 type CategoryItemType = (typeof categoryItems)[number]['itemType']
 type CategoryNavigation = `category:${CategoryItemType}`
-type ActiveNavigation = (typeof navigationItems)[number]['id'] | CategoryNavigation | TagNavigation
+// 'vault' is a vault row picked in the sidebar: it and All (`vaults`) are exclusive, so only one of them is ever
+// highlighted (owner 2026-10-18).
+type ActiveNavigation = (typeof navigationItems)[number]['id'] | CategoryNavigation | TagNavigation | 'vault'
 
 type LoginFormState = LoginItemInput & {
   tagsInput: string
@@ -1216,8 +1218,9 @@ function VaultWindow() {
       const itemType = activeNavigation.replace('category:', '')
       return t(`itemTypes.${itemType}`)
     }
+    if (activeNavigation === 'vault') return vaults.find((vault) => vault.id === activeVaultId)?.name ?? t('listTitle.vaults')
     return t('listTitle.vaults')
-  }, [activeNavigation, activeTagName, t])
+  }, [activeNavigation, activeTagName, activeVaultId, t, vaults])
 
   useEffect(() => {
     formRef.current = form
@@ -3227,9 +3230,12 @@ function VaultWindow() {
       const Icon = tagIconComponent(vault.icon)
       return (
         <button
-          className={vault.id === activeVaultId ? 'nav-item active' : 'nav-item'}
+          className={activeNavigation === 'vault' && vault.id === activeVaultId ? 'nav-item active' : 'nav-item'}
           key={vault.id}
-          onClick={() => handleSwitchVault(vault.id)}
+          onClick={() => {
+            setActiveNavigation('vault')
+            if (vault.id !== activeVaultId) void handleSwitchVault(vault.id)
+          }}
           onContextMenu={(event) => openVaultMenu(event, vault)}
           type="button"
         >
