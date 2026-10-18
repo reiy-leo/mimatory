@@ -1969,7 +1969,8 @@
 
   .detail-header {
     border-color: transparent;
-    @apply gap-150 border-b px-0 pb-050 pt-250;
+    /* Close under the top bar (owner 2026-10-18: less empty space above the item), the same in view and edit. */
+    @apply gap-150 border-b px-0 pb-050 pt-050;
   }
 
   .detail-header p {
