@@ -611,6 +611,15 @@ Wayland; X11 is not supported.
   220–280px wide. Phones get the action sheet. The Autofill Behavior popover uses the same hook, and
   `getMenuAnchorStyle` (item/tag/vault menus) now caps `maxHeight` the same way (code only; never seen capping in a screenshot). Never re-add a per-menu
   `position: fixed` with a guessed height: that is how a tall menu ran off the top of a short window.
+- **The key button opens the generator popover; it never inserts a password blind** (owner 2026-10-18, the
+  1Password 8 generator). `PasswordGeneratorButton` (`passwordGeneratorPopover.tsx`) serves the login's password
+  row and every `password` field (`FieldEditor`'s `onGenerate` now takes the options). Rules in
+  `passwordGenerator.ts`: types are the backend's three modes; the popover shows only Numbers / Symbols for Random
+  (letters are forced on, ambiguous-character avoidance stays on) — the Settings ▸ Generator tab keeps the full set.
+  Last-used options are remembered **in memory only** for the window's life (nothing persisted, as before). It owns
+  its Escape / outside-click listeners (like the Autofill Behavior popover), so it needs no flag in VaultWindow's
+  dismiss effect. The caller's `generate`/`measure` are fresh closures each render; the button wraps them in stable
+  functions, otherwise the panel would regenerate on every parent render.
 - **Passkeys are never added by hand** (owner 2026-10-18: "通行密钥不能手动添加"). No Add More entry offers one
   (`addMoreOptions.test.ts` guards it). The extension's MAIN-world `passkey-observer.js` reports a *completed*
   `navigator.credentials.create`; `content.js` checks the rp id fits the page's host (a page may only name its own

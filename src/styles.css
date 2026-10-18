@@ -3106,7 +3106,7 @@
 
   .generator-popover-value {
     color: var(--color-text);
-    background: var(--color-background-input);
+    background: var(--color-surface);
     border-color: var(--color-border-input);
     @apply block overflow-hidden text-ellipsis whitespace-nowrap rounded-large border px-150 py-150 text-title-3;
   }
@@ -3188,9 +3188,17 @@
     @apply h-350 min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 shadow-none;
   }
 
+  /* No spin arrows (the slider beside it is the stepper; ↑/↓ still step), so the value sits centred. */
   .generator-popover-number {
     font-variant-numeric: tabular-nums;
+    text-align: center;
+    appearance: textfield;
     @apply h-350 w-600 shrink-0 px-050 text-center;
+  }
+
+  .generator-popover-number::-webkit-inner-spin-button,
+  .generator-popover-number::-webkit-outer-spin-button {
+    appearance: none;
   }
 
   /* Whole-cell focus (1Password 8, owner 2026-10-17: "1p是input focus是整个field 有一个ring"):

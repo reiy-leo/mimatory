@@ -168,6 +168,9 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 - Item relations (2026-10-15): the parent / child / related sections, the picker sheet and the disabled Delete
   and Move rows. Checked in Vite + Chromium against a stubbed bridge (light and dark) and the Rust side by
   `cargo test` of vault/storage/crypto; never in a real window.
+- Password generator popover (2026-10-18): placement, focus trap, Escape and the switches were seen only in Vite +
+  Chromium screenshots (work/screens/generator/) and jsdom tests; never in WKWebView/WebView2/Android WebView.
+  The native `<select>` pop-up and the range slider will look different in each real webview.
 
 Everything in this list is written and unit-proven or not proven at all; none of it has been observed.
 
