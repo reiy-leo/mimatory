@@ -2954,7 +2954,12 @@ function VaultWindow() {
       setForm((current) => ({ ...current, favorite: !current.favorite }))
       return
     }
-    await vaultApi.favorite(selectedItem.id, !selectedItem.favorite)
+    const next = !selectedItem.favorite
+    await vaultApi.favorite(selectedItem.id, next)
+    // The star reads the form, which is only reloaded when the selection changes: carry the new state into it
+    // (and its baseline, so favouriting never counts as an unsaved edit or gets undone by a later save).
+    baselineRef.current = { ...baselineRef.current, favorite: next }
+    setForm((current) => ({ ...current, favorite: next }))
     const nextItems = await vaultApi.list()
     setItems(nextItems)
   }

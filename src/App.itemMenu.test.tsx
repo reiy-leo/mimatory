@@ -36,6 +36,12 @@ function stubBridge() {
   mockIPC(
     (cmd, args) => {
       switch (cmd) {
+        case 'set_login_favorite': {
+          const { id, favorite } = args as { favorite: boolean; id: string }
+          const target = items.find((entry) => entry.id === id)
+          if (target) target.favorite = favorite
+          return null
+        }
         case 'switch_vault': {
           const id = (args as { id: string }).id
           switchedTo.push(id)
@@ -247,5 +253,17 @@ describe('vault window', () => {
     expect(titles()).toEqual(['Delta', 'Charlie', 'Bravo', 'Alpha'])
     expect(JSON.parse(localStorage.getItem('passless-item-sort') ?? '{}')).toEqual({ direction: 'desc', key: 'title' })
     localStorage.removeItem('passless-item-sort')
+  })
+
+  it('fills the header star as soon as the item is favourited', async () => {
+    await renderUnlocked()
+    fireEvent.click(screen.getByRole('button', { name: /Alpha/ }))
+    const star = await screen.findByRole('button', { name: 'Favorite' })
+    expect(star).not.toHaveClass('active')
+    await act(async () => {
+      fireEvent.click(star)
+    })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Favorite' })).toHaveClass('active'))
+    items[0].favorite = false
   })
 })
