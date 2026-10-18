@@ -76,6 +76,14 @@ pub struct Session {
     vault_id: String,
 }
 
+impl Session {
+    /// The same unlocked key pointed at another vault. Every vault shares the account key, so reading or
+    /// changing an item in a vault other than the open one only needs its id.
+    pub fn for_vault(&self, vault_id: &str) -> Session {
+        Session { key: self.key.clone(), vault_id: vault_id.to_string() }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct CustomField {
     pub label: String,
@@ -108,6 +116,18 @@ pub struct LoginItem {
     pub custom_fields: Vec<CustomField>,
     pub favorite: bool,
     pub updated_at: String,
+    /// When the item was made, for the list's Date Created sort.
+    #[serde(default)]
+    pub created_at: String,
+    /// How often and when the item was last used (a field copied, Open & Fill), for the list's Frequently
+    /// Used and Recently Used sorts. Never touches `updated_at`.
+    #[serde(default)]
+    pub use_count: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_used_at: Option<String>,
+    /// The vault the item lives in; filled for every list so the cross-vault All view can tell them apart.
+    #[serde(default)]
+    pub vault_id: String,
     /// The item's place among the others: the one parent it belongs to, the items that belong to
     /// it, and its peers. Filled in for the lists the app window reads; the browser bridge never
     /// asks for it, and an item with none leaves the key out of the payload entirely.
@@ -1101,6 +1121,95 @@ impl VaultService {
         Ok(())
     }
 
+    /// Counts one use of an item (a field copied, Open & Fill) for the Frequently / Recently Used sorts.
+    pub fn record_item_use(&mut self, session: &Session, item_id: &str) -> Result<(), VaultError> {
+        self.connection.execute(
+            "UPDATE items SET use_count = use_count + 1, last_used_at = ?1 WHERE id = ?2 AND vault_id = ?3",
+            params![Utc::now().to_rfc3339(), item_id, session.vault_id],
+        )?;
+        Ok(())
+    }
+
+    /// The vaults the cross-vault views read: every vault that is not archived.
+    fn open_vault_ids(&self) -> Result<Vec<String>, VaultError> {
+        let mut statement =
+            self.connection.prepare("SELECT id FROM vaults WHERE archived = 0 ORDER BY created_at ASC")?;
+        let ids = statement
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(ids)
+    }
+
+    fn all_vault_ids(&self) -> Result<Vec<String>, VaultError> {
+        let mut statement = self.connection.prepare("SELECT id FROM vaults ORDER BY created_at ASC")?;
+        let ids = statement
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(ids)
+    }
+
+    /// All (owner 2026-10-18): every live item of every open vault, each carrying its `vault_id`.
+    pub fn list_all_login_items(&self, session: &Session) -> Result<Vec<LoginItem>, VaultError> {
+        let mut items = Vec::new();
+        for vault_id in self.open_vault_ids()? {
+            items.extend(self.list_login_items(&session.for_vault(&vault_id), None)?);
+        }
+        Ok(items)
+    }
+
+    /// Tags belong to All, not to a vault (owner 2026-10-18): one entry per name across the open vaults,
+    /// styled as the open vault styles it, else as the first vault that has it.
+    pub fn list_all_tags(&self, session: &Session) -> Result<Vec<Tag>, VaultError> {
+        let mut ids = self.open_vault_ids()?;
+        if let Some(position) = ids.iter().position(|id| id == &session.vault_id) {
+            let current = ids.remove(position);
+            ids.insert(0, current);
+        }
+        let mut tags: Vec<Tag> = Vec::new();
+        for vault_id in ids {
+            for tag in self.list_tags(&session.for_vault(&vault_id))? {
+                if !tags.iter().any(|existing| existing.name == tag.name) {
+                    tags.push(tag);
+                }
+            }
+        }
+        tags.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        Ok(tags)
+    }
+
+    /// Renames or restyles a tag in every vault that has it.
+    pub fn update_tag_everywhere(
+        &mut self,
+        session: &Session,
+        name: &str,
+        new_name: &str,
+        icon: &str,
+        color: &str,
+    ) -> Result<(), VaultError> {
+        let mut found = false;
+        for vault_id in self.all_vault_ids()? {
+            let scoped = session.for_vault(&vault_id);
+            if self.tag_id(&scoped, name)?.is_some() {
+                self.update_tag(&scoped, name, new_name, icon, color)?;
+                found = true;
+            }
+        }
+        if found { Ok(()) } else { Err(VaultError::TagNotFound) }
+    }
+
+    /// Deletes a tag from every vault that has it (the items stay).
+    pub fn delete_tag_everywhere(&mut self, session: &Session, name: &str) -> Result<(), VaultError> {
+        let mut found = false;
+        for vault_id in self.all_vault_ids()? {
+            let scoped = session.for_vault(&vault_id);
+            if self.tag_id(&scoped, name)?.is_some() {
+                self.delete_tag(&scoped, name)?;
+                found = true;
+            }
+        }
+        if found { Ok(()) } else { Err(VaultError::TagNotFound) }
+    }
+
     pub fn list_tags(&self, session: &Session) -> Result<Vec<Tag>, VaultError> {
         let mut statement = self.connection.prepare(
             "SELECT name_ciphertext, icon, color FROM tags WHERE vault_id = ?1 ORDER BY created_at ASC",
@@ -2079,22 +2188,28 @@ impl VaultService {
         let row = self
             .connection
             .query_row(
-                "SELECT item_type, title_ciphertext, favorite, updated_at, icon_mode FROM items
-                 WHERE id = ?1 AND vault_id = ?2",
+                "SELECT item_type, title_ciphertext, favorite, updated_at, icon_mode, created_at, use_count,
+                        last_used_at
+                 FROM items WHERE id = ?1 AND vault_id = ?2",
                 params![id, session.vault_id],
                 |row| {
                     Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, Vec<u8>>(1)?,
-                        row.get::<_, i64>(2)?,
-                        row.get::<_, String>(3)?,
-                        row.get::<_, String>(4)?,
+                        (
+                            row.get::<_, String>(0)?,
+                            row.get::<_, Vec<u8>>(1)?,
+                            row.get::<_, i64>(2)?,
+                            row.get::<_, String>(3)?,
+                            row.get::<_, String>(4)?,
+                        ),
+                        (row.get::<_, String>(5)?, row.get::<_, i64>(6)?, row.get::<_, Option<String>>(7)?),
                     ))
                 },
             )
             .optional()?;
 
-        let Some((item_type, title_ciphertext, favorite, updated_at, icon_mode)) = row else {
+        let Some(((item_type, title_ciphertext, favorite, updated_at, icon_mode), (created_at, use_count, last_used_at))) =
+            row
+        else {
             return Ok(None);
         };
 
@@ -2125,6 +2240,10 @@ impl VaultService {
             custom_fields,
             favorite: favorite == 1,
             updated_at,
+            created_at,
+            use_count,
+            last_used_at,
+            vault_id: session.vault_id.clone(),
             relations: ItemRelations::default(),
             icon_mode,
         }))
@@ -3514,6 +3633,40 @@ mod tests {
         );
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn all_spans_every_open_vault_and_tags_belong_to_all() {
+        let path = test_database_path("vault-all");
+        initialize_database(&path).expect("database should initialize");
+        let connection = open_database(&path).expect("database should open");
+        let mut service = VaultService::new(connection);
+        let personal = service.setup_master_password("master-password").expect("setup");
+        let work_vault = service.create_vault(&personal, "Work").expect("work vault");
+        let work = service.session_for_vault(&personal, &work_vault.id).expect("work session");
+        let mine = service.create_login_item(&personal, login_input("Mine", vec!["code".into()])).expect("mine");
+        let theirs = service.create_login_item(&work, login_input("Theirs", vec!["code".into()])).expect("theirs");
+
+        let all = service.list_all_login_items(&personal).expect("all items");
+        assert_eq!(all.len(), 2);
+        assert_eq!(all.iter().find(|item| item.id == theirs.id).unwrap().vault_id, work_vault.id);
+        assert!(!all.iter().find(|item| item.id == mine.id).unwrap().created_at.is_empty());
+        assert_eq!(service.list_all_tags(&personal).expect("all tags").len(), 1);
+
+        // A rename reaches the tag in both vaults.
+        service.update_tag_everywhere(&personal, "code", "dev", "key", "").expect("rename everywhere");
+        assert_eq!(service.list_tags(&work).expect("work tags")[0].name, "dev");
+
+        // Uses are counted without touching the modified date.
+        service.record_item_use(&work, &theirs.id).expect("use");
+        let used = service.list_login_items(&work, None).expect("work items").remove(0);
+        assert_eq!(used.use_count, 1);
+        assert!(used.last_used_at.is_some());
+        assert_eq!(used.updated_at, theirs.updated_at);
+
+        // An archived vault drops out of All.
+        service.set_vault_archived(&personal, &work_vault.id, true).expect("archive work");
+        assert_eq!(service.list_all_login_items(&personal).expect("all items").len(), 1);
     }
 
     #[test]

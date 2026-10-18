@@ -472,6 +472,32 @@ fn generate_password_command(options: PasswordGeneratorOptions) -> Result<String
 // A tag row lives only while some item names it, and it is addressed by name because a name is the
 // only handle an item carries. How many items use it is counted from the live item list in the
 // frontend, so the number beside a tag cannot disagree with what clicking that tag reveals.
+/// All (owner 2026-10-18): the live items of every open vault, each with its `vault_id`.
+#[tauri::command]
+fn list_all_login_items(state: State<AppState>) -> Result<Vec<LoginItem>, String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service.list_all_login_items(&session).map_err(String::from)
+}
+
+/// The sidebar's tags: one per name across the open vaults, not tied to the open one.
+#[tauri::command]
+fn list_all_tags(state: State<AppState>) -> Result<Vec<Tag>, String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service.list_all_tags(&session).map_err(String::from)
+}
+
+#[tauri::command]
+fn record_item_use(id: String, state: State<AppState>) -> Result<(), String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    service.record_item_use(&session, &id).map_err(String::from)
+}
+
 #[tauri::command]
 fn list_tags(state: State<AppState>) -> Result<Vec<Tag>, String> {
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
@@ -492,7 +518,7 @@ fn update_tag(
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
-        .update_tag(&session, &from, &name, &icon, &color)
+        .update_tag_everywhere(&session, &from, &name, &icon, &color)
         .map_err(String::from)
 }
 
@@ -501,7 +527,7 @@ fn delete_tag(name: String, state: State<AppState>) -> Result<(), String> {
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
-    service.delete_tag(&session, &name).map_err(String::from)
+    service.delete_tag_everywhere(&session, &name).map_err(String::from)
 }
 
 #[tauri::command]
@@ -766,6 +792,9 @@ pub fn run() {
             restore_login_item,
             list_archived_login_items,
             set_login_favorite,
+            list_all_login_items,
+            list_all_tags,
+            record_item_use,
             set_item_parent,
             link_related_items,
             unlink_related_items,

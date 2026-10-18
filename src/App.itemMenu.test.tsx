@@ -26,16 +26,28 @@ const item = (id: string, title: string) => ({
 })
 const items = [item('a', 'Alpha'), item('b', 'Bravo'), item('c', 'Charlie')]
 
+// An item in the second vault, carrying a tag the open vault does not have: All and the tag list read across vaults.
+const workItem = { ...item('d', 'Delta'), tags: ['shared'], vault_id: 'work' }
+
+const switchedTo: string[] = []
+
 function stubBridge() {
   mockWindows('main')
   mockIPC(
-    (cmd) => {
+    (cmd, args) => {
       switch (cmd) {
+        case 'switch_vault': {
+          const id = (args as { id: string }).id
+          switchedTo.push(id)
+          return id === 'work' ? [structuredClone(workItem)] : structuredClone(items)
+        }
         case 'initialize_database':
           return { database_ready: true, has_master_password: true, name: 'Passless', unlocked: false }
         case 'unlock_vault':
         case 'list_login_items':
           return structuredClone(items)
+        case 'list_all_login_items':
+          return structuredClone([...items.map((entry) => ({ ...entry, vault_id: 'personal' })), workItem])
         case 'list_vaults':
           return [
             {
@@ -59,6 +71,8 @@ function stubBridge() {
               updated_at: 'Sun 2026-10-18 8:00 AM CST (UTC+08:00)',
             },
           ]
+        case 'list_all_tags':
+          return [{ color: '', icon: 'tag', name: 'shared' }]
         case 'list_tags':
         case 'list_archived_login_items':
         case 'list_trashed_login_items':
@@ -160,28 +174,36 @@ describe('vault window', () => {
     fireEvent.click(next)
     await waitFor(() => expect(screen.getByRole('button', { name: /Bravo/ })).toHaveClass('active'))
     fireEvent.click(next)
+    await waitFor(() => expect(screen.getByRole('button', { name: /Charlie/ })).toHaveClass('active'))
+    // Delta lives in the Work vault: All shows it, and selecting it moves the session there quietly.
+    fireEvent.click(next)
     await waitFor(() => expect(next).toBeDisabled())
+    await waitFor(() => expect(switchedTo).toContain('work'))
+    expect(screen.getByRole('button', { name: /Delta/ })).toHaveClass('active')
     fireEvent.click(previous)
-    await waitFor(() => expect(screen.getByRole('button', { name: /Bravo/ })).toHaveClass('active'))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Charlie/ })).toHaveClass('active'))
     // ⌘↑ / Ctrl+↑ (whichever the platform's primary modifier is), but never while typing in a field.
     fireEvent.keyDown(document.body, { ctrlKey: true, key: 'ArrowUp', metaKey: true })
-    await waitFor(() => expect(screen.getByRole('button', { name: /Alpha/ })).toHaveClass('active'))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Bravo/ })).toHaveClass('active'))
     fireEvent.keyDown(screen.getByLabelText('Search all item titles'), {
       ctrlKey: true,
       key: 'ArrowDown',
       metaKey: true,
     })
     await new Promise((resolve) => setTimeout(resolve, 50))
-    expect(screen.getByRole('button', { name: /Alpha/ })).toHaveClass('active')
+    expect(screen.getByRole('button', { name: /Bravo/ })).toHaveClass('active')
     fireEvent.keyDown(document.body, { ctrlKey: true, key: 'ArrowDown', metaKey: true })
-    await waitFor(() => expect(screen.getByRole('button', { name: /Bravo/ })).toHaveClass('active'))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Charlie/ })).toHaveClass('active'))
   })
 
-  it('locks the rest of the window while the edit form has unsaved changes', async () => {
+  it('locks the rest of the window while an item is being edited', async () => {
     await renderUnlocked()
     fireEvent.click(screen.getByRole('button', { name: /Bravo/ }))
     fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
     const title = await screen.findByLabelText('Login title')
+    // The editor alone locks the window, before anything has changed (owner 2026-10-18).
+    await waitFor(() => expect(document.querySelector('.sidebar')).toHaveAttribute('inert'))
+    expect(screen.queryByText(/save or cancel to continue/i)).not.toBeInTheDocument()
     fireEvent.change(title, { target: { value: 'Bravo edited' } })
     await screen.findByText(/save or cancel to continue/i)
     // A list row, a vault and the toolbar arrows all stay put until the edit is saved or cancelled.
@@ -197,5 +219,33 @@ describe('vault window', () => {
     await waitFor(() => expect(document.querySelector('.item-list')).not.toHaveAttribute('inert'))
     fireEvent.click(screen.getByRole('button', { name: /Charlie/ }))
     await waitFor(() => expect(screen.getByRole('button', { name: /Charlie/ })).toHaveClass('active'))
+  })
+
+  it('lists every vault under All and keeps the tags whatever vault is picked', async () => {
+    await renderUnlocked()
+    expect(await screen.findByRole('button', { name: /Delta/ })).toBeInTheDocument()
+    const sidebar = document.querySelector('.sidebar') as HTMLElement
+    expect(sidebar).toHaveTextContent('shared')
+    // The Personal vault row lists only that vault, and the tag section stays as it was.
+    const personal = [...sidebar.querySelectorAll('button')].find((button) => button.textContent?.includes('Personal'))
+    await act(async () => {
+      fireEvent.click(personal as HTMLElement)
+    })
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Delta/ })).not.toBeInTheDocument())
+    expect(sidebar).toHaveTextContent('shared')
+  })
+
+  it('sorts the list from the menu at its top', async () => {
+    await renderUnlocked()
+    await screen.findByRole('button', { name: /Delta/ })
+    const titles = () => [...document.querySelectorAll('.item-row strong')].map((node) => node.textContent)
+    fireEvent.click(screen.getByRole('button', { name: /Date Modified/ }))
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Title' }))
+    expect(titles()).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta'])
+    fireEvent.click(screen.getByRole('button', { name: /Title/ }))
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Z to A' }))
+    expect(titles()).toEqual(['Delta', 'Charlie', 'Bravo', 'Alpha'])
+    expect(JSON.parse(localStorage.getItem('passless-item-sort') ?? '{}')).toEqual({ direction: 'desc', key: 'title' })
+    localStorage.removeItem('passless-item-sort')
   })
 })

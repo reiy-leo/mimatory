@@ -319,6 +319,10 @@ mod tests {
             custom_fields: fields,
             favorite: false,
             updated_at: String::new(),
+            created_at: String::new(),
+            use_count: 0,
+            last_used_at: None,
+            vault_id: String::new(),
             relations: Default::default(),
             icon_mode: "auto".into(),
         }

@@ -305,6 +305,17 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
         )?;
     }
 
+    if !has_column(connection, "items", "use_count")? {
+        connection.execute(
+            "ALTER TABLE items ADD COLUMN use_count INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
+
+    if !has_column(connection, "items", "last_used_at")? {
+        connection.execute("ALTER TABLE items ADD COLUMN last_used_at TEXT", [])?;
+    }
+
     // Schema 5 (2026-10-18): icons are now looked up through Google first and stored at their own
     // resolution (up to 192px) instead of a fixed 64px PNG. The cached 64px icons are dropped once,
     // so every tile refetches a sharp one without the user doing anything.

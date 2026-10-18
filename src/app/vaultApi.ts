@@ -20,6 +20,12 @@ export type LoginItem = {
   custom_fields: CustomField[]
   favorite: boolean
   updated_at: string
+  // For the list's sort menu; older bridges and test stubs may leave them out.
+  created_at?: string
+  use_count?: number
+  last_used_at?: string
+  // The vault the item lives in (every list fills it), so All can span vaults.
+  vault_id?: string
   // Left out of the payload when the item has no links (and by the browser bridge entirely).
   relations?: ItemRelations
   // Absent means `auto`: the website icon when the item has a site and one was found.
@@ -103,7 +109,10 @@ export type CustomField = {
   field_type: string
 }
 
-export type LoginItemInput = Omit<LoginItem, 'icon_mode' | 'id' | 'relations' | 'updated_at'>
+export type LoginItemInput = Omit<
+  LoginItem,
+  'created_at' | 'icon_mode' | 'id' | 'last_used_at' | 'relations' | 'updated_at' | 'use_count' | 'vault_id'
+>
 
 export type PasswordGeneratorMode = 'passphrase' | 'pin' | 'random'
 
@@ -208,6 +217,9 @@ export function tagsToInput(tags: string[]): string {
 }
 
 export const vaultApi = {
+  // All (owner 2026-10-18): every open vault's live items, and the tags across them, not tied to the open vault.
+  allItems: () => invoke<LoginItem[]>('list_all_login_items'),
+  allTags: () => invoke<Tag[]>('list_all_tags'),
   archive: (id: string) => invoke<void>('archive_login_item', { id }),
   archived: () => invoke<LoginItem[]>('list_archived_login_items'),
   attachFileToItem: (id: string, path: string) => invoke<CustomField>('attach_file_to_item', { id, path }),
@@ -245,6 +257,8 @@ export const vaultApi = {
   purge: (id: string) => invoke<void>('purge_login_item', { id }),
   // Decrypted in memory only, unlike exportAttachmentToTemp, which writes a file.
   readAttachmentText: (id: string) => invoke<AttachmentText>('read_attachment_text', { id }),
+  // One use (a field copied, Open & Fill), for the Frequently / Recently Used sorts.
+  recordUse: (id: string) => invoke<void>('record_item_use', { id }),
   restore: (id: string) => invoke<void>('restore_login_item', { id }),
   restoreFromTrash: (id: string) => invoke<void>('restore_trashed_login_item', { id }),
   setAutostart: (enabled: boolean) => invoke<void>('set_autostart', { enabled }),

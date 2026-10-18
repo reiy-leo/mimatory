@@ -22,7 +22,6 @@ import {
   CreditCard,
   Database,
   DollarSign,
-  Edit3,
   Ellipsis,
   Eye,
   EyeOff,
@@ -36,6 +35,7 @@ import {
   Mail,
   NotebookTabs,
   Paperclip,
+  Pencil,
   Pin,
   PinOff,
   Plane,
@@ -80,6 +80,7 @@ import {
   type TextPreviewState,
 } from './app/attachmentControls'
 import { copyText } from './app/clipboard'
+import { EditBannerPattern } from './app/editBanner'
 import {
   FieldActionMenu,
   type FieldMenuAnchor,
@@ -144,6 +145,15 @@ import {
   relationRef,
 } from './app/itemRelations'
 import {
+  defaultDirectionFor,
+  type ItemSort,
+  type ItemSortKey,
+  itemSortKeys,
+  itemSortStorageKey,
+  readItemSort,
+  sortItems,
+} from './app/itemSort'
+import {
   addTag,
   countItemTags,
   filterItemsByTag,
@@ -158,7 +168,6 @@ import {
 } from './app/itemTags'
 import { findTemplateField, getItemTemplate, sshFingerprintLabelKey, type TemplateField } from './app/itemTemplates'
 import { itemTypeArtFor } from './app/itemTypeArt'
-import { EditBannerPattern } from './app/editBanner'
 import { getLockScreenVariant, shouldShowTouchIdUnlock } from './app/lockScreen'
 import { getMenuAnchorStyle, type MenuAnchor } from './app/menuPlacement'
 import { type NavigationItem, navigationItems } from './app/navigation'
@@ -335,6 +344,32 @@ const loginSectionFieldTypes = ['otp', 'sign_in_with', 'passkey']
 // new-item picker's list, in the same order, so a type can never be creatable but nowhere to be
 // found. Each row carries the accent hue its icon wears; the ramp is decoration only and never
 // stands in for a status. `i18n.test.ts` reads this shape to prove every `itemTypes.*` key exists.
+const sortKeyLabel: Record<ItemSortKey, string> = {
+  created: 'vault.sortCreated',
+  frequent: 'vault.sortFrequent',
+  modified: 'vault.sortModified',
+  recent: 'vault.sortRecent',
+  title: 'vault.sortTitle',
+}
+
+/** The second group of the sort menu, worded for what is being sorted: A to Z, newest first, most first. */
+function sortDirections(key: ItemSortKey): Array<[ItemSort['direction'], string]> {
+  if (key === 'title')
+    return [
+      ['asc', 'vault.sortAscTitle'],
+      ['desc', 'vault.sortDescTitle'],
+    ]
+  if (key === 'frequent')
+    return [
+      ['desc', 'vault.sortDescUse'],
+      ['asc', 'vault.sortAscUse'],
+    ]
+  return [
+    ['desc', 'vault.sortDescDate'],
+    ['asc', 'vault.sortAscDate'],
+  ]
+}
+
 const categoryItems = [
   { colorClass: 'text-accent-icon-teal', icon: KeyRound, itemType: 'login' },
   { colorClass: 'text-accent-icon-yellow', icon: NotebookTabs, itemType: 'secure_note' },
@@ -752,6 +787,11 @@ function VaultWindow() {
   const [status, setStatus] = useState<AppStatus | null>(null)
   const [mode, setMode] = useState<VaultMode>('loading')
   const [items, setItems] = useState<LoginItem[]>([])
+  // All (owner 2026-10-18): every open vault's live items. `items` stays the open vault's (the session's), which
+  // the vault row lists and every edit acts on; every other sidebar row reads this.
+  const [allItems, setAllItems] = useState<LoginItem[] | null>(null)
+  const [itemSort, setItemSort] = useState<ItemSort>(() => readItemSort(globalThis.localStorage))
+  const [sortMenuOpen, setSortMenuOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // The phone layout (src/skin/platform.ts: any window ≤ 760px, so every phone) shows one pane at a time:
   // the item list, the item, the sidebar as a Browse page, or Settings, switched by a bottom tab bar.
@@ -1030,7 +1070,33 @@ function VaultWindow() {
     return () => window.clearTimeout(lockTimer)
   }, [mode, lastActivityAt, securityPreferences.autoLockIdleDuration])
 
-  const selectedItem = useMemo(() => items.find((item) => item.id === selectedId) ?? null, [items, selectedId])
+  const selectedItem = useMemo(
+    () => items.find((item) => item.id === selectedId) ?? allItems?.find((item) => item.id === selectedId) ?? null,
+    [allItems, items, selectedId],
+  )
+
+  // An item picked from All (or a tag, a category, Favorites) may live in another vault. The session follows it
+  // there quietly, so editing, favouriting and moving keep acting on the vault the item is in, while the sidebar
+  // keeps the row the user picked.
+  const followingVaultRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (mode !== 'unlocked' || isEditing || !selectedId) return
+    const target = allItems?.find((item) => item.id === selectedId)?.vault_id
+    if (!target || target === activeVaultId || followingVaultRef.current === target) return
+    followingVaultRef.current = target
+    vaultApi
+      .switchVault(target)
+      .then(async (nextItems) => {
+        setActiveVaultId(target)
+        setItems(Array.isArray(nextItems) ? nextItems : [])
+        await loadArchivedItems()
+        await loadTrashedItems()
+      })
+      .catch((nextError: unknown) => setError(String(nextError)))
+      .finally(() => {
+        followingVaultRef.current = null
+      })
+  }, [activeVaultId, allItems, isEditing, mode, selectedId])
 
   useEffect(() => setRevealAllSecure(false), [selectedId, isEditing])
 
@@ -1055,17 +1121,23 @@ function VaultWindow() {
 
   const activeTagKey = tagKeyFromNavigation(activeNavigation)
 
+  // The vault row lists the open vault; every other row — All, Favorites, a category, a tag — reads across every
+  // open vault (owner 2026-10-18: sidebar rows are exclusive and tags belong to All, not to a vault).
+  const scopeItems = activeNavigation === 'vault' ? items : (allItems ?? items)
   const visibleItems = useMemo(() => {
-    // Archived and trash each have their own list and their own rows, so neither reads live items.
-    if (activeNavigation === 'trash' || activeNavigation === 'archived') return []
-    if (activeNavigation === 'favorites') return items.filter((item) => item.favorite)
-    if (activeTagKey) return filterItemsByTag(items, activeTagKey)
-    if (activeNavigation.startsWith('category:')) {
-      const itemType = activeNavigation.replace('category:', '')
-      return items.filter((item) => item.item_type === itemType)
+    const pick = () => {
+      // Archived and trash each have their own list and their own rows, so neither reads live items.
+      if (activeNavigation === 'trash' || activeNavigation === 'archived') return []
+      if (activeNavigation === 'favorites') return scopeItems.filter((item) => item.favorite)
+      if (activeTagKey) return filterItemsByTag(scopeItems, activeTagKey)
+      if (activeNavigation.startsWith('category:')) {
+        const itemType = activeNavigation.replace('category:', '')
+        return scopeItems.filter((item) => item.item_type === itemType)
+      }
+      return scopeItems
     }
-    return items
-  }, [activeNavigation, activeTagKey, items])
+    return sortItems(pick(), itemSort, i18n.language)
+  }, [activeNavigation, activeTagKey, i18n.language, itemSort, scopeItems])
 
   // Both state views read their own list instead of the live items, and each row's restore means a
   // different return: out of the trash, or back into the vault.
@@ -1075,22 +1147,24 @@ function VaultWindow() {
   // Counted from the whole vault rather than `visibleItems`, because a sidebar number has to say how
   // many a click will reveal — not how many the current selection already shows. Search is excluded
   // for the same reason: the list can be filtered while the sidebar keeps its meaning.
+  const allScope = allItems ?? items
   const navigationCounts = useMemo(() => {
     const counts: Record<string, number> = {
       // Both state views are separate reads, so both counts come from their own list.
       archived: archivedItems.length,
-      favorites: items.filter((item) => item.favorite).length,
+      favorites: allScope.filter((item) => item.favorite).length,
       trash: trashedItems.length,
-      vaults: items.length,
+      vaults: allScope.length,
     }
-    for (const item of items) {
+    for (const item of allScope) {
       const category = `category:${item.item_type}`
       counts[category] = (counts[category] ?? 0) + 1
     }
     return counts
-  }, [archivedItems, items, trashedItems])
+  }, [allScope, archivedItems, trashedItems])
 
-  const tagCounts = useMemo(() => countItemTags(items, i18n.language), [i18n.language, items])
+  // Tags are counted across every open vault and shown whatever row is selected (owner 2026-10-18).
+  const tagCounts = useMemo(() => countItemTags(allScope, i18n.language), [allScope, i18n.language])
   const activeTagName = tagCounts.find((entry) => entry.key === activeTagKey)?.name ?? activeTagKey
 
   // The icon is the one thing about a tag the item list does not carry, so the rows are read back
@@ -1099,15 +1173,21 @@ function VaultWindow() {
     if (mode !== 'unlocked') return
     let stale = false
     vaultApi
-      .tags()
+      .allTags()
       .then((nextTags) => {
-        if (!stale) setTagRecords(nextTags)
+        if (!stale && Array.isArray(nextTags)) setTagRecords(nextTags)
+      })
+      .catch((nextError: unknown) => setError(String(nextError)))
+    vaultApi
+      .allItems()
+      .then((nextItems) => {
+        if (!stale) setAllItems(Array.isArray(nextItems) ? nextItems : null)
       })
       .catch((nextError: unknown) => setError(String(nextError)))
     return () => {
       stale = true
     }
-  }, [items, mode])
+  }, [items, mode, vaults])
 
   const sidebarTags = useMemo(() => tagRows(tagCounts, tagRecords), [tagCounts, tagRecords])
   // A folded section still shows the rows the user asked to keep, so a highlight is what survives the
@@ -1122,7 +1202,7 @@ function VaultWindow() {
   const topSearchResults = useMemo(() => {
     const normalizedQuery = topSearch.trim().toLowerCase()
     if (!normalizedQuery) return []
-    return items.filter((item) => item.title.toLowerCase().includes(normalizedQuery)).slice(0, 8)
+    return allScope.filter((item) => item.title.toLowerCase().includes(normalizedQuery)).slice(0, 8)
   }, [items, topSearch])
 
   const template = useMemo(() => getItemTemplate(form.item_type), [form.item_type])
@@ -1201,9 +1281,37 @@ function VaultWindow() {
   // item is being built under.
   const draftKey = selectedItem?.id ?? `new:${newItemCategory}`
   const hasUnsavedChanges = isFormDirty(baselineRef.current, form)
-  // Unsaved edits lock the rest of the window (owner 2026-10-18): until the form is saved or cancelled
-  // nothing else — sidebar, list, toolbar, settings, shortcuts — may act, so no edit is ever left behind.
-  const editLocked = isEditing && hasUnsavedChanges
+  // Editing locks the rest of the window (owner 2026-10-18, first for unsaved edits, then for any open editor —
+  // a new item included): until the form is saved or cancelled nothing else — sidebar, list, toolbar, settings,
+  // shortcuts — may act, so no edit is ever left behind. The notice only appears once there is something to lose.
+  const editLocked = isEditing
+  function chooseSort(next: ItemSort) {
+    setItemSort(next)
+    setSortMenuOpen(false)
+    try {
+      globalThis.localStorage?.setItem(itemSortStorageKey, JSON.stringify(next))
+    } catch {
+      // Private mode or a full store: the choice still holds for this session.
+    }
+  }
+
+  useEffect(() => {
+    if (!sortMenuOpen) return
+    const close = (event: Event) => {
+      if (event.composedPath().some((node) => node instanceof Element && node.hasAttribute('data-sort-menu'))) return
+      setSortMenuOpen(false)
+    }
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSortMenuOpen(false)
+    }
+    window.addEventListener('click', close)
+    window.addEventListener('keydown', onEscape)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('keydown', onEscape)
+    }
+  }, [sortMenuOpen])
+
   const editBannerHue = `var(--color-icon-accent-${(
     categoryItems.find((entry) => entry.itemType === form.item_type)?.colorClass ?? 'text-accent-icon-gray'
   ).replace('text-accent-icon-', '')})`
@@ -1215,9 +1323,7 @@ function VaultWindow() {
     event.stopPropagation()
   }
   const lockedRegion = (
-    editLocked
-      ? { 'aria-disabled': true, inert: '', onClickCapture: swallowWhileLocked }
-      : {}
+    editLocked ? { 'aria-disabled': true, inert: '', onClickCapture: swallowWhileLocked } : {}
   ) as Record<string, unknown>
 
   const listTitle = useMemo(() => {
@@ -2961,6 +3067,7 @@ function VaultWindow() {
     try {
       await copySecretText(value, sensitive)
       setOperationMessage(t('messages.copiedField', { label }))
+      if (selectedItem) void vaultApi.recordUse(selectedItem.id).catch(() => {})
     } catch (nextError) {
       setError(String(nextError))
     }
@@ -2972,6 +3079,7 @@ function VaultWindow() {
     const target = fill && selectedItem ? openAndFillUrl(url, selectedItem.id) : url
     if (!target) return
     openUrlExternally(target)
+    if (selectedItem) void vaultApi.recordUse(selectedItem.id).catch(() => {})
     if (fill) setOperationMessage(t('messages.openedToFill', { host: new URL(target).hostname }))
   }
 
@@ -3490,6 +3598,54 @@ function VaultWindow() {
           </div>
         ) : null}
 
+        {/* Sort (owner 2026-10-18, after 1Password 8's "N items sorted by" menu): what to sort by, then which way.
+            One choice for every list, remembered across launches. */}
+        {stateRows ? null : (
+          <div className="list-sort" data-sort-menu="">
+            <button
+              aria-expanded={sortMenuOpen}
+              aria-haspopup="menu"
+              className="list-sort-trigger"
+              onClick={() => setSortMenuOpen((open) => !open)}
+              type="button"
+            >
+              <span>{t(sortKeyLabel[itemSort.key])}</span>
+              <ChevronDown aria-hidden="true" size={13} />
+            </button>
+            {sortMenuOpen ? (
+              <div className="add-more-menu list-sort-menu" role="menu">
+                <p className="list-sort-heading">{t('vault.sortHeading', { count: visibleItems.length })}</p>
+                {itemSortKeys.map((key) => (
+                  <button
+                    aria-checked={itemSort.key === key}
+                    className="menu-option list-sort-option"
+                    key={key}
+                    onClick={() => chooseSort({ direction: defaultDirectionFor(key), key })}
+                    role="menuitemradio"
+                    type="button"
+                  >
+                    <span>{t(sortKeyLabel[key])}</span>
+                    {itemSort.key === key ? <Check aria-hidden="true" size={15} /> : null}
+                  </button>
+                ))}
+                {sortDirections(itemSort.key).map(([direction, label], index) => (
+                  <button
+                    aria-checked={itemSort.direction === direction}
+                    className={index === 0 ? 'menu-option list-sort-option separated' : 'menu-option list-sort-option'}
+                    key={direction}
+                    onClick={() => chooseSort({ ...itemSort, direction })}
+                    role="menuitemradio"
+                    type="button"
+                  >
+                    <span>{t(label)}</span>
+                    {itemSort.direction === direction ? <Check aria-hidden="true" size={15} /> : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        )}
+
         <div className="rows">
           {stateRows
             ? stateRows.map((item) => (
@@ -3593,7 +3749,7 @@ function VaultWindow() {
             </button>
           ) : null}
           <div className="detail-topbar-actions">
-            {editLocked ? (
+            {editLocked && hasUnsavedChanges ? (
               <span className="unsaved-hint" role="status">
                 {t('vault.unsavedChanges')}
               </span>
@@ -3613,7 +3769,7 @@ function VaultWindow() {
             ) : selectedItem ? (
               <>
                 <button className="top-edit-button" onClick={beginEdit} type="button">
-                  <Edit3 size={15} />
+                  <Pencil size={15} />
                   {t('vault.edit')}
                 </button>
                 {/* Everything the pane can do to a stored item sits behind one ellipsis, and only in
@@ -4389,7 +4545,7 @@ function VaultWindow() {
                   on the item already on screen. */}
               {itemMenuSource === 'row' ? (
                 <button className="menu-option with-icon" onClick={beginEdit} type="button">
-                  <Edit3 aria-hidden="true" size={15} />
+                  <Pencil aria-hidden="true" size={15} />
                   <span className="menu-option-label">
                     <span>{t('vault.edit')}</span>
                   </span>
@@ -4516,7 +4672,7 @@ function VaultWindow() {
       {tagMenu ? (
         <div className="add-more-menu" data-field-menu="" style={tagMenuAnchor?.style}>
           <button className="menu-option with-icon" onClick={openTagEditor} type="button">
-            <Edit3 aria-hidden="true" size={15} />
+            <Pencil aria-hidden="true" size={15} />
             <span className="menu-option-label">
               <span>{t('vault.editTag')}</span>
             </span>
@@ -4612,7 +4768,7 @@ function VaultWindow() {
       {vaultMenu ? (
         <div className="add-more-menu" data-field-menu="" style={vaultMenuAnchor?.style}>
           <button className="menu-option with-icon" onClick={openVaultEditor} type="button">
-            <Edit3 aria-hidden="true" size={15} />
+            <Pencil aria-hidden="true" size={15} />
             <span className="menu-option-label">
               <span>{t('vault.editVault')}</span>
             </span>

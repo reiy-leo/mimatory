@@ -3748,3 +3748,47 @@
 .detail-topbar.is-editing .unsaved-hint {
   color: var(--color-text-subtle);
 }
+
+/* The list's sort control (owner 2026-10-18): a quiet "Date Modified ⌄" at the top right of the list, opening
+   1Password's two-group menu right under it. */
+.list-sort {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 var(--space-050) var(--space-050);
+}
+
+.list-sort-trigger {
+  color: var(--color-text-subtle);
+  background: transparent;
+  border: 0;
+  @apply inline-flex h-auto min-h-0 items-center gap-050 rounded-small px-075 py-025 text-callout;
+}
+
+.list-sort-trigger:hover,
+.list-sort-trigger[aria-expanded="true"] {
+  color: var(--color-text);
+  background: var(--color-background-neutral-subtle-hovered);
+}
+
+.list-sort-menu {
+  position: absolute;
+  top: 100%;
+  right: var(--space-050);
+  width: min(16rem, calc(100% - var(--space-100)));
+  z-index: 30;
+}
+
+.list-sort-heading {
+  color: var(--color-text-subtle);
+  @apply m-0 px-150 pb-050 pt-025 text-caption font-semibold uppercase;
+}
+
+.list-sort-option {
+  grid-template-columns: minmax(0, 1fr) auto;
+  @apply items-center;
+}
+
+.list-sort-option svg {
+  color: var(--color-accent);
+}
