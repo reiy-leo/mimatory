@@ -179,7 +179,6 @@ export default {
         modal: 'var(--measure-modal)',
         settings: 'var(--measure-settings-max)',
         'text-preview': 'var(--measure-text-preview)',
-        'type-picker': 'var(--measure-type-picker)',
       },
       minWidth: {
         'item-list': 'var(--measure-item-list-min)',

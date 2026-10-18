@@ -407,37 +407,6 @@
   z-index: 10;
 }
 
-/* The New Item picker is a bottom sheet on phones (sheets.md): pinned to the foot, top corners only, scrolling
-   inside the window, safe area kept; tiles drop to 56pt with 32pt art so two columns still fit 360pt. */
-:root[data-layout="mobile"] .confirm-layer.is-item-type-picker {
-  align-items: end;
-  padding: 0;
-}
-
-:root[data-layout="mobile"] .item-type-dialog {
-  max-width: none;
-  max-height: calc(100dvh - var(--space-600));
-  padding-bottom: calc(var(--space-250) + env(safe-area-inset-bottom));
-  overflow-y: auto;
-  border-bottom-width: 0;
-  border-bottom-right-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
-:root[data-layout="mobile"] .item-type-grid {
-  gap: var(--space-100);
-}
-
-:root[data-layout="mobile"] .item-type-option {
-  gap: var(--space-100);
-  min-height: calc(var(--space-500) + var(--space-200));
-  padding-inline: var(--space-100);
-}
-
-:root[data-layout="mobile"] .item-type-art {
-  width: var(--space-400);
-  height: var(--space-400);
-}
 /* Field rows on a phone: no hover, so the chevron stays visible (the accessible way into the actions, beside
    touch and hold) and the trailing hint only appears to say "Copied". */
 :root[data-layout="mobile"] .field-row-actions .field-menu-button {

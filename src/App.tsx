@@ -819,6 +819,14 @@ function VaultWindow() {
   const [categoryToFocus, setCategoryToFocus] = useState<CategoryItemType | null>(null)
   const categoryListRef = useRef<HTMLDivElement>(null)
   const itemTypeFirstOptionRef = useRef<HTMLButtonElement>(null)
+  // The New Item dropdown hangs from whichever button opened it; ⌘N anchors it to the toolbar's button.
+  const newItemButtonRef = useRef<HTMLButtonElement>(null)
+  const itemTypeTriggerRef = useRef<HTMLElement | null>(null)
+  const itemTypePanelRef = useRef<HTMLDivElement>(null)
+  const { style: itemTypePanelPlaced } = useAnchoredPanel(itemTypePickerOpen, itemTypeTriggerRef, itemTypePanelRef, {
+    align: 'end',
+    width: itemMenuWidth,
+  })
   // Which kind of link the item picker is choosing for, if it is open, and what its search box holds.
   const [relationPicker, setRelationPicker] = useState<RelationKind | null>(null)
   const [relationQuery, setRelationQuery] = useState('')
@@ -1557,10 +1565,15 @@ function VaultWindow() {
     })
   }
 
-  function openItemTypePicker() {
+  function openItemTypePicker(trigger?: HTMLElement) {
+    if (itemTypePickerOpen) {
+      setItemTypePickerOpen(false)
+      return
+    }
     setError(null)
     setOperationMessage(null)
     closeFieldMenus()
+    itemTypeTriggerRef.current = trigger ?? newItemButtonRef.current
     setItemTypePickerOpen(true)
   }
 
@@ -2043,7 +2056,7 @@ function VaultWindow() {
     )
       return
     const handleClick = (event: MouseEvent) => {
-      if (!menuOpen) return
+      if (!menuOpen && !itemTypePickerOpen) return
       // composedPath() is fixed when the click is dispatched, so a click that swaps the menu's contents
       // (移动到 replaces the action list with the vault list) still counts as inside the menu even
       // though its button is no longer in the document when the click reaches window.
@@ -2052,6 +2065,7 @@ function VaultWindow() {
         .some((node) => node instanceof Element && node.hasAttribute('data-field-menu'))
       if (insideMenu) return
       closeFieldMenus()
+      setItemTypePickerOpen(false)
     }
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
@@ -3437,7 +3451,15 @@ function VaultWindow() {
             </div>
           ) : null}
         </div>
-        <button className="top-new-item-button" onClick={openItemTypePicker} type="button">
+        <button
+          aria-expanded={itemTypePickerOpen}
+          aria-haspopup="menu"
+          className="top-new-item-button"
+          data-field-menu=""
+          onClick={(event) => openItemTypePicker(event.currentTarget)}
+          ref={newItemButtonRef}
+          type="button"
+        >
           <Plus size={16} />
           {t('vault.newItem')}
         </button>
@@ -4106,7 +4128,14 @@ function VaultWindow() {
             <Inbox aria-hidden="true" className="detail-empty-icon" size={28} />
             <h2>{t('vault.noItemSelected')}</h2>
             <p>{t('vault.noItemSelectedHint')}</p>
-            <button className="secondary-button" onClick={openItemTypePicker} type="button">
+            <button
+              aria-expanded={itemTypePickerOpen}
+              aria-haspopup="menu"
+              className="secondary-button"
+              data-field-menu=""
+              onClick={(event) => openItemTypePicker(event.currentTarget)}
+              type="button"
+            >
               <Plus size={15} />
               {t('vault.newItem')}
             </button>
@@ -4156,51 +4185,38 @@ function VaultWindow() {
         </>
       ) : null}
       {/* Every item type is created from here, because the type decides which fields the draft opens
-          with — the old flow defaulted to a login and let the dropdown convert it afterwards, and the
-          dropdown is gone. The grid is the sidebar's own category list, in the sidebar's own order. */}
+          with. A dropdown hung from the New Item button (owner 2026-10-18), in the sidebar's own category
+          order, with the same icon size and type as every other menu. */}
       {itemTypePickerOpen ? (
-        <div className="confirm-layer is-item-type-picker">
-          <button
-            aria-label={t('common.close')}
-            className="confirm-backdrop"
-            onClick={() => setItemTypePickerOpen(false)}
-            type="button"
-          />
-          <div
-            aria-labelledby="item-type-picker-title"
-            aria-modal="true"
-            className="confirm-dialog item-type-dialog"
-            role="dialog"
-          >
-            <h2 id="item-type-picker-title">{t('vault.chooseItemType')}</h2>
-            <div className="item-type-grid">
-              {categoryItems.map((category, index) => {
-                const Icon = category.icon
-                const art = itemTypeArtFor(category.itemType)
-                return (
-                  <button
-                    className="item-type-option"
-                    key={category.itemType}
-                    onClick={() => handleNewItem(category.itemType)}
-                    ref={index === 0 ? itemTypeFirstOptionRef : undefined}
-                    type="button"
-                  >
-                    {art ? (
-                      <img alt="" className="item-type-art" draggable={false} src={art} />
-                    ) : (
-                      <Icon aria-hidden="true" className={category.colorClass} size={16} />
-                    )}
-                    <span>{t(`itemTypes.${category.itemType}`)}</span>
-                  </button>
-                )
-              })}
-            </div>
-            <div className="confirm-actions">
-              <button className="secondary-button" onClick={() => setItemTypePickerOpen(false)} type="button">
-                {t('vault.cancelEditing')}
+        <div
+          aria-label={t('vault.chooseItemType')}
+          className="add-more-menu item-type-menu"
+          data-field-menu=""
+          ref={itemTypePanelRef}
+          role="menu"
+          style={{ ...itemTypePanelPlaced, overflowY: 'auto' }}
+        >
+          {categoryItems.map((category, index) => {
+            const Icon = category.icon
+            const art = itemTypeArtFor(category.itemType)
+            return (
+              <button
+                className="menu-option with-icon"
+                key={category.itemType}
+                onClick={() => handleNewItem(category.itemType)}
+                ref={index === 0 ? itemTypeFirstOptionRef : undefined}
+                role="menuitem"
+                type="button"
+              >
+                {art ? (
+                  <img alt="" className="menu-option-art" draggable={false} height={15} src={art} width={15} />
+                ) : (
+                  <Icon aria-hidden="true" className={category.colorClass} size={15} />
+                )}
+                <span>{t(`itemTypes.${category.itemType}`)}</span>
               </button>
-            </div>
-          </div>
+            )
+          })}
         </div>
       ) : null}
       {/* The item picker for a link: a sheet with a search field over the vault's live items, minus

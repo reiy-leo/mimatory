@@ -242,7 +242,6 @@
     --measure-lock-field: 260px;
     --measure-modal: 420px;
     /* The New Item picker: two 64pt-tall columns of type tiles, each wide enough for "Social Security Number". */
-    --measure-type-picker: 600px;
     /* The attachment text preview: wide enough for an 80-column line of the callout mono, and its scrolling
        well at most this tall, so the sheet's buttons stay on screen. */
     --measure-text-preview: 640px;
@@ -1750,8 +1749,8 @@
 
   /* In the item list the tile is as tall as the two text lines beside it (Body 16pt + 4pt + Callout 15pt). */
   .item-row .item-icon {
-    width: calc(theme('fontSize.body.1.lineHeight') + theme('spacing.050') + theme('fontSize.callout.1.lineHeight'));
-    height: calc(theme('fontSize.body.1.lineHeight') + theme('spacing.050') + theme('fontSize.callout.1.lineHeight'));
+    width: calc(1rem + var(--space-050) + 0.9375rem);
+    height: calc(1rem + var(--space-050) + 0.9375rem);
     @apply text-body;
   }
 
@@ -2109,38 +2108,9 @@
     @apply mx-0 min-h-300 rounded-small px-100 py-050 text-body;
   }
 
-  /* A new item's type is picked from the same list the sidebar shows (owner 2026-10-18, after 1Password's
-     picker): two columns of 64pt tiles on the dialog's own material — no grey fill, a hairline bezel — each a
-     40pt full-colour Fluent Emoji and the type's name. Hover is the quaternary fill; keyboard focus is the
-     base ring on the tile's own corner. */
-  /* 17 tiles run to ~780pt; at the 760pt minimum window the sheet scrolls inside it rather than off it. */
-  .item-type-dialog {
-    max-height: calc(100dvh - var(--space-400));
-    @apply max-w-type-picker overflow-y-auto;
-  }
-
-  .item-type-grid {
-    @apply mt-200 grid grid-cols-2 gap-150;
-  }
-
-  .item-type-option {
-    color: var(--color-text);
-    background: transparent;
-    border-color: var(--color-border-bold);
-    box-shadow: none;
-    @apply flex min-h-800 items-center gap-150 rounded-large border px-150 text-left text-title-3 transition-colors;
-  }
-
-  .item-type-option:hover {
-    background: var(--color-background-neutral-subtle-hovered);
-  }
-
-  .item-type-option:active {
-    background: var(--color-background-neutral-subtle-pressed);
-  }
-
-  .item-type-art {
-    @apply h-500 w-500 shrink-0;
+  /* New Item's type dropdown: a Fluent Emoji stands where the other menus draw a glyph, at the glyph's size. */
+  .menu-option-art {
+    @apply shrink-0 justify-self-center;
   }
 
   .unsaved-hint {
@@ -2440,8 +2410,8 @@
   /* The item actions menu (header ellipsis, row right-click) uses rows 30% taller than a plain menu row
      (owner 2026-10-18): the extra height goes into the vertical padding, so two-line rows grow too. */
   .item-actions-menu .menu-option {
-    padding-block: calc(theme('spacing.050') + theme('spacing.300') * 0.15);
-    min-height: calc(theme('spacing.300') * 1.3);
+    min-height: calc(var(--space-300) * 1.3);
+    padding-block: calc(var(--space-050) + var(--space-300) * 0.15);
   }
 
   .menu-option-label {
