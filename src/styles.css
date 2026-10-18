@@ -3054,6 +3054,145 @@
     @apply relative w-full;
   }
 
+  /* Password generator (1Password 8, owner 2026-10-18: "用这个密码生成的弹窗"): a 320pt popover under the key
+     button, a bottom sheet on phones. Cancel · regenerate · Use, the password on one ellipsized line with digits
+     in the link blue and symbols in red (the Large Type convention), a thin strength bar, then label-left /
+     control-right rows on hairlines (toggles.md › Switches, sliders.md, pop-up buttons). */
+  .generator-popover-anchor {
+    @apply z-40;
+  }
+
+  .field-action-sheet-layer > .generator-popover-anchor {
+    @apply relative w-full;
+  }
+
+  .generator-popover {
+    background: var(--color-surface-overlay);
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-overlay);
+    @apply grid gap-150 rounded-xlarge border p-200;
+  }
+
+  .generator-popover.is-sheet {
+    padding-bottom: calc(var(--space-200) + env(safe-area-inset-bottom));
+    box-shadow: var(--shadow-sheet);
+  }
+
+  .generator-popover-header {
+    @apply grid grid-cols-3 items-center;
+  }
+
+  .generator-popover-header > :first-child {
+    @apply justify-self-start;
+  }
+
+  .generator-popover-header > :last-child {
+    @apply justify-self-end;
+  }
+
+  .generator-popover-action {
+    @apply min-h-350 px-150 text-body;
+  }
+
+  .generator-popover-regenerate {
+    color: var(--color-icon-subtle);
+    @apply grid h-350 w-350 place-items-center justify-self-center rounded-medium border-0 bg-transparent p-0;
+  }
+
+  .generator-popover-regenerate:hover {
+    color: var(--color-icon);
+    background: var(--color-background-neutral-subtle-hovered);
+  }
+
+  .generator-popover-value {
+    color: var(--color-text);
+    background: var(--color-background-input);
+    border-color: var(--color-border-input);
+    @apply block overflow-hidden text-ellipsis whitespace-nowrap rounded-large border px-150 py-150 text-title-3;
+  }
+
+  .generator-popover-value .is-digit {
+    color: var(--color-text-brand);
+  }
+
+  .generator-popover-value .is-symbol {
+    color: var(--color-text-danger);
+  }
+
+  .generator-popover-strength {
+    background: var(--color-background-neutral-subtle-pressed);
+    @apply -mt-050 h-025 overflow-hidden rounded-full;
+  }
+
+  .generator-popover-strength-bar {
+    @apply block h-full rounded-full transition-all duration-short ease-out-practical;
+  }
+
+  .generator-popover-strength-bar.is-weak {
+    background: var(--color-background-danger-bold);
+  }
+
+  .generator-popover-strength-bar.is-fair {
+    background: var(--color-background-warning-bold);
+  }
+
+  .generator-popover-strength-bar.is-strong,
+  .generator-popover-strength-bar.is-excellent {
+    background: var(--color-background-success-bold);
+  }
+
+  .generator-popover-strength-bar.fill-quarter {
+    @apply w-1/4;
+  }
+
+  .generator-popover-strength-bar.fill-half {
+    @apply w-1/2;
+  }
+
+  .generator-popover-strength-bar.fill-three-quarters {
+    @apply w-3/4;
+  }
+
+  .generator-popover-strength-bar.fill-full {
+    @apply w-full;
+  }
+
+  .generator-popover-rows {
+    @apply grid;
+  }
+
+  .generator-popover-row {
+    border-color: var(--color-border);
+    @apply flex min-h-500 items-center gap-150 border-t py-075;
+  }
+
+  .generator-popover-row:first-child {
+    @apply border-t-0;
+  }
+
+  .generator-popover-row.is-switch {
+    @apply cursor-pointer justify-between;
+  }
+
+  .generator-popover-label {
+    color: var(--color-text-subtle);
+    @apply mr-auto shrink-0 text-body;
+  }
+
+  .generator-popover-select {
+    @apply h-350 w-auto pr-300;
+  }
+
+  .generator-popover-slider {
+    accent-color: var(--color-accent);
+    @apply h-350 min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 shadow-none;
+  }
+
+  .generator-popover-number {
+    font-variant-numeric: tabular-nums;
+    @apply h-350 w-600 shrink-0 px-050 text-center;
+  }
+
   /* Whole-cell focus (1Password 8, owner 2026-10-17: "1p是input focus是整个field 有一个ring"):
      the focused field's cell turns into a raised white card with a soft accent ring around label, value and
      trailing buttons; the input inside draws nothing of its own (the composite-control exception in
@@ -3251,14 +3390,16 @@
      the accent when on, a white knob that slides. It is still a native checkbox underneath, so the
      keyboard, the label click and the focus ring all keep working. */
   .checkbox-row input[type="checkbox"],
-  .security-check-row input[type="checkbox"] {
+  .security-check-row input[type="checkbox"],
+  .generator-popover-row input[type="checkbox"] {
     background: var(--color-background-neutral-subtle-pressed);
     box-shadow: var(--shadow-track);
     @apply relative m-0 h-250 w-400 cursor-pointer appearance-none rounded-full border-0 p-0 transition-colors duration-short ease-out-practical;
   }
 
   .checkbox-row input[type="checkbox"]::before,
-  .security-check-row input[type="checkbox"]::before {
+  .security-check-row input[type="checkbox"]::before,
+  .generator-popover-row input[type="checkbox"]::before {
     position: absolute;
     top: var(--space-025);
     left: var(--space-025);
@@ -3269,13 +3410,15 @@
   }
 
   .checkbox-row input[type="checkbox"]:checked,
-  .security-check-row input[type="checkbox"]:checked {
+  .security-check-row input[type="checkbox"]:checked,
+  .generator-popover-row input[type="checkbox"]:checked {
     background: var(--color-accent);
     box-shadow: none;
   }
 
   .checkbox-row input[type="checkbox"]:checked::before,
-  .security-check-row input[type="checkbox"]:checked::before {
+  .security-check-row input[type="checkbox"]:checked::before,
+  .generator-popover-row input[type="checkbox"]:checked::before {
     transform: translateX(var(--space-150));
   }
   /* "Sign in with…" (2026-10-17). The sheet reuses the item picker's search field and list; the providers

@@ -1,4 +1,4 @@
-import { AlertTriangle, Clock, Eye, EyeOff, KeyRound } from 'lucide-react'
+import { AlertTriangle, Clock, Eye, EyeOff } from 'lucide-react'
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -34,7 +34,8 @@ import {
 } from './fieldFormats'
 import { type OptionSetName, optionLabelKey, optionSets } from './itemTemplates'
 import { openExternal } from './openExternal'
-import type { PasswordStrength } from './vaultApi'
+import { PasswordGeneratorButton } from './passwordGeneratorPopover'
+import type { PasswordGeneratorOptions, PasswordStrength } from './vaultApi'
 
 /**
  * The two faces of every field, chosen by its type alone: `FieldView` for the read-only item and
@@ -436,7 +437,8 @@ export type FieldEditorProps = {
   measureStrength?: (value: string) => Promise<PasswordStrength | null>
   meta?: FieldMeta
   onChange: (value: string) => void
-  onGenerate?: () => Promise<string>
+  /** Opens the generator popover; only `password` fields pass it. */
+  onGenerate?: (options: PasswordGeneratorOptions) => Promise<string>
   placeholder: string
   value: string
 }
@@ -594,18 +596,17 @@ export function FieldEditor({
           </button>
         ) : null}
         {fieldType === 'password' && onGenerate ? (
-          <button
-            aria-label={t('vault.generateField', { label })}
+          <PasswordGeneratorButton
             className="field-editor-button"
-            onClick={async () => {
-              onChange(await onGenerate())
+            generate={onGenerate}
+            iconSize={15}
+            label={t('vault.generateField', { label })}
+            measure={measureStrength}
+            onUse={(password) => {
+              onChange(password)
               setRevealed(true)
             }}
-            title={t('vault.generateField', { label })}
-            type="button"
-          >
-            <KeyRound size={15} />
-          </button>
+          />
         ) : null}
       </div>
       {strength ? <PasswordStrengthMeter strength={strength} /> : null}

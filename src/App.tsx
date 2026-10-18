@@ -154,6 +154,7 @@ import { getLockScreenVariant, shouldShowTouchIdUnlock } from './app/lockScreen'
 import { getMenuAnchorStyle, type MenuAnchor } from './app/menuPlacement'
 import { type NavigationItem, navigationItems } from './app/navigation'
 import { clipboardImageFile, otpSecretFromQrImage } from './app/otpQrImport'
+import { PasswordGeneratorButton } from './app/passwordGeneratorPopover'
 import { featuresFor, isPrimaryModifier, quickAccessKeys, shortcutLabel } from './app/platformFeatures'
 import { RelationSection } from './app/relationControls'
 import { formatItemTimestamp } from './app/relativeTime'
@@ -2846,8 +2847,7 @@ function VaultWindow() {
     setOperationMessage(t('messages.sharedPassword'))
   }
 
-  async function handleGeneratePassword() {
-    const password = await vaultApi.generatePassword(randomGeneratorOptions)
+  function handleUseGeneratedPassword(password: string) {
     setForm((current) => ({ ...current, password }))
     setShowPassword(true)
   }
@@ -2905,8 +2905,8 @@ function VaultWindow() {
     event.preventDefault()
   }
 
-  async function generateFieldPassword() {
-    return vaultApi.generatePassword(randomGeneratorOptions)
+  async function generateFieldPassword(options: PasswordGeneratorOptions) {
+    return vaultApi.generatePassword(options)
   }
 
   async function measurePassword(value: string) {
@@ -3544,15 +3544,14 @@ function VaultWindow() {
                               >
                                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                               </button>
-                              <button
-                                aria-label={t('vault.generatePassword')}
+                              <PasswordGeneratorButton
                                 className="field-type-button"
-                                onClick={handleGeneratePassword}
-                                title={t('vault.generatePassword')}
-                                type="button"
-                              >
-                                <KeyRound size={18} />
-                              </button>
+                                generate={generateFieldPassword}
+                                iconSize={18}
+                                label={t('vault.generatePassword')}
+                                measure={measurePassword}
+                                onUse={handleUseGeneratedPassword}
+                              />
                             </>
                           }
                         >

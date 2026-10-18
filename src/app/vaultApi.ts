@@ -118,8 +118,8 @@ export type PasswordGeneratorOptions = {
   words: number
 }
 
-// The password field's own key button always makes a strong random one; the generator panel is
-// where the modes live, and a PIN is not what that button should ever insert.
+// The Settings ▸ Generator tab starts here; the field's key button opens the generator popover, whose own
+// defaults live in passwordGenerator.ts.
 export const randomGeneratorOptions: PasswordGeneratorOptions = {
   exclude_ambiguous: true,
   length: 24,

@@ -222,26 +222,30 @@
 /* ToggleSwitch: an outlined 40×20 track with a small dark knob when off, the accent with a white knob when
    on. */
 :root[data-skin="winui"] .checkbox-row input[type="checkbox"],
-:root[data-skin="winui"] .security-check-row input[type="checkbox"] {
+:root[data-skin="winui"] .security-check-row input[type="checkbox"],
+:root[data-skin="winui"] .generator-popover-row input[type="checkbox"] {
   background: transparent;
   box-shadow: var(--shadow-track);
 }
 
 :root[data-skin="winui"] .checkbox-row input[type="checkbox"]::before,
-:root[data-skin="winui"] .security-check-row input[type="checkbox"]::before {
+:root[data-skin="winui"] .security-check-row input[type="checkbox"]::before,
+:root[data-skin="winui"] .generator-popover-row input[type="checkbox"]::before {
   background: var(--color-text-subtle);
   box-shadow: none;
   transform: scale(0.75);
 }
 
 :root[data-skin="winui"] .checkbox-row input[type="checkbox"]:checked,
-:root[data-skin="winui"] .security-check-row input[type="checkbox"]:checked {
+:root[data-skin="winui"] .security-check-row input[type="checkbox"]:checked,
+:root[data-skin="winui"] .generator-popover-row input[type="checkbox"]:checked {
   background: var(--color-accent);
   box-shadow: none;
 }
 
 :root[data-skin="winui"] .checkbox-row input[type="checkbox"]:checked::before,
-:root[data-skin="winui"] .security-check-row input[type="checkbox"]:checked::before {
+:root[data-skin="winui"] .security-check-row input[type="checkbox"]:checked::before,
+:root[data-skin="winui"] .generator-popover-row input[type="checkbox"]:checked::before {
   background: var(--color-text-inverse);
   transform: translateX(var(--space-150)) scale(0.85);
 }
@@ -438,26 +442,30 @@
 
 /* Switch: a 52×32 track, outlined with a small knob when off, primary with a large on-primary knob when on. */
 :root[data-skin="material"] .checkbox-row input[type="checkbox"],
-:root[data-skin="material"] .security-check-row input[type="checkbox"] {
+:root[data-skin="material"] .security-check-row input[type="checkbox"],
+:root[data-skin="material"] .generator-popover-row input[type="checkbox"] {
   background: var(--color-surface-overlay);
   box-shadow: var(--shadow-track);
 }
 
 :root[data-skin="material"] .checkbox-row input[type="checkbox"]::before,
-:root[data-skin="material"] .security-check-row input[type="checkbox"]::before {
+:root[data-skin="material"] .security-check-row input[type="checkbox"]::before,
+:root[data-skin="material"] .generator-popover-row input[type="checkbox"]::before {
   background: var(--color-border-bold);
   box-shadow: none;
   transform: scale(0.65);
 }
 
 :root[data-skin="material"] .checkbox-row input[type="checkbox"]:checked,
-:root[data-skin="material"] .security-check-row input[type="checkbox"]:checked {
+:root[data-skin="material"] .security-check-row input[type="checkbox"]:checked,
+:root[data-skin="material"] .generator-popover-row input[type="checkbox"]:checked {
   background: var(--color-accent);
   box-shadow: none;
 }
 
 :root[data-skin="material"] .checkbox-row input[type="checkbox"]:checked::before,
-:root[data-skin="material"] .security-check-row input[type="checkbox"]:checked::before {
+:root[data-skin="material"] .security-check-row input[type="checkbox"]:checked::before,
+:root[data-skin="material"] .generator-popover-row input[type="checkbox"]:checked::before {
   background: var(--color-text-inverse);
   transform: translateX(var(--space-150)) scale(0.9);
 }
