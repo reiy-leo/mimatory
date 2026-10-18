@@ -946,7 +946,7 @@
 
   .detail-topbar {
     border-color: var(--color-border);
-    @apply mb-150 flex max-w-content flex-wrap items-center justify-between gap-100 border-b pb-150;
+    @apply mb-150 flex max-w-content flex-wrap items-center justify-between gap-100 pb-150;
   }
 
   .brand-vault {
@@ -1907,7 +1907,7 @@
 
   .detail-topbar {
     border-color: var(--color-border);
-    @apply mb-0 max-w-none flex-none border-b px-0 py-100;
+    @apply mb-0 max-w-none flex-none px-0 py-100;
   }
 
   .type-display {
@@ -2435,6 +2435,13 @@
   .menu-option.with-icon svg {
     color: var(--color-text-subtlest);
     @apply justify-self-center;
+  }
+
+  /* The item actions menu (header ellipsis, row right-click) uses rows 30% taller than a plain menu row
+     (owner 2026-10-18): the extra height goes into the vertical padding, so two-line rows grow too. */
+  .item-actions-menu .menu-option {
+    padding-block: calc(theme('spacing.050') + theme('spacing.300') * 0.15);
+    min-height: calc(theme('spacing.300') * 1.3);
   }
 
   .menu-option-label {

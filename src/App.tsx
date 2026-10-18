@@ -3543,7 +3543,6 @@ function VaultWindow() {
               <span>{listTitle}</span>
             </button>
           ) : null}
-          {selectedItem || composing ? <span className="type-display">{t(`itemTypes.${form.item_type}`)}</span> : null}
           <div className="detail-topbar-actions">
             {isEditing && hasUnsavedChanges ? <span className="unsaved-hint">{t('vault.unsavedChanges')}</span> : null}
             {isEditing ? (
@@ -4308,7 +4307,7 @@ function VaultWindow() {
           than flying out beside a panel that already sits at the right edge of the window. */}
       {itemMenu ? (
         <div
-          className="add-more-menu"
+          className="add-more-menu item-actions-menu"
           data-field-menu=""
           ref={itemMenuPanelRef}
           role="menu"
