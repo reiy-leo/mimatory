@@ -6,9 +6,25 @@ import {
   generatorAmount,
   generatorLimits,
   passwordCharKind,
+  passwordGlyphRuns,
   passwordRuns,
   strengthFill,
 } from './passwordGenerator'
+
+describe('revealed password field colouring', () => {
+  it('tells digits, symbols, capitals and lower case apart, in runs', () => {
+    expect(passwordGlyphRuns('aB3$xyZZ9')).toEqual([
+      { kind: 'lower', text: 'a' },
+      { kind: 'upper', text: 'B' },
+      { kind: 'digit', text: '3' },
+      { kind: 'symbol', text: '$' },
+      { kind: 'lower', text: 'xy' },
+      { kind: 'upper', text: 'ZZ' },
+      { kind: 'digit', text: '9' },
+    ])
+    expect(passwordGlyphRuns('É')).toEqual([{ kind: 'upper', text: 'É' }])
+  })
+})
 
 describe('password character colouring', () => {
   it('tells digits, symbols and letters apart', () => {

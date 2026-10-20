@@ -29,6 +29,28 @@ export function passwordRuns(value: string): PasswordRun[] {
   return runs
 }
 
+/** A revealed password field tells all four apart: digits blue, symbols red, capitals purple, the rest plain. */
+export type PasswordGlyphKind = 'digit' | 'lower' | 'symbol' | 'upper'
+
+export type PasswordGlyphRun = { kind: PasswordGlyphKind; text: string }
+
+export function passwordGlyphKind(character: string): PasswordGlyphKind {
+  const kind = passwordCharKind(character)
+  if (kind !== 'letter') return kind
+  return character !== character.toLowerCase() && character === character.toUpperCase() ? 'upper' : 'lower'
+}
+
+export function passwordGlyphRuns(value: string): PasswordGlyphRun[] {
+  const runs: PasswordGlyphRun[] = []
+  for (const character of Array.from(value)) {
+    const kind = passwordGlyphKind(character)
+    const last = runs[runs.length - 1]
+    if (last && last.kind === kind) last.text += character
+    else runs.push({ kind, text: character })
+  }
+  return runs
+}
+
 /** The types the Type pop-up offers, in its order: the modes the backend's generator knows. */
 export const generatorTypes: PasswordGeneratorMode[] = ['random', 'passphrase', 'pin']
 

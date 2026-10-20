@@ -26,6 +26,7 @@ import {
   Ellipsis,
   Eye,
   EyeOff,
+  FileArchive,
   Fingerprint,
   FolderInput,
   Globe,
@@ -33,6 +34,7 @@ import {
   Inbox,
   KeyRound,
   LayoutGrid,
+  Loader2,
   Mail,
   NotebookTabs,
   Paperclip,
@@ -3289,6 +3291,18 @@ function VaultWindow() {
     }
   }, [])
 
+  // While an import runs nothing else may happen: the sheet covers the window, and every key (shortcuts,
+  // Escape, Tab out of the sheet) is swallowed until it finishes.
+  useEffect(() => {
+    if (!isImporting1pux) return
+    const swallow = (event: KeyboardEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+    window.addEventListener('keydown', swallow, true)
+    return () => window.removeEventListener('keydown', swallow, true)
+  }, [isImporting1pux])
+
   async function confirm1puxImport() {
     if (!onePuxPreview) return
     setIsImporting1pux(true)
@@ -4321,7 +4335,8 @@ function VaultWindow() {
                   <Star fill={form.favorite ? 'currentColor' : 'none'} size={16} />
                 </button>
               </div>
-              <div className="detail-view-body">
+              {/* Keyed by item: a field revealed here goes back to hidden when another item opens. */}
+              <div className="detail-view-body" key={selectedId ?? 'none'}>
                 {(showUsername && form.username) || form.password || viewLoginFields.length || viewOtpIndexes.length ? (
                   <div className="field-group">
                     {showUsername && form.username ? (
@@ -5101,53 +5116,75 @@ function VaultWindow() {
         </div>
       ) : null}
       {onePuxPreview ? (
-        <div className="confirm-layer">
+        <div aria-busy={isImporting1pux} className="confirm-layer import-layer">
           <button
             aria-label={t('vault.cancelEditing')}
             className="confirm-backdrop"
             disabled={isImporting1pux}
             onClick={() => setOnePuxPreview(null)}
+            tabIndex={-1}
             type="button"
           />
-          <div aria-labelledby="import-1pux-title" aria-modal="true" className="confirm-dialog" role="dialog">
+          <div
+            aria-labelledby="import-1pux-title"
+            aria-modal="true"
+            className={isImporting1pux ? 'confirm-dialog import-dialog is-busy' : 'confirm-dialog import-dialog'}
+            role="dialog"
+          >
             <h2 id="import-1pux-title">{t('vault.import1pux.heading')}</h2>
-            <p>
-              {t('vault.import1pux.summary', {
-                attachments: onePuxPreview.attachment_count,
-                count: onePuxPreview.item_count,
-                file: onePuxPreview.path.split(/[\\/]/).pop(),
-              })}
+            <p className="import-source" title={onePuxPreview.path}>
+              <FileArchive aria-hidden="true" size={14} />
+              <span>{onePuxPreview.path.split(/[\\/]/).pop()}</span>
             </p>
+            <dl className="import-stats">
+              <div>
+                <dt>{t('vault.import1pux.statItems')}</dt>
+                <dd>{onePuxPreview.item_count.toLocaleString(i18n.language)}</dd>
+              </div>
+              <div>
+                <dt>{t('vault.import1pux.statVaults')}</dt>
+                <dd>{onePuxPreview.vaults.length.toLocaleString(i18n.language)}</dd>
+              </div>
+              <div>
+                <dt>{t('vault.import1pux.statAttachments')}</dt>
+                <dd>{onePuxPreview.attachment_count.toLocaleString(i18n.language)}</dd>
+              </div>
+            </dl>
+            <h3 className="import-section-title">{t('vault.import1pux.vaultsHeading')}</h3>
             <ul className="import-vault-list">
               {onePuxPreview.vaults.map((vault) => (
                 <li key={vault.name}>
                   <span className="import-vault-name">{vault.name}</span>
-                  <span className="import-vault-meta">
-                    {t('vault.import1pux.items', { count: vault.item_count })} ·{' '}
-                    {t(vault.exists ? 'vault.import1pux.intoExisting' : 'vault.import1pux.intoNew')}
+                  <span className="import-vault-count">
+                    {t('vault.import1pux.items', { count: vault.item_count.toLocaleString(i18n.language) })}
+                  </span>
+                  <span className={vault.exists ? 'import-vault-badge' : 'import-vault-badge is-new'}>
+                    {t(vault.exists ? 'vault.import1pux.badgeExisting' : 'vault.import1pux.badgeNew')}
                   </span>
                 </li>
               ))}
             </ul>
             <p className="import-vault-note">{t('vault.import1pux.note')}</p>
-            <div className="confirm-actions">
-              <button
-                className="secondary-button"
-                disabled={isImporting1pux}
-                onClick={() => setOnePuxPreview(null)}
-                type="button"
-              >
-                {t('vault.cancelEditing')}
-              </button>
-              <button
-                className="primary-button"
-                disabled={isImporting1pux || !onePuxPreview.item_count}
-                onClick={() => void confirm1puxImport()}
-                type="button"
-              >
-                {isImporting1pux ? t('vault.import1pux.importing') : t('vault.import1pux.confirm')}
-              </button>
-            </div>
+            {isImporting1pux ? (
+              <div className="import-progress" role="status">
+                <Loader2 aria-hidden="true" className="import-spinner" size={18} />
+                <span>{t('vault.import1pux.importingDetail', { count: onePuxPreview.item_count })}</span>
+              </div>
+            ) : (
+              <div className="confirm-actions">
+                <button className="secondary-button" onClick={() => setOnePuxPreview(null)} type="button">
+                  {t('vault.cancelEditing')}
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={!onePuxPreview.item_count}
+                  onClick={() => void confirm1puxImport()}
+                  type="button"
+                >
+                  {t('vault.import1pux.confirm')}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       ) : null}

@@ -581,12 +581,21 @@ fn preview_1pux_import() -> Result<Option<import_1pux::ImportPreview>, String> {
     Err("importing is not available on this platform yet".to_string())
 }
 
+/// Async and off the main thread: a large export (attachments especially) takes seconds, and a synchronous
+/// command would freeze the window — the import sheet's progress state could not even paint.
 #[tauri::command]
-fn import_1pux_file(path: String, state: State<AppState>) -> Result<import_1pux::ImportSummary, String> {
+async fn import_1pux_file(
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<import_1pux::ImportSummary, String> {
     let session = current_session(&state)?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
-    let mut service = VaultService::new(connection);
-    import_1pux::import(std::path::Path::new(&path), &mut service, &session).map_err(String::from)
+    tauri::async_runtime::spawn_blocking(move || {
+        let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+        let mut service = VaultService::new(connection);
+        import_1pux::import(std::path::Path::new(&path), &mut service, &session).map_err(String::from)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 /// rfd has no iOS/Android backend; the frontend hides the attach button there (src/app/platformFeatures.ts).

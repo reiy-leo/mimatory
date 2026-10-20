@@ -34,6 +34,7 @@ import {
 } from './fieldFormats'
 import { type OptionSetName, optionLabelKey, optionSets } from './itemTemplates'
 import { openExternal } from './openExternal'
+import { passwordGlyphRuns } from './passwordGenerator'
 import { PasswordGeneratorButton } from './passwordGeneratorPopover'
 import type { PasswordGeneratorOptions, PasswordStrength } from './vaultApi'
 
@@ -165,15 +166,27 @@ export function FieldView({
   else if (isCard) {
     content = revealed ? formatCardNumber(value) : maskCardNumber(value)
     caption = showBrand ? cardBrandLabel(t, value) : null
-  } else if (concealed) content = revealed ? value : maskedText
-  else if (fieldType === 'date') content = formatDate(value, locale)
+  } else if (concealed) {
+    content =
+      revealed && fieldType === 'password'
+        ? passwordGlyphRuns(value).map((run, index) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: runs are positional and rebuilt from the value
+            <span className={`password-glyph is-${run.kind}`} key={index}>
+              {run.text}
+            </span>
+          ))
+        : revealed
+          ? value
+          : maskedText
+  } else if (fieldType === 'date') content = formatDate(value, locale)
   else if (fieldType === 'month_year') content = formatMonthYear(value, locale)
   else if (fieldType === 'select') content = optionLabel(t, meta?.options, value)
   else if (fieldType === 'url') content = urlHostname(value) ?? value
   else if (meta?.validation === 'iban') content = formatIban(value)
 
   const valueClasses = ['field-row-value']
-  if (meta?.monospace || isCard || fieldType === 'concealed_multiline') valueClasses.push('is-mono')
+  if (meta?.monospace || isCard || fieldType === 'concealed_multiline' || fieldType === 'password')
+    valueClasses.push('is-mono')
   if (isMultilineType(fieldType) && (!concealed || revealed)) valueClasses.push('is-multiline')
   if (secret && !revealed) valueClasses.push('is-masked')
 

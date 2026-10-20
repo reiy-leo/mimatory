@@ -3804,23 +3804,132 @@
 }
 
 @layer components {
-  /* File ▸ Import ▸ 1Password: one row per 1Password vault and where its items go. */
+  /* A revealed password: monospaced, digits blue and symbols red (as in Large Type and the generator),
+     capitals purple, lower case in the label colour. */
+  .password-glyph.is-digit {
+    color: var(--color-text-brand);
+  }
+
+  .password-glyph.is-symbol {
+    color: var(--color-text-danger);
+  }
+
+  .password-glyph.is-upper {
+    color: var(--color-link-visited);
+  }
+
+  .password-glyph.is-lower {
+    color: var(--color-text);
+  }
+
+  /* File ▸ Import ▸ 1Password sheet. */
+  .import-dialog {
+    @apply grid gap-200;
+  }
+
+  .confirm-dialog.import-dialog p {
+    @apply m-0;
+  }
+
+  .confirm-dialog p.import-source {
+    color: var(--color-text-subtle);
+    @apply -mt-100 flex min-w-0 items-center gap-075 text-callout;
+  }
+
+  .import-source span {
+    @apply truncate;
+  }
+
+  .import-stats {
+    @apply m-0 grid grid-cols-3 gap-100;
+  }
+
+  .import-stats > div {
+    background: var(--color-field-segment);
+    @apply grid gap-025 rounded-large px-150 py-150;
+  }
+
+  .import-stats dt {
+    color: var(--color-text-subtle);
+    @apply text-caption;
+  }
+
+  .import-stats dd {
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+    @apply m-0 text-title-2 font-semibold;
+  }
+
+  .import-section-title {
+    color: var(--color-text-subtle);
+    @apply m-0 -mb-100 text-caption font-semibold;
+  }
+
   .import-vault-list {
-    @apply m-0 grid list-none gap-050 p-0;
+    border-color: var(--color-border);
+    max-height: 40vh;
+    @apply m-0 list-none overflow-y-auto rounded-large border p-0;
   }
 
   .import-vault-list > li {
-    @apply flex items-baseline justify-between gap-200;
+    @apply flex items-center gap-150 px-150 py-100;
+  }
+
+  .import-vault-list > li + li {
+    border-top: 1px solid var(--color-border);
   }
 
   .import-vault-name {
     color: var(--color-text);
-    @apply truncate text-body font-semibold;
+    @apply min-w-0 flex-1 truncate text-body;
   }
 
-  .import-vault-meta,
-  .import-vault-note {
+  .import-vault-count {
     color: var(--color-text-subtle);
+    font-variant-numeric: tabular-nums;
     @apply shrink-0 text-callout;
+  }
+
+  .import-vault-badge {
+    color: var(--color-text-subtle);
+    background: var(--color-field-segment);
+    @apply shrink-0 rounded-full px-100 py-025 text-caption;
+  }
+
+  .import-vault-badge.is-new {
+    color: var(--color-text-brand);
+    background: var(--color-background-selected);
+  }
+
+  .confirm-dialog p.import-vault-note {
+    color: var(--color-text-subtlest);
+    @apply text-caption;
+  }
+
+  .import-progress {
+    color: var(--color-text-subtle);
+    @apply flex min-h-400 items-center justify-center gap-100 text-callout;
+  }
+
+  .import-spinner {
+    animation: import-spin 0.9s linear infinite;
+    color: var(--color-icon-brand);
+  }
+
+  .import-dialog.is-busy .import-stats,
+  .import-dialog.is-busy .import-vault-list {
+    @apply opacity-60;
+  }
+}
+
+@keyframes import-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .import-spinner {
+    animation-duration: 2.4s;
   }
 }
