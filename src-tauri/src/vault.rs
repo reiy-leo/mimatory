@@ -1721,7 +1721,8 @@ impl VaultService {
                     url: origin.to_string(),
                     match_type: default_match_type(),
                 }],
-                notes: PASSKEY_NOTE.to_string(),
+                // The legacy note says the key stays with the platform authenticator — untrue once Passless holds it.
+                notes: if credential.is_some() { String::new() } else { PASSKEY_NOTE.to_string() },
                 tags: vec!["passkey".to_string()],
                 custom_fields: with_passkey_credential(vec![passkey_field(rp_id, user_name)], credential),
                 favorite: false,

@@ -3775,3 +3775,30 @@
   color: var(--color-text-subtle);
   background: var(--color-background-neutral-subtle-pressed);
 }
+
+@layer components {
+  /* 1Password's passkey row: purple label and mark, the tint fading in from the right edge. Never a text field. */
+  .field-row.passkey-row,
+  .field-row.passkey-row.is-edit {
+    background-image: linear-gradient(
+      to right,
+      transparent 40%,
+      color-mix(in srgb, var(--color-icon-accent-purple) 6%, transparent) 75%,
+      color-mix(in srgb, var(--color-icon-accent-purple) 12%, transparent)
+    );
+  }
+
+  .passkey-row-label {
+    color: var(--color-text-accent-purple);
+  }
+
+  .passkey-row-caption {
+    color: var(--color-text-subtle);
+    @apply truncate text-title-3;
+  }
+
+  .passkey-row-glyph {
+    color: var(--color-icon-accent-purple);
+    @apply shrink-0;
+  }
+}

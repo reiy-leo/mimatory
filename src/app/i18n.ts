@@ -633,6 +633,7 @@ const resources = {
         copySetupLink: 'Copy Setup Link',
         createItem: 'Create Item',
         createVault: 'Create Vault',
+        passkeyCreated: 'created {{date}}',
         customFieldDefaults: {
           address: 'Address',
           card_number: 'Card number',
@@ -1459,6 +1460,7 @@ const resources = {
         copySetupLink: '設定リンクをコピー',
         createItem: '項目を作成',
         createVault: '保管庫を作成',
+        passkeyCreated: '{{date}} に作成',
         customFieldDefaults: {
           address: '住所',
           card_number: 'カード番号',
@@ -2278,6 +2280,7 @@ const resources = {
         copySetupLink: '复制设置链接',
         createItem: '创建条目',
         createVault: '创建保险库',
+        passkeyCreated: '创建于 {{date}}',
         customFieldDefaults: {
           address: '地址',
           card_number: '卡号',

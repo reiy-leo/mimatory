@@ -2,6 +2,7 @@ import { emit, listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import {
+  CircleMinus,
   AlertCircle,
   Archive,
   ArchiveRestore,
@@ -196,6 +197,7 @@ import {
   saveHighlightKeys,
   toggleHighlightKeys,
 } from './app/sidebarHighlights'
+import { PasskeyRow, passkeyCreatedAt } from './app/passkeyRow'
 import { SignInPicker, SignInRow, useSignInLabel } from './app/signInControls'
 import { itemSignInProvider, parseSignInProvider, withSignInField } from './app/signInProviders'
 import {
@@ -1302,7 +1304,9 @@ function VaultWindow() {
     [customFieldEntries, showCredentials],
   )
   // The read-only view shows what is filled in and nothing else.
-  const viewLoginFields = loginSectionFields.filter(({ field }) => field.field_type !== 'otp' && field.value.trim())
+  const viewLoginFields = loginSectionFields.filter(
+    ({ field }) => field.field_type !== 'otp' && (field.field_type === 'passkey' || field.value.trim()),
+  )
   const viewWebsites = form.urlsInput.filter((itemUrl) => itemUrl.url.trim())
   const viewSections = detailCustomFields.flatMap(({ field, index }) => {
     if (field.field_type !== 'section') return []
@@ -2780,6 +2784,29 @@ function VaultWindow() {
       reorder: container === 'login' ? undefined : reorderFor(container, position, field.field_type),
     }
 
+    if (field.field_type === 'passkey') {
+      // Made by the extension, never typed: neither the label nor the value is editable, only removable.
+      return (
+        <div className="field-slot" key={key}>
+          <PasskeyRow
+            actions={
+              <button
+                aria-label={t('vault.removeField')}
+                className="field-remove-button"
+                onClick={() => removeCustomField(index)}
+                title={t('vault.removeField')}
+                type="button"
+              >
+                <CircleMinus aria-hidden="true" size={18} />
+              </button>
+            }
+            createdAt={passkeyCreatedAt(field, form.custom_fields, selectedItem?.created_at)}
+            editing
+            field={field}
+          />
+        </div>
+      )
+    }
     if (field.field_type === 'sign_in_with') {
       return (
         <EditFieldRow
@@ -4250,7 +4277,13 @@ function VaultWindow() {
                       />
                     ) : null}
                     {viewLoginFields.map(({ field, index }) =>
-                      field.field_type === 'sign_in_with' ? (
+                      field.field_type === 'passkey' ? (
+                        <PasskeyRow
+                          createdAt={passkeyCreatedAt(field, form.custom_fields, selectedItem?.created_at)}
+                          field={field}
+                          key={`login-view-${index}`}
+                        />
+                      ) : field.field_type === 'sign_in_with' ? (
                         <SignInRow
                           account={viewRelations?.sign_in_with ?? null}
                           accountDetail={items.find((item) => item.id === viewRelations?.sign_in_with?.id)?.username}
