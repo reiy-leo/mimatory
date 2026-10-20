@@ -1589,6 +1589,21 @@ impl VaultService {
             .filter(|name| !name.trim().is_empty())
             .unwrap_or("attachment")
             .to_string();
+        self.add_attachment_bytes(session, item_id, &file_name, &bytes)
+    }
+
+    /// The same attachment row from bytes already in memory (an import reads them out of an archive).
+    pub fn add_attachment_bytes(
+        &mut self,
+        session: &Session,
+        item_id: &str,
+        file_name: &str,
+        bytes: &[u8],
+    ) -> Result<CustomField, VaultError> {
+        if self.get_login_item(session, item_id)?.is_none() {
+            return Err(VaultError::VaultNotFound);
+        }
+        let file_name = if file_name.trim().is_empty() { "attachment" } else { file_name }.to_string();
         let id = Uuid::new_v4().to_string();
         let encoded = BASE64.encode(&bytes);
         self.connection.execute(
@@ -1609,6 +1624,35 @@ impl VaultService {
             value: format!("attachment://{id}"),
             field_type: "file".to_string(),
         })
+    }
+
+    /// After an import created an item (and its attachments): the final fields, the source's timestamps, and
+    /// its archived state.
+    pub fn finish_imported_item(
+        &mut self,
+        session: &Session,
+        item_id: &str,
+        input: &LoginItemInput,
+        created_at: Option<String>,
+        updated_at: Option<String>,
+        archived: bool,
+    ) -> Result<(), VaultError> {
+        self.replace_login_fields(
+            session,
+            item_id,
+            &input.username,
+            &input.password,
+            &input.notes,
+            &input.custom_fields,
+        )?;
+        let now = Utc::now().to_rfc3339();
+        let created = created_at.unwrap_or_else(|| now.clone());
+        let updated = updated_at.unwrap_or_else(|| created.clone());
+        self.connection.execute(
+            "UPDATE items SET created_at = ?1, updated_at = ?2, archived = ?3 WHERE id = ?4 AND vault_id = ?5",
+            params![created, updated, bool_to_i64(archived), item_id, session.vault_id],
+        )?;
+        Ok(())
     }
 
     pub fn export_attachment(

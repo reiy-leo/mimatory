@@ -46,12 +46,73 @@ pub fn plugins(builder: Builder<Wry>) -> Builder<Wry> {
 
 pub fn setup(app: &mut App) -> Result<(), Box<dyn Error>> {
     build_tray(app.handle())?;
+    #[cfg(target_os = "macos")]
+    build_app_menu(app.handle())?;
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     register_shortcuts(app.handle())?;
     // First launch straight from the keybinding: open the panel as well as the app.
     if std::env::args().any(|arg| arg == QUICK_ACCESS_ARG) {
         toggle_quick_access(app.handle(), Position::TopCenter);
     }
+    Ok(())
+}
+
+/// The event the main window listens for to start File ▸ Import ▸ 1Password.
+pub const IMPORT_1PUX_EVENT: &str = "menu:import-1pux";
+const IMPORT_1PUX_MENU_ID: &str = "import-1pux";
+
+/// The macOS menu bar: Tauri's default menu (app, File, Edit, View, Window) plus File ▸ Import ▸ 1Password.
+/// Windows and Linux keep no menu bar — the WinUI/Material skins have none — so it is built for macOS only.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn build_app_menu(app: &AppHandle<Wry>) -> tauri::Result<()> {
+    use tauri::menu::{AboutMetadata, MenuBuilder, SubmenuBuilder};
+
+    let import = SubmenuBuilder::new(app, "Import")
+        .text(IMPORT_1PUX_MENU_ID, "1Password (.1pux)…")
+        .build()?;
+    let app_menu = SubmenuBuilder::new(app, "Passless")
+        .about(Some(AboutMetadata::default()))
+        .separator()
+        .services()
+        .separator()
+        .hide()
+        .hide_others()
+        .show_all()
+        .separator()
+        .quit()
+        .build()?;
+    let file = SubmenuBuilder::new(app, "File")
+        .item(&import)
+        .separator()
+        .close_window()
+        .build()?;
+    // Without an Edit menu the webview loses ⌘C / ⌘V / ⌘A on macOS.
+    let edit = SubmenuBuilder::new(app, "Edit")
+        .undo()
+        .redo()
+        .separator()
+        .cut()
+        .copy()
+        .paste()
+        .select_all()
+        .build()?;
+    let view = SubmenuBuilder::new(app, "View").fullscreen().build()?;
+    let window = SubmenuBuilder::new(app, "Window")
+        .minimize()
+        .maximize()
+        .separator()
+        .close_window()
+        .build()?;
+    let menu = MenuBuilder::new(app)
+        .items(&[&app_menu, &file, &edit, &view, &window])
+        .build()?;
+    app.set_menu(menu)?;
+    app.on_menu_event(|app, event| {
+        if event.id().as_ref() == IMPORT_1PUX_MENU_ID {
+            focus_main_window(app);
+            let _ = app.emit_to("main", IMPORT_1PUX_EVENT, ());
+        }
+    });
     Ok(())
 }
 

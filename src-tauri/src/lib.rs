@@ -3,6 +3,7 @@ mod breach_check;
 mod browser_bridge;
 mod crypto;
 mod favicon;
+mod import_1pux;
 mod passkey;
 #[cfg(desktop)]
 mod shell;
@@ -556,6 +557,38 @@ fn pick_attachment_file() -> Result<Option<String>, String> {
         .map(|path| path.to_string_lossy().to_string()))
 }
 
+/// File ▸ Import ▸ 1Password: pick a `.1pux` and read what it holds, writing nothing. None when the picker
+/// was cancelled.
+#[cfg(desktop)]
+#[tauri::command]
+fn preview_1pux_import(state: State<AppState>) -> Result<Option<import_1pux::ImportPreview>, String> {
+    let session = current_session(&state)?;
+    let Some(path) = rfd::FileDialog::new()
+        .set_title("Import from 1Password")
+        .add_filter("1Password export", &["1pux"])
+        .pick_file()
+    else {
+        return Ok(None);
+    };
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let service = VaultService::new(connection);
+    import_1pux::preview(&path, &service, &session).map(Some).map_err(String::from)
+}
+
+#[cfg(mobile)]
+#[tauri::command]
+fn preview_1pux_import() -> Result<Option<import_1pux::ImportPreview>, String> {
+    Err("importing is not available on this platform yet".to_string())
+}
+
+#[tauri::command]
+fn import_1pux_file(path: String, state: State<AppState>) -> Result<import_1pux::ImportSummary, String> {
+    let session = current_session(&state)?;
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    import_1pux::import(std::path::Path::new(&path), &mut service, &session).map_err(String::from)
+}
+
 /// rfd has no iOS/Android backend; the frontend hides the attach button there (src/app/platformFeatures.ts).
 #[cfg(mobile)]
 #[tauri::command]
@@ -778,6 +811,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             initialize_database,
+            preview_1pux_import,
+            import_1pux_file,
             setup_master_password,
             unlock_vault,
             lock_vault,

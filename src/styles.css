@@ -3802,3 +3802,25 @@
     @apply shrink-0;
   }
 }
+
+@layer components {
+  /* File ▸ Import ▸ 1Password: one row per 1Password vault and where its items go. */
+  .import-vault-list {
+    @apply m-0 grid list-none gap-050 p-0;
+  }
+
+  .import-vault-list > li {
+    @apply flex items-baseline justify-between gap-200;
+  }
+
+  .import-vault-name {
+    color: var(--color-text);
+    @apply truncate text-body font-semibold;
+  }
+
+  .import-vault-meta,
+  .import-vault-note {
+    color: var(--color-text-subtle);
+    @apply shrink-0 text-callout;
+  }
+}

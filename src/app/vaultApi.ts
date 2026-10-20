@@ -7,6 +7,20 @@ export type AppStatus = {
   unlocked: boolean
 }
 
+export type OnePuxPreview = {
+  path: string
+  vaults: Array<{ name: string; item_count: number; exists: boolean }>
+  item_count: number
+  attachment_count: number
+}
+
+export type OnePuxSummary = {
+  item_count: number
+  vaults_created: number
+  attachment_count: number
+  archived_count: number
+}
+
 export type LoginItem = {
   id: string
   item_type: string
@@ -243,6 +257,7 @@ export const vaultApi = {
   generatePassword: (options: PasswordGeneratorOptions) => invoke<string>('generate_password_command', { options }),
   generateTotp: (secret: string) => invoke<TotpCode>('generate_totp_code', { secret }),
   hideQuickAccess: () => invoke<void>('hide_quick_access'),
+  import1pux: (path: string) => invoke<OnePuxSummary>('import_1pux_file', { path }),
   initialize: () => invoke<AppStatus>('initialize_database'),
   isAutostartEnabled: () => invoke<boolean>('is_autostart_enabled'),
   // Peer links are stored on both items, so either end unlinks both.
@@ -254,6 +269,8 @@ export const vaultApi = {
   move: (id: string, vaultId: string) => invoke<void>('move_login_item', { id, vaultId }),
   passwordStrength: (password: string) => invoke<PasswordStrength>('password_strength', { password }),
   pickAttachmentFile: () => invoke<string | null>('pick_attachment_file'),
+  // File ▸ Import ▸ 1Password: the picker and a read-only look at the file (null when cancelled), then the import.
+  preview1pux: () => invoke<OnePuxPreview | null>('preview_1pux_import'),
   purge: (id: string) => invoke<void>('purge_login_item', { id }),
   // Decrypted in memory only, unlike exportAttachmentToTemp, which writes a file.
   readAttachmentText: (id: string) => invoke<AttachmentText>('read_attachment_text', { id }),

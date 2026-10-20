@@ -2,7 +2,6 @@ import { emit, listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import {
-  CircleMinus,
   AlertCircle,
   Archive,
   ArchiveRestore,
@@ -17,6 +16,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CircleMinus,
   Cog,
   Coins,
   Copy,
@@ -173,6 +173,7 @@ import { getLockScreenVariant, shouldShowTouchIdUnlock } from './app/lockScreen'
 import { getMenuAnchorStyle, type MenuAnchor } from './app/menuPlacement'
 import { type NavigationItem, navigationItems } from './app/navigation'
 import { clipboardImageFile, otpSecretFromQrImage } from './app/otpQrImport'
+import { PasskeyRow, passkeyCreatedAt } from './app/passkeyRow'
 import { PasswordGeneratorButton } from './app/passwordGeneratorPopover'
 import { featuresFor, isPrimaryModifier, quickAccessKeys, shortcutLabel } from './app/platformFeatures'
 import { RelationSection } from './app/relationControls'
@@ -197,7 +198,6 @@ import {
   saveHighlightKeys,
   toggleHighlightKeys,
 } from './app/sidebarHighlights'
-import { PasskeyRow, passkeyCreatedAt } from './app/passkeyRow'
 import { SignInPicker, SignInRow, useSignInLabel } from './app/signInControls'
 import { itemSignInProvider, parseSignInProvider, withSignInField } from './app/signInProviders'
 import {
@@ -238,6 +238,7 @@ import {
   type ItemUrl,
   type LoginItem,
   type LoginItemInput,
+  type OnePuxPreview,
   type PasswordGeneratorOptions,
   parseCustomFields,
   parseTags,
@@ -674,7 +675,11 @@ const settingsTabLabels: Record<SettingsTab, string> = {
  * What the toolbar search can find in Settings (owner 2026-10-18: the search covers settings too, not just item
  * titles): each pane's section headings, plus the pane itself. Picking one opens Settings on that pane.
  */
-const settingsSearchEntries: Array<{ key: string; requires?: 'autostart' | 'browserExtension' | 'keyboardShortcuts'; tab: SettingsTab }> = [
+const settingsSearchEntries: Array<{
+  key: string
+  requires?: 'autostart' | 'browserExtension' | 'keyboardShortcuts'
+  tab: SettingsTab
+}> = [
   { key: 'settings.language', tab: 'general' },
   { key: 'settings.siteIcons', tab: 'general' },
   { key: 'settings.autostart', requires: 'autostart', tab: 'general' },
@@ -866,6 +871,8 @@ function VaultWindow() {
   const [showPassword, setShowPassword] = useState(false)
   const [saving, setSaving] = useState(false)
   const [operationMessage, setOperationMessage] = useState<string | null>(null)
+  const [onePuxPreview, setOnePuxPreview] = useState<OnePuxPreview | null>(null)
+  const [isImporting1pux, setIsImporting1pux] = useState(false)
   const [archivedItems, setArchivedItems] = useState<LoginItem[]>([])
   const [trashedItems, setTrashedItems] = useState<LoginItem[]>([])
   // The item whose permanent delete is being confirmed. There is no native confirm in this webview,
@@ -1998,11 +2005,21 @@ function VaultWindow() {
   }
 
   function beginItemListResize(event: ReactMouseEvent<HTMLButtonElement>) {
-    beginColumnResize(event, { key: 'itemList', limits: itemListWidthLimits, onWidth: setItemListWidth, startWidth: itemListWidth })
+    beginColumnResize(event, {
+      key: 'itemList',
+      limits: itemListWidthLimits,
+      onWidth: setItemListWidth,
+      startWidth: itemListWidth,
+    })
   }
 
   function beginSidebarResize(event: ReactMouseEvent<HTMLButtonElement>) {
-    beginColumnResize(event, { key: 'sidebar', limits: sidebarWidthLimits, onWidth: setSidebarWidth, startWidth: sidebarWidth })
+    beginColumnResize(event, {
+      key: 'sidebar',
+      limits: sidebarWidthLimits,
+      onWidth: setSidebarWidth,
+      startWidth: sidebarWidth,
+    })
   }
 
   function updateUrl(index: number, patch: Partial<ItemUrl>) {
@@ -3244,6 +3261,49 @@ function VaultWindow() {
       unlisten?.()
     }
   }, [])
+
+  // File ▸ Import ▸ 1Password (.1pux)… in the macOS menu bar: pick the file, show what it holds, then import.
+  const start1puxImportRef = useRef<() => Promise<void>>(async () => {})
+  start1puxImportRef.current = async () => {
+    if (isImporting1pux) return
+    try {
+      setError(null)
+      const preview = await vaultApi.preview1pux()
+      if (preview) setOnePuxPreview(preview)
+    } catch (nextError) {
+      setError(String(nextError))
+    }
+  }
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    let unsubscribed = false
+    listen('menu:import-1pux', () => {
+      start1puxImportRef.current().catch(() => {})
+    }).then((nextUnlisten) => {
+      if (unsubscribed) nextUnlisten()
+      else unlisten = nextUnlisten
+    })
+    return () => {
+      unsubscribed = true
+      unlisten?.()
+    }
+  }, [])
+
+  async function confirm1puxImport() {
+    if (!onePuxPreview) return
+    setIsImporting1pux(true)
+    try {
+      const summary = await vaultApi.import1pux(onePuxPreview.path)
+      setOnePuxPreview(null)
+      await loadVaults()
+      await refreshItems()
+      setOperationMessage(t('messages.imported1pux', { count: summary.item_count }))
+    } catch (nextError) {
+      setError(String(nextError))
+    } finally {
+      setIsImporting1pux(false)
+    }
+  }
 
   async function loadArchivedItems() {
     setArchivedItems(await vaultApi.archived())
@@ -5035,6 +5095,57 @@ function VaultWindow() {
               </button>
               <button className="danger-button" onClick={purgeTrashedItem} type="button">
                 {t('vault.purge')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {onePuxPreview ? (
+        <div className="confirm-layer">
+          <button
+            aria-label={t('vault.cancelEditing')}
+            className="confirm-backdrop"
+            disabled={isImporting1pux}
+            onClick={() => setOnePuxPreview(null)}
+            type="button"
+          />
+          <div aria-labelledby="import-1pux-title" aria-modal="true" className="confirm-dialog" role="dialog">
+            <h2 id="import-1pux-title">{t('vault.import1pux.heading')}</h2>
+            <p>
+              {t('vault.import1pux.summary', {
+                attachments: onePuxPreview.attachment_count,
+                count: onePuxPreview.item_count,
+                file: onePuxPreview.path.split(/[\\/]/).pop(),
+              })}
+            </p>
+            <ul className="import-vault-list">
+              {onePuxPreview.vaults.map((vault) => (
+                <li key={vault.name}>
+                  <span className="import-vault-name">{vault.name}</span>
+                  <span className="import-vault-meta">
+                    {t('vault.import1pux.items', { count: vault.item_count })} ·{' '}
+                    {t(vault.exists ? 'vault.import1pux.intoExisting' : 'vault.import1pux.intoNew')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="import-vault-note">{t('vault.import1pux.note')}</p>
+            <div className="confirm-actions">
+              <button
+                className="secondary-button"
+                disabled={isImporting1pux}
+                onClick={() => setOnePuxPreview(null)}
+                type="button"
+              >
+                {t('vault.cancelEditing')}
+              </button>
+              <button
+                className="primary-button"
+                disabled={isImporting1pux || !onePuxPreview.item_count}
+                onClick={() => void confirm1puxImport()}
+                type="button"
+              >
+                {isImporting1pux ? t('vault.import1pux.importing') : t('vault.import1pux.confirm')}
               </button>
             </div>
           </div>

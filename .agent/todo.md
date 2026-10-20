@@ -239,10 +239,13 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 - **No sync of any kind.** The 2026-10-08 ruling dropped the iCloud Drive / Google Drive transport in favour of
   GitHub sync plus local snapshots; the owner deleted that too on 2026-10-09. The vault is local-only.
-- **No import.** The 1Password importer (`import_1pux.rs`) went on 2026-10-08 and the encrypted Passless backup
-  reader (`json_transfer.rs`) on 2026-10-09, along with both settings tabs. The open question about `.1pux`
-  collections flattening to a list died with the feature.
+- ~~No import.~~ Reversed by the owner 2026-10-21: File ▸ Import ▸ 1Password (.1pux)… is back (macOS menu bar,
+  `src-tauri/src/import_1pux.rs`). The Passless backup reader stays deleted.
 
 ## Passkeys — Passless as the authenticator (2026-10-18)
 - Done: extension takes over navigator.credentials.create/get (passkey-provider.js, MAIN world); keys are ES256, "none" attestation, private key PKCS#8 in an encrypted `passkey_credential` field, signing in Rust (passkey.rs); conditional mediation shows passkeys in the inline field menu; "Use Another Device" falls back to the browser's own WebAuthn. Bridge calls now go through background.js (CORS / Private Network Access).
 - needs-owner-decision: AAGUID is all-zero (RPs show a generic name); sign counter fixed at 0; UV flag claimed because the vault is unlocked (no extra Touch ID per sign-in); passkeys are not exportable yet; no macOS system-wide credential provider (needs Swift extension + Apple signing).
+
+## 1Password import (.1pux) — 2026-10-21
+- Done: macOS menu bar File ▸ Import ▸ 1Password (.1pux)… (shell.rs builds Tauri's default menu + Import; event `menu:import-1pux`), picker → read-only preview sheet (vaults, item/attachment counts) → import. Each 1Password vault goes to the non-archived Passless vault of the same name, else a new one. Category → Passless type (unknown → Secure Note); template fields stored with template `key`; other fields as custom fields / titled sections; OTP → otp rows (otpauth secret only); attachments + Document files imported; archived stays archived; trash skipped; created/updated times kept.
+- needs-owner-decision: Windows/Linux have no menu bar, so no entry point there yet; re-importing duplicates items (no dedupe); password history, `reference` (linked item) fields and extra login form fields are dropped; otpauth digits/period/algorithm are dropped; 1P field-id → template-key table is from the published 1pux schema, unverified against a real export.
