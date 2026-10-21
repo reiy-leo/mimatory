@@ -662,7 +662,7 @@ Wayland; X11 is not supported.
 
 ## The brand icon
 
-One artwork in three places, plus one separate glyph. The glossy orange squircle is the app icon anywhere the OS
+One artwork in three places, plus one separate glyph. The blue-haired dough mascot on a pale blue squircle (from Rei, 2026-10-21) is the app icon anywhere the OS
 or the UI can carry colour: the lock screen and the sidebar's brand block (`src/assets/app-icon.png`, a 256px
 RGBA import used as `<img alt="">` inside `.brand-mark.is-artwork`, so it stays decorative and needs no locale
 key), and Dock/Finder/Taskbar (`src-tauri/icons/app-icon-source.png` → `npx tauri icon
