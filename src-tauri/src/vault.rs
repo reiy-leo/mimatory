@@ -499,16 +499,7 @@ impl VaultService {
             key,
             vault_id: DEFAULT_VAULT_ID.to_string(),
         };
-        // The legacy-format migrations each decrypt the whole vault, so together they cost several
-        // full passes on every unlock. Data written by current builds never needs them; once they
-        // have run to completion the vault remembers it and later unlocks skip straight past.
-        if self.get_meta(LEGACY_MIGRATIONS_META)?.as_deref() != Some(LEGACY_MIGRATIONS_VERSION) {
-            self.migrate_legacy_tags(&session)?;
-            self.migrate_standalone_passkeys(&session)?;
-            self.migrate_legacy_related_fields(&session)?;
-            self.migrate_legacy_sign_in_fields(&session)?;
-            self.set_meta(LEGACY_MIGRATIONS_META, LEGACY_MIGRATIONS_VERSION)?;
-        }
+        self.run_legacy_migrations(&session)?;
         Ok(session)
     }
 
@@ -877,11 +868,24 @@ impl VaultService {
             key: session.key.clone(),
             vault_id: vault_id.to_string(),
         };
-        self.migrate_legacy_tags(&session)?;
-        self.migrate_standalone_passkeys(&session)?;
-        self.migrate_legacy_related_fields(&session)?;
-        self.migrate_legacy_sign_in_fields(&session)?;
+        self.run_legacy_migrations(&session)?;
         Ok(session)
+    }
+
+    /// The legacy-format migrations each decrypt the whole vault, so together they cost several full
+    /// passes, and they used to run on every unlock and on every vault switch (which selecting an
+    /// item from another vault in All does). Data written by current builds never needs them, so once
+    /// they have run to completion for a vault it is remembered, per vault, and skipped afterwards.
+    fn run_legacy_migrations(&mut self, session: &Session) -> Result<(), VaultError> {
+        let key = format!("{LEGACY_MIGRATIONS_META}:{}", session.vault_id);
+        if self.get_meta(&key)?.as_deref() == Some(LEGACY_MIGRATIONS_VERSION) {
+            return Ok(());
+        }
+        self.migrate_legacy_tags(session)?;
+        self.migrate_standalone_passkeys(session)?;
+        self.migrate_legacy_related_fields(session)?;
+        self.migrate_legacy_sign_in_fields(session)?;
+        self.set_meta(&key, LEGACY_MIGRATIONS_VERSION)
     }
 
     /// Moves one item to another vault. Every vault is decrypted by the same key, so the rows that

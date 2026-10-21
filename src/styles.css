@@ -908,6 +908,13 @@
     @apply flex min-h-600 w-full items-center gap-150 rounded-medium border border-transparent bg-transparent px-100 py-100 text-left text-inherit transition-[background-color,border-color];
   }
 
+  /* Rows off screen skip layout and paint until scrolled near, so a list of thousands scrolls like a
+     short one. The intrinsic size keeps the scrollbar honest before a row has been measured. */
+  .item-list .rows > .item-row {
+    content-visibility: auto;
+    contain-intrinsic-size: auto var(--space-600);
+  }
+
   .item-row:hover {
     background: var(--color-background-neutral-subtle-hovered);
     border-color: var(--color-border);

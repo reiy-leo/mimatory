@@ -42,6 +42,9 @@ function stubBridge() {
           if (target) target.favorite = favorite
           return null
         }
+        case 'focus_vault':
+          switchedTo.push((args as { id: string }).id)
+          return null
         case 'switch_vault': {
           const id = (args as { id: string }).id
           switchedTo.push(id)

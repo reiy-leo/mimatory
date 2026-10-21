@@ -253,6 +253,7 @@ export const vaultApi = {
   favorite: (id: string, favorite: boolean) => invoke<void>('set_login_favorite', { favorite, id }),
   // Asks Google's favicon service, then the site (Rust, favicon.rs), and caches the answer; `force` ignores a recent one.
   fetchSiteIcon: (domain: string, force: boolean) => invoke<string | null>('fetch_site_icon', { domain, force }),
+  focusVault: (id: string) => invoke<null>('focus_vault', { id }),
   generateBrowserPairingToken: () => invoke<string>('generate_browser_pairing_token'),
   generatePassword: (options: PasswordGeneratorOptions) => invoke<string>('generate_password_command', { options }),
   generateTotp: (secret: string) => invoke<TotpCode>('generate_totp_code', { secret }),

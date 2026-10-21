@@ -61,6 +61,7 @@ import {
 import {
   type CSSProperties,
   type FormEvent,
+  memo,
   type ClipboardEvent as ReactClipboardEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -703,6 +704,38 @@ function isSettingsTab(value: unknown): value is SettingsTab {
   return typeof value === 'string' && (settingsTabs as string[]).includes(value)
 }
 
+type ItemListRowProps = {
+  active: boolean
+  item: LoginItem
+  onContextMenu: (event: ReactMouseEvent<HTMLButtonElement>, item: LoginItem) => void
+  onSelect: (id: string) => void
+  subtitle: string
+}
+
+// One list row, memoised: the list can hold thousands of items, and without this every selection,
+// keystroke or toast in the window re-rendered all of them. With stable handlers only the rows whose
+// item, subtitle or selection changed render again.
+const ItemListRow = memo(function ItemListRow({ active, item, onContextMenu, onSelect, subtitle }: ItemListRowProps) {
+  return (
+    <button
+      className={active ? 'item-row active' : 'item-row'}
+      data-item-row={item.id}
+      onClick={() => onSelect(item.id)}
+      onContextMenu={(event) => onContextMenu(event, item)}
+      type="button"
+    >
+      <ItemIcon item={item} />
+      <span className="item-row-text">
+        <strong>{item.title}</strong>
+        <small>
+          <span className="row-subtitle">{subtitle}</span>
+        </small>
+      </span>
+      {item.favorite ? <Star className="row-star" fill="currentColor" size={14} /> : null}
+    </button>
+  )
+})
+
 export function App() {
   const view = new URLSearchParams(window.location.search).get('view')
 
@@ -995,7 +1028,9 @@ function VaultWindow() {
   const draftKeyRef = useRef('')
   const draftsRef = useRef<Record<string, LoginFormState>>({})
   const formRef = useRef(form)
-  const [lastActivityAt, setLastActivityAt] = useState(() => Date.now())
+  // A ref, not state: it changes on every mouse move and scroll, and as state it re-rendered the whole
+  // window (every list row included) on each of them.
+  const lastActivityRef = useRef(Date.now())
   const topSearchInputRef = useRef<HTMLInputElement>(null)
   const [theme, setTheme] = useState<Theme>(() => getInitialTheme(localStorage.getItem('passless-theme')))
   const [, setLanguage] = useState<SupportedLanguage>(() =>
@@ -1081,7 +1116,9 @@ function VaultWindow() {
 
   useEffect(() => {
     if (mode !== 'unlocked') return
-    const updateActivity = () => setLastActivityAt(Date.now())
+    const updateActivity = () => {
+      lastActivityRef.current = Date.now()
+    }
     const events: Array<keyof WindowEventMap> = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart']
     for (const eventName of events) {
       window.addEventListener(eventName, updateActivity, { capture: true, passive: true })
@@ -1128,11 +1165,15 @@ function VaultWindow() {
     if (mode !== 'unlocked') return
     const timeout = getAutoLockMilliseconds(securityPreferences.autoLockIdleDuration)
     if (timeout === null) return
-    const lockTimer = window.setTimeout(() => {
-      handleLock()
-    }, timeout)
-    return () => window.clearTimeout(lockTimer)
-  }, [mode, lastActivityAt, securityPreferences.autoLockIdleDuration])
+    lastActivityRef.current = Date.now()
+    const lockCheck = window.setInterval(
+      () => {
+        if (Date.now() - lastActivityRef.current >= timeout) handleLock()
+      },
+      Math.min(timeout, 5000),
+    )
+    return () => window.clearInterval(lockCheck)
+  }, [mode, securityPreferences.autoLockIdleDuration])
 
   const selectedItem = useMemo(
     () => items.find((item) => item.id === selectedId) ?? allItems?.find((item) => item.id === selectedId) ?? null,
@@ -1148,13 +1189,15 @@ function VaultWindow() {
     const target = allItems?.find((item) => item.id === selectedId)?.vault_id
     if (!target || target === activeVaultId || followingVaultRef.current === target) return
     followingVaultRef.current = target
+    // Only the session moves: the items are already here in `allItems`, so nothing is decrypted again
+    // before the click shows. Archive and trash belong to the vault and refresh behind it.
     vaultApi
-      .switchVault(target)
-      .then(async (nextItems) => {
+      .focusVault(target)
+      .then(() => {
         setActiveVaultId(target)
-        setItems(Array.isArray(nextItems) ? nextItems : [])
-        await loadArchivedItems()
-        await loadTrashedItems()
+        setItems(allItems?.filter((item) => item.vault_id === target) ?? [])
+        loadArchivedItems().catch((nextError) => setError(String(nextError)))
+        loadTrashedItems().catch((nextError) => setError(String(nextError)))
       })
       .catch((nextError: unknown) => setError(String(nextError)))
       .finally(() => {
@@ -3120,6 +3163,24 @@ function VaultWindow() {
   // that was clicked rather than on whatever the pane happened to be showing. The panel then opens at
   // the cursor the way the tag row's does, at the row's left edge. Unlike the header's trigger, this one
   // is reachable while the form is open, so any field menu has to be cleared before the panel is placed.
+  // Stable for the memoised rows; the ref always calls this render's handlers.
+  const itemRowHandlersRef = useRef({
+    menu: (_event: ReactMouseEvent<HTMLButtonElement>, _item: LoginItem) => {},
+    select: (_id: string) => {},
+  })
+  itemRowHandlersRef.current = {
+    menu: (event, item) => openItemRowMenu(event, item),
+    select: (id) => {
+      setSelectedId(id)
+      setMobileDetailOpen(true)
+    },
+  }
+  const handleItemRowSelect = useCallback((id: string) => itemRowHandlersRef.current.select(id), [])
+  const handleItemRowContextMenu = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>, item: LoginItem) => itemRowHandlersRef.current.menu(event, item),
+    [],
+  )
+
   function openItemRowMenu(event: ReactMouseEvent<HTMLButtonElement>, item: LoginItem) {
     closeFieldMenus()
     setSelectedId(item.id)
@@ -3925,26 +3986,14 @@ function VaultWindow() {
                 </div>
               ))
             : visibleItems.map((item) => (
-                <button
-                  className={item.id === selectedId ? 'item-row active' : 'item-row'}
-                  data-item-row={item.id}
+                <ItemListRow
+                  active={item.id === selectedId}
+                  item={item}
                   key={item.id}
-                  onClick={() => {
-                    setSelectedId(item.id)
-                    setMobileDetailOpen(true)
-                  }}
-                  onContextMenu={(event) => openItemRowMenu(event, item)}
-                  type="button"
-                >
-                  <ItemIcon item={item} />
-                  <span className="item-row-text">
-                    <strong>{item.title}</strong>
-                    <small>
-                      <span className="row-subtitle">{itemSubtitle(item)}</span>
-                    </small>
-                  </span>
-                  {item.favorite ? <Star className="row-star" fill="currentColor" size={14} /> : null}
-                </button>
+                  onContextMenu={handleItemRowContextMenu}
+                  onSelect={handleItemRowSelect}
+                  subtitle={itemSubtitle(item)}
+                />
               ))}
           {(stateRows ? stateRows.length === 0 : visibleItems.length === 0) ? (
             <p className="empty-state">{t('vault.noItems', { target: listTitle })}</p>

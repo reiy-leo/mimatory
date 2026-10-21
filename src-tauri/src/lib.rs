@@ -186,6 +186,28 @@ fn switch_vault(id: String, state: State<AppState>) -> Result<Vec<LoginItem>, St
     Ok(items)
 }
 
+/// Points the session at another vault without listing it. Selecting an item in All that lives in
+/// another vault only needs the session to follow it (so edits act there); the window already holds
+/// every vault's items, so decrypting that vault again here was pure delay.
+#[tauri::command(async)]
+fn focus_vault(id: String, state: State<AppState>) -> Result<(), String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    let next_session = service
+        .session_for_vault(&session, &id)
+        .map_err(String::from)?;
+    *state
+        .session
+        .lock()
+        .map_err(|_| "session lock poisoned".to_string())? = Some(next_session.clone());
+    *state
+        .biometric_session
+        .lock()
+        .map_err(|_| "biometric session lock poisoned".to_string())? = Some(next_session);
+    Ok(())
+}
+
 #[tauri::command]
 fn update_vault(
     color: String,
@@ -829,6 +851,7 @@ pub fn run() {
             list_vaults,
             create_vault,
             switch_vault,
+            focus_vault,
             update_vault,
             set_vault_archived,
             dissolve_vault,
