@@ -875,6 +875,8 @@ function VaultWindow() {
   const [operationMessage, setOperationMessage] = useState<string | null>(null)
   const [onePuxPreview, setOnePuxPreview] = useState<OnePuxPreview | null>(null)
   const [isImporting1pux, setIsImporting1pux] = useState(false)
+  // Between the master password going in and the list arriving: key derivation and the first read.
+  const [isUnlocking, setIsUnlocking] = useState(false)
   const [archivedItems, setArchivedItems] = useState<LoginItem[]>([])
   const [trashedItems, setTrashedItems] = useState<LoginItem[]>([])
   // The item whose permanent delete is being confirmed. There is no native confirm in this webview,
@@ -1553,7 +1555,9 @@ function VaultWindow() {
 
   async function handleUnlock(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (isUnlocking) return
     setError(null)
+    setIsUnlocking(true)
     try {
       const nextItems = mode === 'setup' ? await vaultApi.setup(masterPassword) : await vaultApi.unlock(masterPassword)
       setItems(nextItems)
@@ -1566,6 +1570,8 @@ function VaultWindow() {
       setStatus((current) => (current ? { ...current, has_master_password: true, unlocked: true } : current))
     } catch (nextError) {
       setError(String(nextError))
+    } finally {
+      setIsUnlocking(false)
     }
   }
 
@@ -3432,26 +3438,34 @@ function VaultWindow() {
               </span>
               <span>{t('lock.appName')}</span>
             </h1>
-            <div className="compact-password-control">
+            <div aria-busy={isUnlocking} className="compact-password-control">
               <input
                 aria-label={t('lock.masterPassword')}
                 minLength={8}
                 onChange={(event) => setMasterPassword(event.target.value)}
                 placeholder={t('lock.enterPasswordPlaceholder')}
+                readOnly={isUnlocking}
                 ref={masterPasswordInputRef}
                 type={showPassword ? 'text' : 'password'}
                 value={masterPassword}
               />
+              {isUnlocking ? (
+                <span className="compact-unlock-progress" role="status" title={t('lock.unlocking')}>
+                  <Loader2 aria-hidden="true" className="unlock-spinner" size={16} />
+                  <span className="sr-only">{t('lock.unlocking')}</span>
+                </span>
+              ) : null}
               <button
                 aria-label={t('vault.showPassword')}
                 className="compact-unlock-icon-button"
+                hidden={isUnlocking}
                 onClick={() => setShowPassword((value) => !value)}
                 title={t('vault.showPassword')}
                 type="button"
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
-              {showTouchIdUnlock ? (
+              {showTouchIdUnlock && !isUnlocking ? (
                 <button
                   aria-label={biometricLabel}
                   className="compact-unlock-icon-button"
@@ -3496,8 +3510,21 @@ function VaultWindow() {
               />
             </label>
             {error ? <div className="error-banner">{error}</div> : null}
-            <button className="primary-button" disabled={masterPassword.length < 8 || mode === 'loading'} type="submit">
-              {mode === 'setup' ? t('lock.createVault') : t('lock.unlock')}
+            <button
+              className="primary-button"
+              disabled={masterPassword.length < 8 || mode === 'loading' || isUnlocking}
+              type="submit"
+            >
+              {isUnlocking ? (
+                <>
+                  <Loader2 aria-hidden="true" className="unlock-spinner" size={16} />
+                  {t('lock.unlocking')}
+                </>
+              ) : mode === 'setup' ? (
+                t('lock.createVault')
+              ) : (
+                t('lock.unlock')
+              )}
             </button>
             {mode === 'locked' && showTouchIdUnlock ? (
               <button className="secondary-button" onClick={handleBiometricUnlock} type="button">

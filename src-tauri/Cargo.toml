@@ -87,3 +87,9 @@ block2 = "0.6"
 objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-local-authentication = "0.3"
+
+# `tauri dev` builds unoptimised, and unoptimised Argon2, AES-GCM and SQLite turned an unlock into
+# many seconds of a frozen window. Dependencies are built optimised even in dev; our own crate stays
+# a debug build so it still compiles quickly and debugs normally.
+[profile.dev.package."*"]
+opt-level = 2

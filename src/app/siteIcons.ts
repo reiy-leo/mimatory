@@ -145,16 +145,22 @@ function enqueueFetch(domain: string, force: boolean): Promise<string | null> {
 export async function loadSiteIcons(domains: string[], { download }: { download: boolean }) {
   const unknown = domains.filter((domain) => !icons.has(domain) && !inFlight.has(domain))
   if (!unknown.length) return
-  let cached: Record<string, CachedSiteIcon> = {}
-  try {
-    cached = await vaultApi.cachedSiteIcons(unknown)
-  } catch {
-    return
+  // In list order and a page at a time: the rows on screen get their icons first and every page shows
+  // as soon as it is read, instead of the whole list waiting on one large answer and appearing at once.
+  for (let start = 0; start < unknown.length; start += cachedIconPageSize) {
+    const page = unknown.slice(start, start + cachedIconPageSize)
+    let cached: Record<string, CachedSiteIcon> = {}
+    try {
+      cached = await vaultApi.cachedSiteIcons(page)
+    } catch {
+      return
+    }
+    for (const [domain, entry] of Object.entries(cached)) publish(domain, entry.icon)
+    if (download) for (const domain of domainsToFetch(page, cached)) void enqueueFetch(domain, false)
   }
-  for (const [domain, entry] of Object.entries(cached)) publish(domain, entry.icon)
-  if (!download) return
-  for (const domain of domainsToFetch(unknown, cached)) void enqueueFetch(domain, false)
 }
+
+const cachedIconPageSize = 24
 
 // "Refresh Icon": ask the site again even if the cached answer is recent.
 export function refreshSiteIcon(domain: string): Promise<string | null> {

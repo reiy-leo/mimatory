@@ -20,6 +20,9 @@ use std::sync::OnceLock;
 use thiserror::Error;
 use uuid::Uuid;
 
+/// Meta key recording that the legacy-format migrations in `unlock` have run on this vault file.
+const LEGACY_MIGRATIONS_META: &str = "legacy_migrations";
+const LEGACY_MIGRATIONS_VERSION: &str = "1";
 const DEFAULT_VAULT_ID: &str = "personal";
 const MASTER_VERIFIER_TEXT: &str = "passless-master-verifier";
 /// The field type older builds used to point at another item before links were real.
@@ -496,10 +499,16 @@ impl VaultService {
             key,
             vault_id: DEFAULT_VAULT_ID.to_string(),
         };
-        self.migrate_legacy_tags(&session)?;
-        self.migrate_standalone_passkeys(&session)?;
-        self.migrate_legacy_related_fields(&session)?;
-        self.migrate_legacy_sign_in_fields(&session)?;
+        // The legacy-format migrations each decrypt the whole vault, so together they cost several
+        // full passes on every unlock. Data written by current builds never needs them; once they
+        // have run to completion the vault remembers it and later unlocks skip straight past.
+        if self.get_meta(LEGACY_MIGRATIONS_META)?.as_deref() != Some(LEGACY_MIGRATIONS_VERSION) {
+            self.migrate_legacy_tags(&session)?;
+            self.migrate_standalone_passkeys(&session)?;
+            self.migrate_legacy_related_fields(&session)?;
+            self.migrate_legacy_sign_in_fields(&session)?;
+            self.set_meta(LEGACY_MIGRATIONS_META, LEGACY_MIGRATIONS_VERSION)?;
+        }
         Ok(session)
     }
 

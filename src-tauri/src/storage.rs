@@ -100,9 +100,17 @@ pub fn initialize_database(path: &Path) -> Result<(), StorageError> {
     Ok(())
 }
 
+/// Set once the default database has had its schema applied in this process. Every command opens
+/// its own connection, and re-running the whole schema (and its column checks) on each one cost
+/// real time when the list, its icons and the side panels all load at once after unlocking.
+static DEFAULT_SCHEMA_READY: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+
 pub fn open_default_database() -> Result<Connection, StorageError> {
     let database_path = default_database_path()?;
-    initialize_database(&database_path)?;
+    if DEFAULT_SCHEMA_READY.get().is_none() {
+        initialize_database(&database_path)?;
+        let _ = DEFAULT_SCHEMA_READY.set(());
+    }
     open_database(&database_path)
 }
 
@@ -114,6 +122,9 @@ pub fn open_database(path: &Path) -> Result<Connection, StorageError> {
     // Foreign keys are a per-connection pragma, so the declared ON DELETE CASCADE
     // behaviour only applies to connections opened through here.
     connection.execute_batch("PRAGMA foreign_keys = ON;")?;
+    // Reads now run off the main thread beside the window's writes and the browser bridge, so a
+    // connection waits for a lock instead of failing at once with "database is locked".
+    connection.busy_timeout(std::time::Duration::from_secs(5))?;
     Ok(connection)
 }
 

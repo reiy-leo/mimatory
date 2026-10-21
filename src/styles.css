@@ -3911,9 +3911,18 @@
     @apply flex min-h-400 items-center justify-center gap-100 text-callout;
   }
 
-  .import-spinner {
+  .import-spinner,
+  .unlock-spinner {
     animation: import-spin 0.9s linear infinite;
     color: var(--color-icon-brand);
+  }
+
+  .primary-button .unlock-spinner {
+    color: currentColor;
+  }
+
+  .compact-unlock-progress {
+    @apply inline-flex shrink-0 items-center justify-center px-075;
   }
 
   .import-dialog.is-busy .import-stats,
@@ -3929,7 +3938,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .import-spinner {
+  .import-spinner,
+  .unlock-spinner {
     animation-duration: 2.4s;
   }
 }
