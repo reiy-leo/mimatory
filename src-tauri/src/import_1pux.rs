@@ -9,6 +9,7 @@
 
 #[cfg(test)]
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -78,6 +79,10 @@ struct ParsedVault {
 
 #[derive(Debug, Clone)]
 struct ParsedItem {
+    /// The item's 1Password uuid, so another item's "Sign in with" can find it after import.
+    uuid: String,
+    /// The 1Password uuid of the account this item signs in with (its `ssoLogin.item`).
+    sign_in_ref: Option<String>,
     input: LoginItemInput,
     archived: bool,
     created_at: Option<i64>,
@@ -114,6 +119,10 @@ pub fn preview(path: &Path, service: &VaultService, session: &Session) -> Result
 pub fn import(path: &Path, service: &mut VaultService, session: &Session) -> Result<ImportSummary, Import1PuxError> {
     let (vaults, mut archive) = read_export(path)?;
     let mut summary = ImportSummary::default();
+    // 1Password uuid → (Passless vault, Passless item id), and the sign-in links to make once every
+    // item exists: an account can come after the item that signs in with it.
+    let mut imported: HashMap<String, (String, String)> = HashMap::new();
+    let mut sign_in_links: Vec<(String, String, String)> = Vec::new();
     for vault in vaults {
         if vault.items.is_empty() {
             continue;
@@ -132,6 +141,12 @@ pub fn import(path: &Path, service: &mut VaultService, session: &Session) -> Res
         let target = session.for_vault(&vault_id);
         for item in vault.items {
             let created = service.create_login_item(&target, item.input.clone())?;
+            if !item.uuid.is_empty() {
+                imported.insert(item.uuid.clone(), (vault_id.clone(), created.id.clone()));
+            }
+            if let Some(reference) = &item.sign_in_ref {
+                sign_in_links.push((vault_id.clone(), created.id.clone(), reference.clone()));
+            }
             let mut files = Vec::new();
             for (entry, name) in &item.attachments {
                 let Ok(mut file) = archive.by_name(entry) else { continue };
@@ -155,6 +170,15 @@ pub fn import(path: &Path, service: &mut VaultService, session: &Session) -> Res
                 summary.archived_count += 1;
             }
         }
+    }
+    // A Passless link stays inside one vault, so an account 1Password keeps in another vault leaves
+    // the item with its provider only — the same as a hand-made "Sign in with" with no account.
+    for (vault_id, item_id, reference) in sign_in_links {
+        let Some((account_vault, account_id)) = imported.get(&reference) else { continue };
+        if *account_vault != vault_id {
+            continue;
+        }
+        let _ = service.set_item_sign_in(&session.for_vault(&vault_id), &item_id, Some(account_id));
     }
     Ok(summary)
 }
@@ -523,6 +547,8 @@ fn parse_item(item: &Value, zip_names: &[String]) -> Option<ParsedItem> {
     let mut other_sections = Vec::new();
     let mut attachments = Vec::new();
     let mut ssh_public_key = String::new();
+    let mut sign_in_field: Option<CustomField> = None;
+    let mut sign_in_ref = None;
 
     if let Some(document) = details.get("documentAttributes") {
         let name = text(document, "fileName");
@@ -540,6 +566,22 @@ fn parse_item(item: &Value, zip_names: &[String]) -> Option<ParsedItem> {
                 let name = text(file, "fileName");
                 if let Some(entry) = file_entry(zip_names, &text(file, "documentId"), &name) {
                     attachments.push((entry, if name.is_empty() { "attachment".to_string() } else { name }));
+                }
+                continue;
+            }
+            // "Sign in with": `{"ssoLogin": {"provider": "github", "item": {"vaultUuid", "itemUuid"}}}`.
+            if let Some(sso) = value.get("ssoLogin") {
+                let provider = text(sso, "provider").trim().to_lowercase();
+                if sign_in_field.is_none() && !provider.is_empty() {
+                    sign_in_field = Some(CustomField {
+                        label: String::new(),
+                        value: provider,
+                        field_type: "sign_in_with".to_string(),
+                    });
+                    let reference = text(&sso["item"], "itemUuid");
+                    if !reference.trim().is_empty() {
+                        sign_in_ref = Some(reference);
+                    }
                 }
                 continue;
             }
@@ -601,12 +643,15 @@ fn parse_item(item: &Value, zip_names: &[String]) -> Option<ParsedItem> {
         }
     }
 
+    input.custom_fields.extend(sign_in_field);
     input.custom_fields.extend(otp_fields);
     input.custom_fields.extend(template_sections.into_iter().map(|(_, children)| section_field("", children)));
     input.custom_fields.extend(top_fields);
     input.custom_fields.extend(other_sections);
 
     Some(ParsedItem {
+        uuid: text(item, "uuid"),
+        sign_in_ref,
         input,
         archived: state == "archived",
         created_at: item.get("createdAt").and_then(Value::as_i64),
@@ -717,4 +762,23 @@ mod tests {
         let vaults = parse_export(&export(), &[]);
         assert_eq!(vaults[0].items[2].input.item_type, "secure_note");
     }
+
+    #[test]
+    fn sign_in_with_keeps_the_provider_and_the_account_reference() {
+        let item = json!({
+            "uuid": "q", "categoryUuid": "001", "state": "active",
+            "overview": { "title": "Qoder", "url": "https://qoder.com/" },
+            "details": { "loginFields": [], "sections": [{ "title": "", "name": "add more", "fields": [
+                { "title": "sign in with", "id": "w3", "value": { "ssoLogin": {
+                    "provider": "GitHub", "item": { "vaultUuid": "v", "itemUuid": "acct" } } } }
+            ]}]}
+        });
+        let parsed = parse_item(&item, &[]).expect("a live item");
+        assert_eq!(parsed.uuid, "q");
+        assert_eq!(parsed.sign_in_ref.as_deref(), Some("acct"));
+        let field = &parsed.input.custom_fields[0];
+        assert_eq!((field.field_type.as_str(), field.value.as_str(), field.label.as_str()), ("sign_in_with", "github", ""));
+        assert_eq!(parsed.input.custom_fields.len(), 1);
+    }
+
 }
