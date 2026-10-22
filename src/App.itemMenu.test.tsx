@@ -30,6 +30,15 @@ const items = [item('a', 'Alpha'), item('b', 'Bravo'), item('c', 'Charlie')]
 const workItem = { ...item('d', 'Delta'), tags: ['shared'], vault_id: 'work' }
 
 const switchedTo: string[] = []
+// Every get_login_item the window made: the list carries summaries, so a full item is read only when opened.
+const detailReads: Array<{ itemId: string; vaultId: string | null }> = []
+
+type StubItem = ReturnType<typeof item> & { vault_id?: string }
+
+// What the list commands answer with (vault.rs LoginItemSummary): no password, notes, fields or second address.
+function summary({ custom_fields: _fields, notes: _notes, password: _password, urls: _urls, ...rest }: StubItem) {
+  return structuredClone(rest)
+}
 
 function stubBridge() {
   mockWindows('main')
@@ -48,15 +57,22 @@ function stubBridge() {
         case 'switch_vault': {
           const id = (args as { id: string }).id
           switchedTo.push(id)
-          return id === 'work' ? [structuredClone(workItem)] : structuredClone(items)
+          return id === 'work' ? [summary(workItem)] : items.map(summary)
+        }
+        case 'get_login_item': {
+          const { itemId, vaultId } = args as { itemId: string; vaultId: string | null }
+          detailReads.push({ itemId, vaultId })
+          const found = [...items, workItem].find((entry) => entry.id === itemId)
+          if (!found) throw new Error('item not found')
+          return structuredClone(found)
         }
         case 'initialize_database':
           return { database_ready: true, has_master_password: true, name: 'Passless', unlocked: false }
         case 'unlock_vault':
         case 'list_login_items':
-          return structuredClone(items)
+          return items.map(summary)
         case 'list_all_login_items':
-          return structuredClone([...items.map((entry) => ({ ...entry, vault_id: 'personal' })), workItem])
+          return [...items.map((entry) => summary({ ...entry, vault_id: 'personal' })), summary(workItem)]
         case 'list_vaults':
           return [
             {
@@ -274,6 +290,17 @@ describe('vault window', () => {
     await renderUnlocked()
     fireEvent.change(screen.getByLabelText('Search items and settings'), { target: { value: 'clip' } })
     expect(await screen.findByRole('button', { name: /Clipboard/ })).toHaveTextContent('Settings ▸ Security')
+  })
+
+  it('reads only the selected item in full, and shows it once it arrives', async () => {
+    detailReads.length = 0
+    await renderUnlocked()
+    fireEvent.click(screen.getByRole('button', { name: /Charlie/ }))
+    // The password row comes from the detail read; the list rows never carried one.
+    expect(await screen.findByText('Charlie', { selector: '.detail-pane *' })).toBeInTheDocument()
+    await waitFor(() => expect(detailReads.map((read) => read.itemId)).toContain('c'))
+    // Every read was for a row the user selected, not one per listed item.
+    expect(new Set(detailReads.map((read) => read.itemId)).size).toBeLessThanOrEqual(2)
   })
 
   it('remembers the dragged column widths', async () => {

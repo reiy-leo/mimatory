@@ -21,8 +21,8 @@ use std::sync::{Arc, Mutex};
 use tauri::State;
 use totp::TotpCode;
 use vault::{
-    generate_password, CachedSiteIcon, CustomField, LoginItem, LoginItemInput, LoginItemUpdate, PasswordGeneratorOptions,
-    PasswordStrength, Session, Tag, VaultError, VaultService, VaultSummary, WatchtowerReport,
+    generate_password, CachedSiteIcon, CustomField, LoginItem, LoginItemInput, LoginItemSummary, LoginItemUpdate,
+    PasswordGeneratorOptions, PasswordStrength, Session, Tag, VaultError, VaultService, VaultSummary, WatchtowerReport,
 };
 
 struct AppState {
@@ -62,7 +62,7 @@ fn initialize_database(state: State<AppState>) -> Result<AppStatus, String> {
 fn setup_master_password(
     password: String,
     state: State<AppState>,
-) -> Result<Vec<LoginItem>, String> {
+) -> Result<Vec<LoginItemSummary>, String> {
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let mut service = VaultService::new(connection);
     let session = service
@@ -77,17 +77,17 @@ fn setup_master_password(
         .lock()
         .map_err(|_| "biometric session lock poisoned".to_string())? = Some(session.clone());
     service
-        .list_login_items(&session, None)
+        .list_login_summaries(&session, None)
         .map_err(String::from)
 }
 
 #[tauri::command(async)]
-fn unlock_vault(password: String, state: State<AppState>) -> Result<Vec<LoginItem>, String> {
+fn unlock_vault(password: String, state: State<AppState>) -> Result<Vec<LoginItemSummary>, String> {
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let mut service = VaultService::new(connection);
     let session = service.unlock(&password).map_err(String::from)?;
     let items = service
-        .list_login_items(&session, None)
+        .list_login_summaries(&session, None)
         .map_err(String::from)?;
     *state
         .session
@@ -121,12 +121,33 @@ fn lock_vault(state: State<AppState>) -> Result<(), String> {
 fn list_login_items(
     query: Option<String>,
     state: State<AppState>,
-) -> Result<Vec<LoginItem>, String> {
+) -> Result<Vec<LoginItemSummary>, String> {
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
-        .list_login_items(&session, query.as_deref())
+        .list_login_summaries(&session, query.as_deref())
+        .map_err(String::from)
+}
+
+/// One item, decrypted in full with its links resolved: the detail pane asks for it when a row is
+/// selected, because the list commands return summaries only. `vault_id` names the vault the row came
+/// from (All spans vaults), so the read does not wait on the session following the selection.
+#[tauri::command(async)]
+fn get_login_item(
+    item_id: String,
+    vault_id: Option<String>,
+    state: State<AppState>,
+) -> Result<LoginItem, String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let service = VaultService::new(connection);
+    let session = current_session(&state)?;
+    let session = match vault_id.as_deref() {
+        Some(id) if !id.is_empty() => session.for_vault(id),
+        _ => session,
+    };
+    service
+        .login_item_detail(&session, &item_id)
         .map_err(String::from)
 }
 
@@ -161,7 +182,7 @@ fn create_vault(name: String, state: State<AppState>) -> Result<VaultSummary, St
 }
 
 #[tauri::command(async)]
-fn switch_vault(id: String, state: State<AppState>) -> Result<Vec<LoginItem>, String> {
+fn switch_vault(id: String, state: State<AppState>) -> Result<Vec<LoginItemSummary>, String> {
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
@@ -169,7 +190,7 @@ fn switch_vault(id: String, state: State<AppState>) -> Result<Vec<LoginItem>, St
         .session_for_vault(&session, &id)
         .map_err(String::from)?;
     let items = service
-        .list_login_items(&next_session, None)
+        .list_login_summaries(&next_session, None)
         .map_err(String::from)?;
     *state
         .session
@@ -304,12 +325,12 @@ fn trash_login_item(id: String, state: State<AppState>) -> Result<(), String> {
 }
 
 #[tauri::command(async)]
-fn list_trashed_login_items(state: State<AppState>) -> Result<Vec<LoginItem>, String> {
+fn list_trashed_login_items(state: State<AppState>) -> Result<Vec<LoginItemSummary>, String> {
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
-        .list_trashed_login_items(&session)
+        .list_trashed_login_summaries(&session)
         .map_err(String::from)
 }
 
@@ -469,12 +490,12 @@ fn restore_login_item(id: String, state: State<AppState>) -> Result<(), String> 
 }
 
 #[tauri::command(async)]
-fn list_archived_login_items(state: State<AppState>) -> Result<Vec<LoginItem>, String> {
+fn list_archived_login_items(state: State<AppState>) -> Result<Vec<LoginItemSummary>, String> {
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
-        .list_archived_login_items(&session)
+        .list_archived_login_summaries(&session)
         .map_err(String::from)
 }
 
@@ -498,11 +519,11 @@ fn generate_password_command(options: PasswordGeneratorOptions) -> Result<String
 // frontend, so the number beside a tag cannot disagree with what clicking that tag reveals.
 /// All (owner 2026-10-18): the live items of every open vault, each with its `vault_id`.
 #[tauri::command(async)]
-fn list_all_login_items(state: State<AppState>) -> Result<Vec<LoginItem>, String> {
+fn list_all_login_items(state: State<AppState>) -> Result<Vec<LoginItemSummary>, String> {
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let service = VaultService::new(connection);
     let session = current_session(&state)?;
-    service.list_all_login_items(&session).map_err(String::from)
+    service.list_all_login_summaries(&session).map_err(String::from)
 }
 
 /// The sidebar's tags: one per name across the open vaults, not tied to the open one.
@@ -701,7 +722,7 @@ fn can_use_biometrics(app: tauri::AppHandle) -> Result<bool, String> {
 async fn unlock_with_biometrics(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
-) -> Result<Vec<LoginItem>, String> {
+) -> Result<Vec<LoginItemSummary>, String> {
     biometric::authenticate(&app, "unlock your Passless vault").map_err(|error| error.to_string())?;
     let session = state
         .biometric_session
@@ -712,7 +733,7 @@ async fn unlock_with_biometrics(
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let service = VaultService::new(connection);
     let items = service
-        .list_login_items(&session, None)
+        .list_login_summaries(&session, None)
         .map_err(String::from)?;
     *state
         .session
@@ -848,6 +869,7 @@ pub fn run() {
             unlock_vault,
             lock_vault,
             list_login_items,
+            get_login_item,
             list_vaults,
             create_vault,
             switch_vault,

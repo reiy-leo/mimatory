@@ -476,6 +476,24 @@ Wayland; X11 is not supported.
   one-line reason while the item has links; Archive sits right above. There is no bulk delete anywhere, so
   there is no bulk path to guard.
 
+- **The list carries summaries; one item is decrypted when it is opened** (owner 2026-10-23: "列表只返回摘要，选中条目时再解密详情").
+  Every list command the window calls (`unlock_vault`, `setup_master_password`, `unlock_with_biometrics`,
+  `switch_vault`, `list_login_items`, `list_all_login_items`, archived, trashed) answers with `LoginItemSummary`
+  (vault.rs): id, vault, type, title, username, **first** address, tags, favourite, the three sort timestamps + use
+  count, icon mode, the raw `sign_in_with` provider value, `parent_id` and `has_relations`. Never a password, notes,
+  custom-field value, second address or attachment. `list_summaries_by_state` reads the whole list in four queries
+  and skips the password/notes rows entirely; it still decrypts the custom-field JSON once per item, only to read the
+  "Sign in with" provider for the subtitle (there is no column for it). `get_login_item(itemId, vaultId?)` returns
+  the one full item with resolved links; `useItemDetail` (src/app/useItemDetail.ts) keeps **only the selected one**,
+  re-reads it whenever its row object changes (every re-list, so saves, favourites, links from the other end and
+  `vault:changed` all reach it), drops stale answers and forgets it on lock. While it loads the form does not switch
+  (`draftKey` is `null`) and the pane shows `.detail-loading`, a spinner that fades in after 250ms. Quick Access
+  reads the password / OTP seed with `get_login_item` at copy time. **Search**: the toolbar matches titles and Quick
+  Access title/username/first address, all summary fields; `list_login_items(query)` still searches every decrypted
+  value in Rust and answers with summaries. The bridge, Watchtower and breach check read their own full-item paths
+  (`list_live_items`, `export_login_items`) and are unchanged. The full-item list methods in vault.rs are
+  `#[cfg(test)]` now.
+
 - **Website icons** (2026-10-17; sources changed 2026-10-18, owner: icons were blurry). An item's tile shows its
   first address's site icon, else the letter (`ItemIcon`: list rows, search results, detail header, Quick Access,
   picker rows). **Sources** (`favicon.rs`): Google's favicon service first (`t1.gstatic.com/faviconV2`, size 128,

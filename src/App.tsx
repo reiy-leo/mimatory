@@ -202,7 +202,7 @@ import {
   toggleHighlightKeys,
 } from './app/sidebarHighlights'
 import { SignInPicker, SignInRow, useSignInLabel } from './app/signInControls'
-import { itemSignInProvider, parseSignInProvider, withSignInField } from './app/signInProviders'
+import { itemSignInProvider, parseSignInProvider, summarySignInProvider, withSignInField } from './app/signInProviders'
 import {
   forgetSiteIcons,
   loadSiteIcons,
@@ -232,6 +232,7 @@ import {
   otpSecretFieldIndexes,
   parseOtpSecretInput,
 } from './app/totpDisplay'
+import { useItemDetail } from './app/useItemDetail'
 import {
   type AppStatus,
   type BreachCheckResult,
@@ -241,6 +242,7 @@ import {
   type ItemUrl,
   type LoginItem,
   type LoginItemInput,
+  type LoginItemSummary,
   type OnePuxPreview,
   type PasswordGeneratorOptions,
   parseCustomFields,
@@ -453,7 +455,7 @@ function fieldValuePlaceholderKey(fieldType: string) {
   return 'vault.fieldValue'
 }
 
-function itemTitleById(items: LoginItem[], id: string) {
+function itemTitleById(items: LoginItemSummary[], id: string) {
   return items.find((item) => item.id === id)?.title ?? id
 }
 
@@ -706,8 +708,8 @@ function isSettingsTab(value: unknown): value is SettingsTab {
 
 type ItemListRowProps = {
   active: boolean
-  item: LoginItem
-  onContextMenu: (event: ReactMouseEvent<HTMLButtonElement>, item: LoginItem) => void
+  item: LoginItemSummary
+  onContextMenu: (event: ReactMouseEvent<HTMLButtonElement>, item: LoginItemSummary) => void
   onSelect: (id: string) => void
   subtitle: string
 }
@@ -880,10 +882,10 @@ function VaultWindow() {
   const { t } = useTranslation()
   const [status, setStatus] = useState<AppStatus | null>(null)
   const [mode, setMode] = useState<VaultMode>('loading')
-  const [items, setItems] = useState<LoginItem[]>([])
+  const [items, setItems] = useState<LoginItemSummary[]>([])
   // All (owner 2026-10-18): every open vault's live items. `items` stays the open vault's (the session's), which
   // the vault row lists and every edit acts on; every other sidebar row reads this.
-  const [allItems, setAllItems] = useState<LoginItem[] | null>(null)
+  const [allItems, setAllItems] = useState<LoginItemSummary[] | null>(null)
   const [itemSort, setItemSort] = useState<ItemSort>(() => readItemSort(globalThis.localStorage))
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -910,11 +912,11 @@ function VaultWindow() {
   const [isImporting1pux, setIsImporting1pux] = useState(false)
   // Between the master password going in and the list arriving: key derivation and the first read.
   const [isUnlocking, setIsUnlocking] = useState(false)
-  const [archivedItems, setArchivedItems] = useState<LoginItem[]>([])
-  const [trashedItems, setTrashedItems] = useState<LoginItem[]>([])
+  const [archivedItems, setArchivedItems] = useState<LoginItemSummary[]>([])
+  const [trashedItems, setTrashedItems] = useState<LoginItemSummary[]>([])
   // The item whose permanent delete is being confirmed. There is no native confirm in this webview,
   // so the question is state the window has to render itself.
-  const [purgeTarget, setPurgeTarget] = useState<LoginItem | null>(null)
+  const [purgeTarget, setPurgeTarget] = useState<LoginItemSummary | null>(null)
   const [textPreview, setTextPreview] = useState<TextPreviewState | null>(null)
   const textPreviewRequest = useRef(0)
   const closeTextPreview = useCallback(() => {
@@ -1175,10 +1177,14 @@ function VaultWindow() {
     return () => window.clearInterval(lockCheck)
   }, [mode, securityPreferences.autoLockIdleDuration])
 
-  const selectedItem = useMemo(
+  // The list holds summaries; the selected row is read in full on demand (useItemDetail), and only that one.
+  const selectedSummary = useMemo(
     () => items.find((item) => item.id === selectedId) ?? allItems?.find((item) => item.id === selectedId) ?? null,
     [allItems, items, selectedId],
   )
+  const itemDetail = useItemDetail(selectedSummary, mode === 'unlocked')
+  const selectedItem = itemDetail.item
+  const detailLoading = itemDetail.loading
 
   // An item picked from All (or a tag, a category, Favorites) may live in another vault. The session follows it
   // there quietly, so editing, favouriting and moving keep acting on the vault the item is in, while the sidebar
@@ -1379,7 +1385,10 @@ function VaultWindow() {
 
   // The links as each mode draws them: read-only reads what the vault returned, editing reads the draft
   // (ids resolved through the live list, or the stored ref for an archived counterpart).
-  const selectedHasRelations = hasRelations(selectedItem?.relations)
+  // The summary answers while the detail is still on its way, so Delete and Move To never flash enabled.
+  const selectedHasRelations = selectedItem
+    ? hasRelations(selectedItem.relations)
+    : Boolean(selectedSummary?.has_relations)
   const viewRelations = selectedItem?.relations
   const draftRelationRefs = (ids: string[]) =>
     ids.flatMap((id) => {
@@ -1404,7 +1413,8 @@ function VaultWindow() {
 
   // A draft belongs to whatever the form is showing: a saved item, or the category a new
   // item is being built under.
-  const draftKey = selectedItem?.id ?? `new:${newItemCategory}`
+  // `null` while the selected row's detail is still being read: the form stays as it is until it arrives.
+  const draftKey = selectedItem ? selectedItem.id : detailLoading ? null : `new:${newItemCategory}`
   const hasUnsavedChanges = isFormDirty(baselineRef.current, form)
   // Editing locks the rest of the window (owner 2026-10-18, first for unsaved edits, then for any open editor —
   // a new item included): until the form is saved or cancelled nothing else — sidebar, list, toolbar, settings,
@@ -1470,6 +1480,7 @@ function VaultWindow() {
   }, [form])
 
   useEffect(() => {
+    if (draftKey === null) return
     const previousKey = draftKeyRef.current
     if (previousKey && previousKey !== draftKey) {
       if (isFormDirty(baselineRef.current, formRef.current)) draftsRef.current[previousKey] = formRef.current
@@ -1674,8 +1685,10 @@ function VaultWindow() {
           relationError = relationError ?? nextError
         }
       }
+      // The links were written after the item, so the item is read once more to carry them resolved.
+      const full = await vaultApi.getItem(saved.id, saved.vault_id).catch(() => saved)
       const nextItems = await vaultApi.list()
-      const fresh = toFormState(nextItems.find((item) => item.id === saved.id) ?? saved)
+      const fresh = toFormState(full)
       // A save retires the draft and moves the form off its `new:` key, so the switch effect
       // below does not file the just-saved values as unsaved edits on the old key.
       delete draftsRef.current[draftKeyRef.current]
@@ -1683,6 +1696,7 @@ function VaultWindow() {
       baselineRef.current = fresh
       setForm(fresh)
       if (relationError) setError(String(relationError))
+      itemDetail.prime(full)
       setItems(nextItems)
       setSelectedId(saved.id)
       setComposing(false)
@@ -1836,7 +1850,7 @@ function VaultWindow() {
       setActiveVaultId(vaultId)
       setItems(nextItems)
       setSelectedId(nextItems[0]?.id ?? null)
-      setForm(toFormState(nextItems[0] ?? emptyLoginItem()))
+      setForm(toFormState(emptyLoginItem()))
       setComposing(false)
       await loadArchivedItems()
       await loadTrashedItems()
@@ -2428,8 +2442,8 @@ function VaultWindow() {
 
   // The list's second line: "Sign in with Google" for an item that has no password of its own to
   // speak of, otherwise the username, the site or the type, as before.
-  function itemSubtitle(item: LoginItem) {
-    const provider = itemSignInProvider(item)
+  function itemSubtitle(item: LoginItemSummary) {
+    const provider = summarySignInProvider(item)
     if (provider) return signInLabel(provider)
     return item.username || item.website || t(`itemTypes.${item.item_type}`)
   }
@@ -3165,7 +3179,7 @@ function VaultWindow() {
   // is reachable while the form is open, so any field menu has to be cleared before the panel is placed.
   // Stable for the memoised rows; the ref always calls this render's handlers.
   const itemRowHandlersRef = useRef({
-    menu: (_event: ReactMouseEvent<HTMLButtonElement>, _item: LoginItem) => {},
+    menu: (_event: ReactMouseEvent<HTMLButtonElement>, _item: LoginItemSummary) => {},
     select: (_id: string) => {},
   })
   itemRowHandlersRef.current = {
@@ -3177,11 +3191,11 @@ function VaultWindow() {
   }
   const handleItemRowSelect = useCallback((id: string) => itemRowHandlersRef.current.select(id), [])
   const handleItemRowContextMenu = useCallback(
-    (event: ReactMouseEvent<HTMLButtonElement>, item: LoginItem) => itemRowHandlersRef.current.menu(event, item),
+    (event: ReactMouseEvent<HTMLButtonElement>, item: LoginItemSummary) => itemRowHandlersRef.current.menu(event, item),
     [],
   )
 
-  function openItemRowMenu(event: ReactMouseEvent<HTMLButtonElement>, item: LoginItem) {
+  function openItemRowMenu(event: ReactMouseEvent<HTMLButtonElement>, item: LoginItemSummary) {
     closeFieldMenus()
     setSelectedId(item.id)
     setItemMenuSource('row')
@@ -3647,7 +3661,11 @@ function VaultWindow() {
   // Which single pane the phone layout shows. The item pane only counts as open while there is an item or
   // a draft to show, so deleting or archiving the open item lands back on the list.
   const mobilePane =
-    mobileTab === 'items' ? (mobileDetailOpen && (selectedItem || composing) ? 'detail' : 'list') : mobileTab
+    mobileTab === 'items'
+      ? mobileDetailOpen && (selectedItem || detailLoading || composing)
+        ? 'detail'
+        : 'list'
+      : mobileTab
 
   return (
     <main
@@ -4604,6 +4622,13 @@ function VaultWindow() {
               </div>
             </div>
           )
+        ) : detailLoading ? (
+          /* The row is selected and its detail is being decrypted: a quiet spinner that only fades in when
+             the read takes long enough to notice (styles.css .detail-loading). */
+          <div aria-busy="true" className="detail-loading" role="status">
+            <Loader2 aria-hidden="true" className="import-spinner" size={18} />
+            <span className="sr-only">{t('vault.loadingItem')}</span>
+          </div>
         ) : (
           /* Nothing is open and no draft is being written, so the pane says so instead of showing a
              blank create form — the state the list lands in after the open item is trashed. */
@@ -5870,7 +5895,7 @@ function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
 function QuickAccessWindow() {
   const { t } = useTranslation()
   const { platform } = usePlatformState()
-  const [items, setItems] = useState<LoginItem[]>([])
+  const [items, setItems] = useState<LoginItemSummary[]>([])
   const [query, setQuery] = useState('')
   const [locked, setLocked] = useState(true)
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -5918,9 +5943,11 @@ function QuickAccessWindow() {
 
   // Same clipboard rules as the main window: a password or code is cleared after 90 seconds when the
   // Security setting asks for it (read fresh, since Settings may have changed it while the panel was hidden).
-  async function copyFromItem(item: LoginItem, kind: 'otp' | 'password' | 'username') {
-    let value = kind === 'username' ? item.username : kind === 'password' ? item.password : ''
-    if (kind === 'otp') {
+  // The list carries summaries only, so a password or a one-time code is read from the one item at copy time.
+  async function copyFromItem(row: LoginItemSummary, kind: 'otp' | 'password' | 'username') {
+    const item = kind === 'username' ? null : await vaultApi.getItem(row.id, row.vault_id).catch(() => null)
+    let value = kind === 'username' ? row.username : kind === 'password' ? (item?.password ?? '') : ''
+    if (kind === 'otp' && item) {
       const index = otpSecretFieldIndexes(item.custom_fields)[0]
       const secret = index === undefined ? '' : (item.custom_fields[index]?.value ?? '')
       if (secret.trim()) value = (await vaultApi.generateTotp(secret).catch(() => null))?.code ?? ''
@@ -5930,11 +5957,11 @@ function QuickAccessWindow() {
       sensitive: kind !== 'username',
     })
     if (!copied) return
-    setCopiedId(item.id)
+    setCopiedId(row.id)
     hideTimerRef.current = window.setTimeout(() => void vaultApi.hideQuickAccess(), quickAccessCloseDelayMs)
   }
 
-  async function copyPassword(item: LoginItem) {
+  async function copyPassword(item: LoginItemSummary) {
     await copyFromItem(item, 'password')
   }
 
@@ -6070,7 +6097,9 @@ function QuickAccessWindow() {
             >
               <ItemIcon item={item} />
               <strong>{item.title}</strong>
-              <small>{item.username || (itemSignInProvider(item) ? signInLabel(itemSignInProvider(item)) : '')}</small>
+              <small>
+                {item.username || (summarySignInProvider(item) ? signInLabel(summarySignInProvider(item)) : '')}
+              </small>
               {copiedId === item.id ? <span className="quick-access-badge">{t('quickAccess.copied')}</span> : null}
             </button>
           ))}

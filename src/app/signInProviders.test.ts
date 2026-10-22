@@ -5,6 +5,7 @@ import {
   providerOfAccount,
   signInAccountCandidates,
   signInProviderValue,
+  summarySignInProvider,
   withoutSignInField,
   withSignInField,
 } from './signInProviders'
@@ -73,5 +74,15 @@ describe('sign in with providers', () => {
       'Bank',
     ])
     expect(signInAccountCandidates(items, 'self', google, 'rei@').map((entry) => entry.id)).toEqual(['Google'])
+  })
+
+  it('reads the provider off a list summary the same way as off the item', () => {
+    const fields = withSignInField([], { id: 'google', name: 'Google' })
+    expect(summarySignInProvider({ sign_in_with: fields[0].value })).toEqual(
+      itemSignInProvider({ custom_fields: fields }),
+    )
+    expect(summarySignInProvider({ sign_in_with: 'Okta' })).toEqual({ id: 'other', name: 'Okta' })
+    expect(summarySignInProvider({})).toBeNull()
+    expect(providerOfAccount({ title: 'Work mail', website: 'https://accounts.google.com' })).toBe('google')
   })
 })

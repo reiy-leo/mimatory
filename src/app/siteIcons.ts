@@ -61,18 +61,21 @@ export function websiteHost(raw: string): string | null {
 
 // The site an item's tile shows the icon of: its first address, the same one the list and the
 // browser bridge treat as primary.
-export function siteIconDomain(item: Pick<LoginItem, 'urls' | 'website'>): string | null {
-  const first = item.website || item.urls[0]?.url || ''
+// A list summary carries only `website` (the first address); a full item carries `urls` too.
+export type IconSource = Pick<LoginItem, 'website'> & Partial<Pick<LoginItem, 'icon_mode' | 'urls'>>
+
+export function siteIconDomain(item: IconSource): string | null {
+  const first = item.website || item.urls?.[0]?.url || ''
   return websiteHost(first)
 }
 
 // Whether an item shows a website icon at all: it has a site and the user has not asked for the
 // letter tile on it.
-export function itemIconDomain(item: Pick<LoginItem, 'icon_mode' | 'urls' | 'website'>): string | null {
+export function itemIconDomain(item: IconSource): string | null {
   return item.icon_mode === 'letter' ? null : siteIconDomain(item)
 }
 
-export function uniqueIconDomains(items: Array<Pick<LoginItem, 'icon_mode' | 'urls' | 'website'>>): string[] {
+export function uniqueIconDomains(items: IconSource[]): string[] {
   return [...new Set(items.map(itemIconDomain).filter((domain): domain is string => Boolean(domain)))]
 }
 

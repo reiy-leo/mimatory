@@ -142,4 +142,19 @@ describe('sign-in links', () => {
     const stored = { children: [], parent: null, related: [], sign_in_with: ref('gone', true) }
     expect(relationRef('gone', items, stored)).toEqual(ref('gone', true))
   })
+
+  it('reads a list summary’s parent_id the way it reads a full item’s relations', () => {
+    // vault.rs LoginItemSummary: the list carries parent_id only, never the resolved refs.
+    const rows = [
+      { id: 'root', item_type: 'login', title: 'Root' },
+      { id: 'mid', item_type: 'login', parent_id: 'root', title: 'Mid' },
+      { id: 'leaf', item_type: 'login', parent_id: 'mid', title: 'Leaf' },
+      { id: 'free', item_type: 'login', title: 'Free' },
+    ]
+    expect([...ancestorIds(rows, 'leaf')]).toEqual(['leaf', 'mid', 'root'])
+    expect([...descendantIds(rows, ['root'])]).toEqual(['mid', 'leaf'])
+    // A parent for Root may not come from below it; a child must be free of another parent.
+    expect(relationCandidates(rows, 'root', 'parent', emptyRelationDraft).map((row) => row.id)).toEqual(['free'])
+    expect(relationCandidates(rows, 'free', 'child', emptyRelationDraft).map((row) => row.id)).toEqual(['root'])
+  })
 })
