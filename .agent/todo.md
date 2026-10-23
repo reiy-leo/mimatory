@@ -18,8 +18,8 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
   actions at the bottom of a sidebar" — Archive and Trash are pinned to the foot by design. `settings.md`:
   macOS settings windows use a fixed toolbar of panes; this one keeps its sidebar of panes (the System
   Settings pattern). Neither was changed.
-- **needs-owner-decision — There is no recovery path for a forgotten master password.** No export, no import,
-  no sync, no Keychain copy of the key, so nothing can undo it. This is not theoretical: the owner lost their
+- **needs-owner-decision — There is no recovery path for a forgotten master password.** No export, no
+  Keychain copy (sync, back since 2026-10-23, restores a lost *device* but still needs the master password) of the key, so nothing can undo it. This is not theoretical: the owner lost their
   own vault to it on 2026-10-08 and the vault was wiped. Any recovery design must keep the vault key
   unpersisted (see AGENTS.md), which is why it is a decision and not a task.
 - **⌘K should become search / command palette.** It currently locks the vault; `⌘F` only focuses the list
@@ -237,8 +237,9 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 ## Decided against (not pending — do not re-propose)
 
-- **No sync of any kind.** The 2026-10-08 ruling dropped the iCloud Drive / Google Drive transport in favour of
-  GitHub sync plus local snapshots; the owner deleted that too on 2026-10-09. The vault is local-only.
+- ~~No sync of any kind.~~ Reversed by the owner 2026-10-23: Google Drive (appDataFolder) or WebDAV sync, the same
+  two options as Navill — see "Sync (2026-10-23)" below and `.agent/sync.md`. (History: the 2026-10-08 ruling had
+  dropped iCloud/Google Drive for GitHub sync, deleted too on 2026-10-09.)
 - ~~No import.~~ Reversed by the owner 2026-10-21: File ▸ Import ▸ 1Password (.1pux)… is back (macOS menu bar,
   `src-tauri/src/import_1pux.rs`). The Passless backup reader stays deleted.
 
@@ -249,3 +250,20 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 ## 1Password import (.1pux) — 2026-10-21
 - Done: macOS menu bar File ▸ Import ▸ 1Password (.1pux)… (shell.rs builds Tauri's default menu + Import; event `menu:import-1pux`), picker → read-only preview sheet (vaults, item/attachment counts) → import. Each 1Password vault goes to the non-archived Passless vault of the same name, else a new one. Category → Passless type (unknown → Secure Note); template fields stored with template `key`; other fields as custom fields / titled sections; OTP → otp rows (otpauth secret only); attachments + Document files imported; archived stays archived; trash skipped; created/updated times kept.
 - needs-owner-decision: Windows/Linux have no menu bar, so no entry point there yet; re-importing duplicates items (no dedupe); password history, `reference` (linked item) fields and extra login form fields are dropped; otpauth digits/period/algorithm are dropped; 1P field-id → template-key table is from the published 1pux schema, unverified against a real export.
+
+## Sync (2026-10-23) — branch `feat/sync`, not merged
+- Done: Rust core `src-tauri/src/sync/` (records, three-way merge with tombstones, SQLite snapshot/apply, sync key +
+  manifest crypto, WebDAV and Drive appDataFolder stores, desktop Google OAuth loopback + PKCE), Tauri commands
+  `sync_status / sync_connect_webdav / sync_connect_google / sync_cancel_connect / sync_unlock_remote /
+  sync_disconnect / sync_now / sync_request`, `sync:status` event, background trigger (unlock, 3s debounce, 15 min),
+  `src/app/syncApi.ts`. 33 tests in the standalone crate incl. e2e against wsgidav.
+- **Next: the Settings ▸ Sync UI** (after the App.tsx split) — checklist in `.agent/sync.md` "Follow-up UI task";
+  the window must call `syncApi.request()` after every write.
+- **Owner: Google OAuth client** — create a "Desktop app" OAuth client (Google Cloud ▸ APIs & Services ▸ Credentials),
+  enable the Drive API, consent screen with scope `drive.appdata`; build with `PASSLESS_GOOGLE_CLIENT_ID`
+  (+ `PASSLESS_GOOGLE_CLIENT_SECRET`) in the environment (CI secrets for `build.yml`). Until then Google reports
+  "not configured".
+- needs-owner-decision: the 11 items in `.agent/sync.md` "Open owner decisions" (different master passwords,
+  password change re-wrap, merge-not-replace for two existing vaults, all vaults sync, attachment size / orphan
+  blobs, passkeys + TOTP seeds sync, tombstones forever, http WebDAV on LAN, Google on phones).
+- Never seen: a real Google Drive round, any of it in a running Tauri window, a real 坚果云/Nextcloud server.

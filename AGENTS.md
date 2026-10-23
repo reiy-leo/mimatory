@@ -15,6 +15,7 @@ Also ships a Manifest V3 browser extension (autofill via a local HTTP bridge on 
 | `AGENTS.md` (this file) | Commands, workflow, architecture, engineering constraints and traps | Always, first. |
 | `.agent/design.md` | The project's Apple (macOS HIG) design rules: tokens with light and dark values, type scale, radii, materials, focus ring, component rules, deviations from Apple's published values, documented exceptions | Any UI/CSS/class change. |
 | `.claude/skills/apple-design/` | **Vendored** `apple-design` skill (owner-installed 2026-10-14, pinned in `skills-lock.json`): `SKILL.md` + 123 HIG pages under `references/hig/`. The design reference — never hand-edited. | Before a UI decision: open the HIG pages `SKILL.md` lists for what is on screen and cite them. |
+| `.agent/sync.md` | Sync design: remote layout, crypto (sync key, manifest), merge rules, provider switching, commands/events, owner decisions | Touching `src-tauri/src/sync/`, a synced table/column, or the master password. |
 | `.agent/todo.md` | Open work, what has never been seen in a running app, completed items, decided-against features | Picking up someone else's thread, or before proposing a feature. |
 
 The UI follows Apple's Human Interface Guidelines for macOS (owner ruling, 2026-10-14: "我喜欢改成apple design，
@@ -138,6 +139,7 @@ src-tauri/src/        # Rust backend
   vault.rs            # VaultService: CRUD, encryption, session management
   storage.rs          # SQLite connection + schema + the 0600/0700 permission helpers
   crypto.rs           # AES-GCM + argon2 KDF
+  sync/               # Cloud sync (Google Drive appDataFolder or WebDAV): records, merge, local, cipher, engine, providers, commands — see .agent/sync.md
   favicon.rs          # Website icon fetch: https-only, SSRF guard, caps, decode + re-encode as a 64px PNG
   biometric.rs        # Touch ID (objc2) on macOS, tauri-plugin-biometric on iOS/Android, none elsewhere
   browser_bridge.rs   # HTTP server on 127.0.0.1:17891 for the extension
@@ -266,10 +268,20 @@ Wayland; X11 is not supported.
   lifetime. Do not add an OS Keychain entry for it, write a decrypted vault cache, or ship it inside any
   exported file. There is no OS Keychain access at all — the `keyring` crate and `secure_store.rs` were
   deleted 2026-10-09 (Touch ID uses `objc2-local-authentication`).
-- **There is no export, no import and no sync.** The vault exists only as the on-disk SQLite file;
-  `json_transfer.rs`, `github_sync.rs` and `sync_history.rs` went on 2026-10-09 with their settings tabs. A
-  forgotten master password therefore has no recovery path — do not re-add a transport without the owner
-  asking (see `.agent/todo.md`, "Decided against").
+- **Sync is back (owner, 2026-10-23: "添加google同步… 同时添加webdav，和navill项目一样支持两种方式")** — Google
+  Drive `appDataFolder` **or** WebDAV, one at a time; design, remote layout and open owner decisions in
+  `.agent/sync.md`. Rules that must hold: only ciphertext leaves the device (AES-256-GCM under a random **sync
+  key**, AAD-bound per file); the vault key still never persists — the sync key is wrapped in the remote
+  `manifest.json` under Argon2id(master password, manifest salt) and kept locally only inside the encrypted
+  `settings` row `sync_config` (with the WebDAV app password / Google refresh token), never plaintext, never in a
+  keychain; `sync_base` stores keyed HMACs only (a tag's record key contains its name). Merge is three-way per
+  record (LWW by modified time + device id; **edit beats delete**; tombstones); writes use `If-Match` and a 412
+  restarts the round before anything local is touched. Sync writes rows with given ids/timestamps through
+  `sync/local.rs`, not `VaultService` — **a new synced column or table must be added to `sync/records.rs` +
+  `local.rs` read and write**, or it silently stops syncing (and LWW will overwrite it with the remote's value).
+  Errors cross the bridge as `SyncErrorInfo {code, status, message}`. Still no export and no backup file; a
+  forgotten master password still has no recovery. Full-crate `cargo test` OOMs in the agent sandbox: sync tests
+  run in the standalone crate described in `.agent/sync.md`.
 - **File permissions**: any file the app writes goes through `storage::set_private_permissions` (0600,
   re-applied on every `open_database` so existing installs self-repair, covering the
   `-journal`/`-wal`/`-shm` sidecars) and `storage::create_private_directory` (0700). Today that is the
