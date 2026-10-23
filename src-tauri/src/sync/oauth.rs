@@ -97,10 +97,10 @@ pub fn authorization_url(client: &GoogleClient, redirect_uri: &str, challenge: &
 
 const DONE_PAGE: &str = "<!doctype html><meta charset=utf-8><title>Mimatory</title>\
 <body style=\"font:16px -apple-system,system-ui,sans-serif;text-align:center;padding-top:20vh\">\
-<p>Mimatory 已连接 Google Drive，可以关闭此页面。</p><p>Connected. You can close this tab.</p></body>";
+<p>密码库存已连接 Google Drive，可以关闭此页面。</p><p>Connected. You can close this tab.</p></body>";
 const FAIL_PAGE: &str = "<!doctype html><meta charset=utf-8><title>Mimatory</title>\
 <body style=\"font:16px -apple-system,system-ui,sans-serif;text-align:center;padding-top:20vh\">\
-<p>授权未完成，请回到 Mimatory 重试。</p><p>Sign-in did not complete.</p></body>";
+<p>授权未完成，请回到密码库存重试。</p><p>Sign-in did not complete.</p></body>";
 
 fn respond(request: tiny_http::Request, body: &str) {
     let header = tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..])
