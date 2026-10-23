@@ -149,6 +149,8 @@ second one a no-op (`busy` is swallowed).
 
 ## Tests (standalone crate, the full crate's `cargo test` OOMs here)
 
+The e2e tests live in `src-tauri/src/sync/e2e.rs` (`#[cfg(test)]`), so a normal `cd src-tauri && cargo test`
+on a Mac runs them (the WebDAV one only with `PASSLESS_WEBDAV_URL`/`_USER`/`_PASS` set). In the agent sandbox,
 `/workspace/work/synctest` copies `crypto.rs`, `storage.rs` and `sync/*` (minus `commands.rs`) with a stub
 `vault::tag_name_hash`; `sync.sh` re-copies. 33 tests: merge rules, cipher/manifest, WebDAV URL/ETag parsing,
 PKCE (RFC 7636 vector), config encryption, and e2e with real SQLite vaults of **different salts/keys**: two devices
