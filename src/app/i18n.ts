@@ -466,20 +466,15 @@ const resources = {
       },
       settings: {
         app: 'App',
-        appearance: 'Appearance',
-        appearanceDescription:
-          'System follows your Mac’s appearance. The choice is shared by the main window and all settings windows.',
         autostart: 'Open Passless at Login',
         autostartDescription: 'Registers a macOS LaunchAgent. The vault stays locked until you unlock it.',
         configured: 'configured',
-        dark: 'Dark',
         database: 'Database',
         downloadSiteIcons: 'Download website icons',
         generatorDescription:
           'Generate a random password, a passphrase, or a numeric PIN, then copy it to the clipboard.',
         language: 'Language',
         languageDescription: 'Chinese is the default language. Changes sync across the main and settings windows.',
-        light: 'Light',
         locked: 'locked',
         lockedHint: 'Unlock the main vault window to manage protected settings.',
         masterPassword: 'Master password',
@@ -491,7 +486,6 @@ const resources = {
         siteIconsDescription:
           'Passless looks up each website’s icon through Google’s favicon service, then the website itself, and keeps it encrypted in your vault. Google sees the website addresses it is asked about. Turning this off stops all lookups and deletes the saved icons.',
         subtitle: 'Passless preferences',
-        system: 'System',
         tabs: {
           appearance: 'Appearance',
           browser: 'Browser Extension',
@@ -1310,19 +1304,14 @@ const resources = {
       },
       settings: {
         app: 'アプリ',
-        appearance: '外観',
-        appearanceDescription:
-          '「システム」は Mac の外観設定に従います。選択はメインウィンドウとすべての設定ウィンドウで共有されます。',
         autostart: 'ログイン時に Passless を起動',
         autostartDescription: 'macOS LaunchAgent を登録します。ロック解除するまで保管庫はロックされたままです。',
         configured: '設定済み',
-        dark: 'ダーク',
         database: 'データベース',
         downloadSiteIcons: 'Webサイトのアイコンをダウンロード',
         generatorDescription: 'ランダムパスワード、パスフレーズ、数字 PIN を生成してクリップボードにコピーします。',
         language: '言語',
         languageDescription: '既定の言語は中国語です。変更はメインウィンドウと設定ウィンドウに同期されます。',
-        light: 'ライト',
         locked: 'ロック中',
         lockedHint: '保護された設定を管理するには、メイン保管庫ウィンドウを解除してください。',
         masterPassword: 'マスターパスワード',
@@ -1334,7 +1323,6 @@ const resources = {
         siteIconsDescription:
           '各WebサイトのアイコンをGoogleのファビコンサービス、次にWebサイト自体から取得し、保管庫に暗号化して保存します。問い合わせたWebサイトのアドレスはGoogleに伝わります。オフにするとすべての取得を止め、保存済みのアイコンを削除します。',
         subtitle: 'Passless の環境設定',
-        system: 'システム',
         tabs: {
           appearance: '外観',
           browser: 'ブラウザ拡張',
@@ -2148,18 +2136,14 @@ const resources = {
       },
       settings: {
         app: '应用',
-        appearance: '外观',
-        appearanceDescription: '“跟随系统”会随 Mac 的外观设置切换。此选择在主窗口和所有设置窗口之间共享。',
         autostart: '登录时启动 Passless',
         autostartDescription: '注册 macOS LaunchAgent。解锁前保险库始终保持锁定。',
         configured: '已配置',
-        dark: '深色',
         database: '数据库',
         downloadSiteIcons: '下载网站图标',
         generatorDescription: '生成随机密码、口令短语或数字 PIN，并复制到剪贴板。',
         language: '语言',
         languageDescription: '默认语言为中文。切换后会同步到主窗口和设置窗口。',
-        light: '浅色',
         locked: '已锁定',
         lockedHint: '请先在主窗口解锁保险库，才能管理受保护设置。',
         masterPassword: '主密码',
@@ -2171,7 +2155,6 @@ const resources = {
         siteIconsDescription:
           '先通过 Google 的网站图标服务、再向网站本身获取各网站的图标，并加密保存在保险库中。Google 会看到被查询的网站地址。关闭后将停止所有查询并删除已保存的图标。',
         subtitle: 'Passless 偏好设置',
-        system: '跟随系统',
         tabs: {
           appearance: '外观',
           browser: '浏览器插件',

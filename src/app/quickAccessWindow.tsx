@@ -12,7 +12,7 @@ import { loadSecurityPreferences } from './securityPreferences'
 import { useSignInLabel } from './signInControls'
 import { summarySignInProvider } from './signInProviders'
 import { loadSiteIcons, uniqueIconDomains, useSiteIconsEnabled } from './siteIcons'
-import { applyTheme, getInitialTheme, type Theme } from './theme'
+import { followSystemAppearance } from './theme'
 import { otpSecretFieldIndexes } from './totpDisplay'
 import { type LoginItemSummary, vaultApi } from './vaultApi'
 
@@ -28,7 +28,6 @@ export function QuickAccessWindow() {
   const [locked, setLocked] = useState(true)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [theme, setTheme] = useState<Theme>(() => getInitialTheme(localStorage.getItem('passless-theme')))
   const [language, setLanguage] = useState<SupportedLanguage>(() =>
     getInitialLanguage(localStorage.getItem('passless-language')),
   )
@@ -127,7 +126,7 @@ export function QuickAccessWindow() {
     void copyFromItem(item, event.altKey ? 'otp' : event.shiftKey ? 'password' : 'username')
   }
 
-  useEffect(() => applyTheme(theme), [theme])
+  useEffect(() => followSystemAppearance(), [])
 
   useEffect(() => {
     void i18n.changeLanguage(language)
@@ -140,18 +139,13 @@ export function QuickAccessWindow() {
   }, [selectedIndex])
 
   useEffect(() => {
-    let unlistenTheme: (() => void) | undefined
     let unlistenLanguage: (() => void) | undefined
-    listen<Theme>('passless-theme-changed', (event) => setTheme(event.payload)).then((nextUnlisten) => {
-      unlistenTheme = nextUnlisten
-    })
     listen<SupportedLanguage>('passless-language-changed', (event) => setLanguage(event.payload)).then(
       (nextUnlisten) => {
         unlistenLanguage = nextUnlisten
       },
     )
     return () => {
-      unlistenTheme?.()
       unlistenLanguage?.()
     }
   }, [])

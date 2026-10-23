@@ -20,7 +20,6 @@ export const settingsSearchEntries: Array<{
   { key: 'settings.siteIcons', tab: 'general' },
   { key: 'settings.autostart', requires: 'autostart', tab: 'general' },
   { key: 'settings.vaultStatus', tab: 'general' },
-  { key: 'settings.appearance', tab: 'appearance' },
   { key: 'settings.toastPosition', tab: 'appearance' },
   { key: 'integrations.browserExtension', requires: 'browserExtension', tab: 'browser' },
   { key: 'integrations.watchtower', tab: 'watchtower' },

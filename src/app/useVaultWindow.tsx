@@ -171,7 +171,7 @@ export function useVaultWindow() {
   const [isCreatingVault, setIsCreatingVault] = useState(false)
   const [vaultNameDraft, setVaultNameDraft] = useState('')
   const vaultNameInputRef = useRef<HTMLInputElement>(null)
-  const { securityPreferences, setSecurityPreferences, theme, setTheme, setLanguage } = useWindowAppearance()
+  const { securityPreferences, setSecurityPreferences, setLanguage } = useWindowAppearance()
   const [form, setForm] = useState<LoginFormState>(() => toFormState(emptyLoginItem()))
   // The two sidebar sections fold on their own: neither is a view you select, and a long tag or
   // category list otherwise pushes the rest of the sidebar out of the window.
@@ -2186,7 +2186,6 @@ export function useVaultWindow() {
     setTagRecords,
     setTagsCollapsed,
     setTextPreview,
-    setTheme,
     setTopSearch,
     setTrashedItems,
     setVaultDissolveInto,
@@ -2225,7 +2224,6 @@ export function useVaultWindow() {
     template,
     textPreview,
     textPreviewRequest,
-    theme,
     toggleAddMoreMenu,
     toggleItemMenu,
     toggleRowHighlight,

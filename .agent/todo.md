@@ -7,13 +7,7 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 
 ## Open
 
-- **needs-owner-decision — Keep or drop the in-app appearance override.** Settings ▸ Appearance now defaults
-  to System (follows macOS), with Light and Dark still offered. `dark-mode.md` › Best practices says "Avoid
-  offering an app-specific appearance setting", so the HIG answer is to delete the Light/Dark segments; that
-  removes a feature, so it is the owner's call. Existing installs keep whatever `passless-theme` value the old
-  build wrote on first launch (it always persisted the resolved light/dark), so they will not see System until
-  they pick it once — a migration to `system` is also the owner's call.
-- **Native vibrancy — needs a look on a real Mac (2026-10-14).** Owner asked for it; wired as described in AGENTS.md "Native vibrancy (macOS)". Never seen in a running app yet: check the sidebar material under the traffic lights, settings sidebar, Quick Access corners, and that the Light/Dark override (kept for testing, owner 2026-10-14) still matches the material.
+- **Native vibrancy — needs a look on a real Mac (2026-10-14).** Owner asked for it; wired as described in AGENTS.md "Native vibrancy (macOS)". Never seen in a running app yet: check the sidebar material under the traffic lights, settings sidebar, Quick Access corners, and that the material follows the system appearance in both light and dark (the in-app Light/Dark override was removed 2026-10-23).
 - **HIG notes not acted on (owner layout).** `sidebars.md` › Desktop: "Avoid putting critical information or
   actions at the bottom of a sidebar" — Archive and Trash are pinned to the foot by design. `settings.md`:
   macOS settings windows use a fixed toolbar of panes; this one keeps its sidebar of panes (the System
@@ -208,6 +202,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-23 | Theme follows the system only (owner decision 2026-10-23: drop the override, System only; closes the needs-owner-decision item). Settings ▸ Appearance lost its Light/Dark/System control; a stored `passless-theme` is deleted on launch so existing installs return to System | `.agent/design.md` Appearance follows the system |
 | 2026-10-23 | Item list virtualized with `@tanstack/react-virtual` (rows near the viewport only; screenshots pixel-identical to the full list on macOS light/dark, Windows, iOS, Android at top, mid-scroll and bottom) | `AGENTS.md` The item list is virtualized |
 | 2026-10-23 | `App.tsx` (~6000 lines) split into the three windows, `useVaultWindow` + focused hooks, and one component per pane / menu / dialog; behaviour unchanged (262 tests) | `AGENTS.md` Architecture |
 | 2026-10-23 | Item list returns summaries only (`LoginItemSummary`); the selected item is decrypted on demand by `get_login_item`, Quick Access reads secrets at copy time | `AGENTS.md` The list carries summaries |

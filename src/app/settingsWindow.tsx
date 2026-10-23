@@ -3,7 +3,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { Check, Cog, Copy, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { currentPlatformState, usePlatformState } from '../skin/runtime'
+import { usePlatformState } from '../skin/runtime'
 import { copyText } from './clipboard'
 import i18n, { getInitialLanguage, languageOptions, type SupportedLanguage } from './i18n'
 import { featuresFor, quickAccessKeys, shortcutLabel } from './platformFeatures'
@@ -20,10 +20,9 @@ import {
 } from './securityPreferences'
 import { isSettingsTab, type SettingsTab, settingsTabEvent, settingsTabLabels, settingsTabs } from './settingsTabs'
 import { forgetSiteIcons, readSiteIconsEnabled, writeSiteIconsEnabled } from './siteIcons'
-import { applyTheme, getInitialTheme, type Theme, themeOptions } from './theme'
+import { followSystemAppearance } from './theme'
 import { Toast, toastPositions, useToastPosition, writeToastPosition } from './toast'
 import { type AppStatus, type BreachCheckResult, vaultApi, type WatchtowerReport } from './vaultApi'
-import { syncWindowTheme } from './windowChrome'
 
 /**
  * Settings: its own window on desktop, a tab of the one window on phones (`embedded`). What a pane offers
@@ -77,24 +76,12 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
   const [tokenCopied, setTokenCopied] = useState(false)
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
   const [autostartEnabled, setAutostartEnabled] = useState(false)
-  const [theme, setTheme] = useState<Theme>(() => getInitialTheme(localStorage.getItem('passless-theme')))
   const [language, setLanguage] = useState<SupportedLanguage>(() =>
     getInitialLanguage(localStorage.getItem('passless-language')),
   )
 
-  useEffect(() => {
-    localStorage.setItem('passless-theme', theme)
-    syncWindowTheme(theme, currentPlatformState().platform)
-    return applyTheme(theme)
-  }, [theme])
-
-  useEffect(() => {
-    let unlisten: (() => void) | undefined
-    listen<Theme>('passless-theme-changed', (event) => setTheme(event.payload)).then((nextUnlisten) => {
-      unlisten = nextUnlisten
-    })
-    return () => unlisten?.()
-  }, [])
+  // Light and dark follow the system only (owner 2026-10-23); there is no setting for it.
+  useEffect(() => followSystemAppearance(), [])
 
   useEffect(() => {
     let unlisten: (() => void) | undefined
@@ -190,11 +177,6 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
   async function generatePairingToken() {
     setTokenCopied(false)
     setBrowserToken(await vaultApi.generateBrowserPairingToken())
-  }
-
-  async function updateTheme(nextTheme: Theme) {
-    setTheme(nextTheme)
-    await emit('passless-theme-changed', nextTheme)
   }
 
   async function updateLanguage(nextLanguage: SupportedLanguage) {
@@ -346,23 +328,6 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
 
         {activeTab === 'appearance' ? (
           <div className="settings-section">
-            <div className="integration-card">
-              <h2>{t('settings.appearance')}</h2>
-              <p>{t('settings.appearanceDescription')}</p>
-              <div className="segmented-control">
-                {themeOptions.map((option) => (
-                  <button
-                    aria-pressed={theme === option}
-                    className="segment-button secondary-button"
-                    key={option}
-                    onClick={() => updateTheme(option)}
-                    type="button"
-                  >
-                    {t(`settings.${option}`)}
-                  </button>
-                ))}
-              </div>
-            </div>
             <div className="integration-card">
               <h2>{t('settings.toastPosition')}</h2>
               <p>{t('settings.toastPositionDescription')}</p>

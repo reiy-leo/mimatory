@@ -122,7 +122,7 @@ src/                  # React frontend
   styles.css          # Tailwind + all custom CSS + the token values in :root (~2380 lines)
   app/vaultApi.ts     # All Tauri invoke() calls — typed wrappers
   app/navigation.ts   # Sidebar nav rows (4 rows in 2 groups)
-  app/theme.ts        # Appearance: system (default, follows prefers-color-scheme) / light / dark
+  app/theme.ts        # Appearance follows the system only (no in-app override since 2026-10-23); deletes the legacy `passless-theme` key
   app/i18n.ts         # zh (fallback) / en / ja bundles, one flat object per locale; parity is tested
   app/tagIcons.ts     # 43 pickable lucide glyphs + the 11 colour options, written out as full class pairs
   app/itemTags.ts sidebarHighlights.ts securityPreferences.ts lockScreen.ts totpDisplay.ts
