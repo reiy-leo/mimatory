@@ -4,7 +4,7 @@
 // encrypted vault, where a display preference has no business being.
 export type HighlightKind = 'category' | 'tag'
 
-const storageKey = 'passless-sidebar-highlights'
+const storageKey = 'mimatory-sidebar-highlights'
 
 export function highlightKey(kind: HighlightKind, id: string): string {
   return `${kind}:${id}`

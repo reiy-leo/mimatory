@@ -14,8 +14,14 @@ for (const element of document.querySelectorAll('[data-i18n-placeholder]')) {
   element.placeholder = text(element.dataset.i18nPlaceholder) || element.placeholder
 }
 
-chrome.storage.local.get(['passlessToken']).then((result) => {
-  tokenInput.value = result.passlessToken || ''
+// Renamed from Passless on 2026-10-23: show (and keep) a token saved under the old key until it is moved.
+chrome.storage.local.get(['mimatoryToken', 'passlessToken']).then(async (result) => {
+  const token = result.mimatoryToken || result.passlessToken || ''
+  tokenInput.value = token
+  if (result.passlessToken !== undefined) {
+    if (!result.mimatoryToken && token) await chrome.storage.local.set({ mimatoryToken: token })
+    await chrome.storage.local.remove('passlessToken')
+  }
 })
 
 fetch(`${bridge}/health`)
@@ -53,7 +59,7 @@ document.getElementById('fill').addEventListener('click', async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (!tab?.id) return
   try {
-    const result = await chrome.tabs.sendMessage(tab.id, { type: 'PASSLESS_FILL' })
+    const result = await chrome.tabs.sendMessage(tab.id, { type: 'MIMATORY_FILL' })
     statusEl.textContent = describeFill(result)
   } catch {
     statusEl.textContent = text('statusUnavailable')
@@ -61,6 +67,6 @@ document.getElementById('fill').addEventListener('click', async () => {
 })
 
 document.getElementById('save-token').addEventListener('click', async () => {
-  await chrome.storage.local.set({ passlessToken: tokenInput.value.trim() })
+  await chrome.storage.local.set({ mimatoryToken: tokenInput.value.trim() })
   statusEl.textContent = text('tokenSaved')
 })

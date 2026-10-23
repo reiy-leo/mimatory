@@ -48,7 +48,7 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 - **Multiplatform (2026-10-17) — never run outside Chromium.** Windows/Linux/iOS/Android skins and the phone layout
   were checked only as Vite + Chromium screenshots with `?platform=` (work/screens/platforms/). Unverified: native
   Mica on Windows (main + settings) and Acrylic Quick Access, the Windows title bar following the in-app theme
-  (`setTheme`), Segoe UI Variable / Roboto rendering, Hyprland behaviour (undecorated tiling, `passless
+  (`setTheme`), Segoe UI Variable / Roboto rendering, Hyprland behaviour (undecorated tiling, `mimatory
   --quick-access`, the refusal without `WAYLAND_DISPLAY`), any iOS/Android build (no SDKs here: `tauri ios/android
   init` was not run; CI generates the projects), `tauri-plugin-biometric` on a phone, safe areas on a notch,
   clipboard copy and its 90-second clear in WKWebView/Android WebView (a backgrounded phone may suspend the timer),
@@ -62,7 +62,7 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
   for dialogs (iOS) / full-screen dialogs (Material), Android dynamic colour, an iPad split-view layout beyond the
   desktop grid it gets today.
 - **Linux autostart** writes an XDG autostart entry, which Hyprland ignores unless the user runs something like
-  `dex`/uwsm; `exec-once = passless` is the Hyprland way. Not changed.
+  `dex`/uwsm; `exec-once = mimatory` is the Hyprland way. Not changed.
 
 - **Website icons / Sign in with… (2026-10-17) — unverified parts.** Never fetched a real site from the app:
   the network path is proven only against a local HTTP server (TLS, real redirects, proxies, rustls on Android,
@@ -97,14 +97,14 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 
 - **Field actions (2026-10-17) — unverified and remaining.** Checked only in Vite + Chromium against the stub
   (work/screens/fields/: macOS light+dark, Windows, Android). Never seen: Open & Fill end-to-end (the opener plugin
-  with a fragment URL, the extension stripping `#passless-fill` and filling — content.js was never run in a browser),
+  with a fragment URL, the extension stripping `#mimatory-fill` and filling — content.js was never run in a browser),
   ⌘R/⌘C in WKWebView (⌘R must not reach a reload), long press in a real Android/iOS WebView (and whether the
   WebView's own text-selection/context gesture fights it), `mailto:`/`tel:` from the menu, the 90-second clear in
   Quick Access's hidden window. Not done, 1Password has them: password history (needs storage), hold Option to
   reveal (needs a setting), the generator as a popover beside the field, changing a field's type after adding it,
   Markdown in notes, SSH private key export, date expiry alerts. (Drag-to-reorder and the per-website autofill
   behaviour landed 2026-10-17, see below.)
-- **needs-owner-decision — field actions.** (1) 1Password clears *every* copied value after 90 s; Passless clears
+- **needs-owner-decision — field actions.** (1) 1Password clears *every* copied value after 90 s; Mimatory clears
   secrets only (kept). (2) Quick Access ↵ copies the password; in 1Password ↵ is Open & Fill (kept). (3) The view's
   always-visible eye was removed in favour of the menu + ⌘R, as 1Password does — restore it if a one-click reveal is
   wanted. (4) A URL field inside a section opens on click (1Password's docs only say "copy or open").
@@ -142,9 +142,9 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
   `navigator.credentials.create`, the closed-shadow prompt on sites with strict CSP, and `/passkey-event` with
   `item_id` / `new_item` through the live bridge. The extension no longer reports passkey *sign-ins* (`get`):
   they used to write silently; nothing is written without the prompt now.
-- **needs-owner-decision — Passless as a real passkey provider: store private keys, answer
-  `navigator.credentials.get`.** Today Passless records passkey *metadata* only (relying party + account handle on
-  a login); the private key stays with the browser's or the device's authenticator, and Passless cannot sign in
+- **needs-owner-decision — Mimatory as a real passkey provider: store private keys, answer
+  `navigator.credentials.get`.** Today Mimatory records passkey *metadata* only (relying party + account handle on
+  a login); the private key stays with the browser's or the device's authenticator, and Mimatory cannot sign in
   with it. Becoming a provider means generating and storing keys in the vault, answering `create`/`get` for the
   page (extension-side WebAuthn emulation or the OS credential-provider APIs: macOS/iOS AuthenticationServices
   extension, Android Credential Manager, Windows plugin authenticators), attestation choices and sync semantics —
@@ -158,6 +158,11 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
   handle fits beside the cards.
 
 ## Never yet seen in a running app
+
+- **The Passless → Mimatory data migration (2026-10-23)** has only run in `cargo test` (temp dirs). Never seen:
+  a real macOS/Windows/Linux install with a Passless vault launching the renamed app (vault copied, unlocks with
+  the same master password, preferences carried over through the WebKit / WebView2 / WebKitGTK profile copy),
+  nor a launch while the old Passless app is still running. Quit Passless first when trying it.
 
 - Item relations (2026-10-15): the parent / child / related sections, the picker sheet and the disabled Delete
   and Move rows. Checked in Vite + Chromium against a stubbed bridge (light and dark) and the Rust side by
@@ -202,6 +207,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-23 | Renamed Passless → Mimatory everywhere (owner: "名称以后都统一成mimatory，不再使用passless"); identifier `app.mimatory.desktop`; one-time copy of the old vault + webview profile, localStorage key rename, extension token move | `AGENTS.md` The Passless → Mimatory rename |
 | 2026-10-23 | Theme follows the system only (owner decision 2026-10-23: drop the override, System only; closes the needs-owner-decision item). Settings ▸ Appearance lost its Light/Dark/System control; a stored `passless-theme` is deleted on launch so existing installs return to System | `.agent/design.md` Appearance follows the system |
 | 2026-10-23 | Item list virtualized with `@tanstack/react-virtual` (rows near the viewport only; screenshots pixel-identical to the full list on macOS light/dark, Windows, iOS, Android at top, mid-scroll and bottom) | `AGENTS.md` The item list is virtualized |
 | 2026-10-23 | `App.tsx` (~6000 lines) split into the three windows, `useVaultWindow` + focused hooks, and one component per pane / menu / dialog; behaviour unchanged (262 tests) | `AGENTS.md` Architecture |
@@ -238,12 +244,12 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 - **No sync of any kind.** The 2026-10-08 ruling dropped the iCloud Drive / Google Drive transport in favour of
   GitHub sync plus local snapshots; the owner deleted that too on 2026-10-09. The vault is local-only.
 - ~~No import.~~ Reversed by the owner 2026-10-21: File ▸ Import ▸ 1Password (.1pux)… is back (macOS menu bar,
-  `src-tauri/src/import_1pux.rs`). The Passless backup reader stays deleted.
+  `src-tauri/src/import_1pux.rs`). The Mimatory backup reader stays deleted.
 
-## Passkeys — Passless as the authenticator (2026-10-18)
+## Passkeys — Mimatory as the authenticator (2026-10-18)
 - Done: extension takes over navigator.credentials.create/get (passkey-provider.js, MAIN world); keys are ES256, "none" attestation, private key PKCS#8 in an encrypted `passkey_credential` field, signing in Rust (passkey.rs); conditional mediation shows passkeys in the inline field menu; "Use Another Device" falls back to the browser's own WebAuthn. Bridge calls now go through background.js (CORS / Private Network Access).
 - needs-owner-decision: AAGUID is all-zero (RPs show a generic name); sign counter fixed at 0; UV flag claimed because the vault is unlocked (no extra Touch ID per sign-in); passkeys are not exportable yet; no macOS system-wide credential provider (needs Swift extension + Apple signing).
 
 ## 1Password import (.1pux) — 2026-10-21
-- Done: macOS menu bar File ▸ Import ▸ 1Password (.1pux)… (shell.rs builds Tauri's default menu + Import; event `menu:import-1pux`), picker → read-only preview sheet (vaults, item/attachment counts) → import. Each 1Password vault goes to the non-archived Passless vault of the same name, else a new one. Category → Passless type (unknown → Secure Note); template fields stored with template `key`; other fields as custom fields / titled sections; OTP → otp rows (otpauth secret only); attachments + Document files imported; archived stays archived; trash skipped; created/updated times kept.
+- Done: macOS menu bar File ▸ Import ▸ 1Password (.1pux)… (shell.rs builds Tauri's default menu + Import; event `menu:import-1pux`), picker → read-only preview sheet (vaults, item/attachment counts) → import. Each 1Password vault goes to the non-archived Mimatory vault of the same name, else a new one. Category → Mimatory type (unknown → Secure Note); template fields stored with template `key`; other fields as custom fields / titled sections; OTP → otp rows (otpauth secret only); attachments + Document files imported; archived stays archived; trash skipped; created/updated times kept.
 - needs-owner-decision: Windows/Linux have no menu bar, so no entry point there yet; re-importing duplicates items (no dedupe); password history, `reference` (linked item) fields and extra login form fields are dropped; otpauth digits/period/algorithm are dropped; 1P field-id → template-key table is from the published 1pux schema, unverified against a real export.

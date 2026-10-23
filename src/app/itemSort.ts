@@ -13,7 +13,7 @@ export type ItemSort = { key: ItemSortKey; direction: ItemSortDirection }
 
 export const itemSortKeys: readonly ItemSortKey[] = ['title', 'created', 'modified', 'frequent', 'recent']
 export const defaultItemSort: ItemSort = { direction: 'desc', key: 'modified' }
-export const itemSortStorageKey = 'passless-item-sort'
+export const itemSortStorageKey = 'mimatory-item-sort'
 
 /** Title reads A→Z by default; every other key starts at the newest or most used. */
 export function defaultDirectionFor(key: ItemSortKey): ItemSortDirection {

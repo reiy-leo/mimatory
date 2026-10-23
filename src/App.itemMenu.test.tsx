@@ -67,7 +67,7 @@ function stubBridge() {
           return structuredClone(found)
         }
         case 'initialize_database':
-          return { database_ready: true, has_master_password: true, name: 'Passless', unlocked: false }
+          return { database_ready: true, has_master_password: true, name: 'Mimatory', unlocked: false }
         case 'unlock_vault':
         case 'list_login_items':
           return items.map(summary)
@@ -134,7 +134,7 @@ beforeAll(() => {
       return this.classList.contains('item-list') ? 800 : (clientHeight?.get?.call(this) ?? 0)
     },
   })
-  localStorage.setItem('passless-language', 'en')
+  localStorage.setItem('mimatory-language', 'en')
   void i18n.changeLanguage('en')
 })
 
@@ -279,8 +279,8 @@ describe('vault window', () => {
     fireEvent.click(screen.getByRole('button', { name: /Title/ }))
     fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Z to A' }))
     expect(titles()).toEqual(['Delta', 'Charlie', 'Bravo', 'Alpha'])
-    expect(JSON.parse(localStorage.getItem('passless-item-sort') ?? '{}')).toEqual({ direction: 'desc', key: 'title' })
-    localStorage.removeItem('passless-item-sort')
+    expect(JSON.parse(localStorage.getItem('mimatory-item-sort') ?? '{}')).toEqual({ direction: 'desc', key: 'title' })
+    localStorage.removeItem('mimatory-item-sort')
   })
 
   it('fills the header star as soon as the item is favourited', async () => {
@@ -313,7 +313,7 @@ describe('vault window', () => {
   })
 
   it('remembers the dragged column widths', async () => {
-    localStorage.setItem('passless-column-widths', JSON.stringify({ itemList: 240, sidebar: 9999 }))
+    localStorage.setItem('mimatory-column-widths', JSON.stringify({ itemList: 240, sidebar: 9999 }))
     await renderUnlocked()
     const shell = document.querySelector('.app-shell') as HTMLElement
     expect(shell.style.getPropertyValue('--item-list-width')).toBe('240px')
@@ -322,7 +322,7 @@ describe('vault window', () => {
     fireEvent.mouseDown(handle, { clientX: 400 })
     fireEvent.mouseMove(window, { clientX: 390 })
     fireEvent.mouseUp(window)
-    expect(JSON.parse(localStorage.getItem('passless-column-widths') ?? '{}')).toEqual({ itemList: 230, sidebar: 9999 })
-    localStorage.removeItem('passless-column-widths')
+    expect(JSON.parse(localStorage.getItem('mimatory-column-widths') ?? '{}')).toEqual({ itemList: 230, sidebar: 9999 })
+    localStorage.removeItem('mimatory-column-widths')
   })
 })

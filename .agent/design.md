@@ -1,6 +1,6 @@
 # Design rules and constraints
 
-On the Mac, Passless looks and behaves like a Mac app: the design system there is **Apple's Human Interface
+On the Mac, Mimatory looks and behaves like a Mac app: the design system there is **Apple's Human Interface
 Guidelines for macOS**, and most of this file is the project's binding translation of them into tokens and
 component rules. Since 2026-10-17 the other platforms wear their own skins (WinUI 3 on Windows, Material 3 on
 Android and Linux, Apple iOS on iPhone) — see "Per-platform skins" at the end; the macOS rules below are unchanged. Build

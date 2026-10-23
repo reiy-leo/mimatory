@@ -1,6 +1,6 @@
 {
 	"$schema": "../gen/schemas/desktop-schema.json",
-	"description": "The global Quick Access hotkey. Linux (Wayland) has no global-hotkey backend; Hyprland binds `passless --quick-access` instead, so the plugin and this capability are macOS and Windows only.",
+	"description": "The global Quick Access hotkey. Linux (Wayland) has no global-hotkey backend; Hyprland binds `mimatory --quick-access` instead, so the plugin and this capability are macOS and Windows only.",
 	"identifier": "global-shortcut",
 	"permissions": [
 		"global-shortcut:allow-register",

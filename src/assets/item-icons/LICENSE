@@ -1,6 +1,6 @@
 The SVG files in this directory are Microsoft Fluent Emoji ("Color" style), taken unmodified from
 https://github.com/microsoft/fluentui-emoji (assets/<Name>/Color/<name>_color.svg) and renamed after the
-Passless item type each one marks:
+Mimatory item type each one marks:
 
   login.svg            Key                     secure_note.svg       Memo
   credit_card.svg      Credit card             identity.svg          Identification card

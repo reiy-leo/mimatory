@@ -11,7 +11,7 @@ import { clearLegacyThemeOverride, followSystemAppearance } from './theme'
 export function useWindowAppearance() {
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
   const [, setLanguage] = useState<SupportedLanguage>(() =>
-    getInitialLanguage(localStorage.getItem('passless-language')),
+    getInitialLanguage(localStorage.getItem('mimatory-language')),
   )
 
   // The appearance is the system's, always; an override an older build stored is dropped on the way in.
@@ -22,9 +22,9 @@ export function useWindowAppearance() {
 
   useEffect(() => {
     let unlisten: (() => void) | undefined
-    listen<SupportedLanguage>('passless-language-changed', (event) => {
+    listen<SupportedLanguage>('mimatory-language-changed', (event) => {
       setLanguage(event.payload)
-      localStorage.setItem('passless-language', event.payload)
+      localStorage.setItem('mimatory-language', event.payload)
       void i18n.changeLanguage(event.payload)
     }).then((nextUnlisten) => {
       unlisten = nextUnlisten
@@ -34,7 +34,7 @@ export function useWindowAppearance() {
 
   useEffect(() => {
     let unlisten: (() => void) | undefined
-    listen<SecurityPreferences>('passless-security-preferences-changed', (event) => {
+    listen<SecurityPreferences>('mimatory-security-preferences-changed', (event) => {
       setSecurityPreferences(event.payload)
       saveSecurityPreferences(event.payload)
     }).then((nextUnlisten) => {

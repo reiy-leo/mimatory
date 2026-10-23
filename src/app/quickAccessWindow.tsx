@@ -29,7 +29,7 @@ export function QuickAccessWindow() {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [language, setLanguage] = useState<SupportedLanguage>(() =>
-    getInitialLanguage(localStorage.getItem('passless-language')),
+    getInitialLanguage(localStorage.getItem('mimatory-language')),
   )
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -140,7 +140,7 @@ export function QuickAccessWindow() {
 
   useEffect(() => {
     let unlistenLanguage: (() => void) | undefined
-    listen<SupportedLanguage>('passless-language-changed', (event) => setLanguage(event.payload)).then(
+    listen<SupportedLanguage>('mimatory-language-changed', (event) => setLanguage(event.payload)).then(
       (nextUnlisten) => {
         unlistenLanguage = nextUnlisten
       },

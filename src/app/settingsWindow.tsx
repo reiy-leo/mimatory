@@ -77,7 +77,7 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
   const [autostartEnabled, setAutostartEnabled] = useState(false)
   const [language, setLanguage] = useState<SupportedLanguage>(() =>
-    getInitialLanguage(localStorage.getItem('passless-language')),
+    getInitialLanguage(localStorage.getItem('mimatory-language')),
   )
 
   // Light and dark follow the system only (owner 2026-10-23); there is no setting for it.
@@ -85,9 +85,9 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
 
   useEffect(() => {
     let unlisten: (() => void) | undefined
-    listen<SupportedLanguage>('passless-language-changed', (event) => {
+    listen<SupportedLanguage>('mimatory-language-changed', (event) => {
       setLanguage(event.payload)
-      localStorage.setItem('passless-language', event.payload)
+      localStorage.setItem('mimatory-language', event.payload)
       void i18n.changeLanguage(event.payload)
     }).then((nextUnlisten) => {
       unlisten = nextUnlisten
@@ -97,7 +97,7 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
 
   useEffect(() => {
     let unlisten: (() => void) | undefined
-    listen<SecurityPreferences>('passless-security-preferences-changed', (event) => {
+    listen<SecurityPreferences>('mimatory-security-preferences-changed', (event) => {
       setSecurityPreferences(event.payload)
       saveSecurityPreferences(event.payload)
     }).then((nextUnlisten) => {
@@ -181,15 +181,15 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
 
   async function updateLanguage(nextLanguage: SupportedLanguage) {
     setLanguage(nextLanguage)
-    localStorage.setItem('passless-language', nextLanguage)
+    localStorage.setItem('mimatory-language', nextLanguage)
     await i18n.changeLanguage(nextLanguage)
-    await emit('passless-language-changed', nextLanguage)
+    await emit('mimatory-language-changed', nextLanguage)
   }
 
   async function updateSecurityPreferences(nextPreferences: SecurityPreferences) {
     setSecurityPreferences(nextPreferences)
     saveSecurityPreferences(nextPreferences)
-    await emit('passless-security-preferences-changed', nextPreferences)
+    await emit('mimatory-security-preferences-changed', nextPreferences)
   }
 
   async function updateSecurityPreference<K extends keyof SecurityPreferences>(key: K, value: SecurityPreferences[K]) {
@@ -319,7 +319,7 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
                   {t('settings.session')}: {status?.unlocked ? t('settings.unlocked') : t('settings.locked')}
                 </span>
                 <span>
-                  {t('settings.app')}: {status?.name ?? 'Passless'}
+                  {t('settings.app')}: {status?.name ?? 'Mimatory'}
                 </span>
               </div>
             </div>

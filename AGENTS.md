@@ -2,7 +2,9 @@
 
 ## Project
 
-Tauri v2 password manager for macOS, Windows, Linux (Wayland/Hyprland only), iOS and Android (owner, 2026-10-17:
+**Mimatory** (renamed from Passless on 2026-10-23, owner: "名称以后都统一成mimatory，不再使用passless" — never
+reintroduce the old name; see "The Passless → Mimatory rename" below for the few places it must survive). GitHub:
+`reiy-leo/mimatory`. Tauri v2 password manager for macOS, Windows, Linux (Wayland/Hyprland only), iOS and Android (owner, 2026-10-17:
 "和mindough项目一样支持macOS、Windows、iOS、Android、Linux（hyprland，不支持X11）"). React 18 + TypeScript frontend,
 Rust backend with encrypted SQLite vault. Each OS wears its own skin, the same mapping as the Mindough project —
 see "Platforms" below.
@@ -143,9 +145,10 @@ src/                  # React frontend
 
 src-tauri/src/        # Rust backend
   lib.rs              # All #[tauri::command] handlers + AppState + plugin setup
-  main.rs             # Just calls passless_lib::run()
+  main.rs             # Just calls mimatory_lib::run()
   vault.rs            # VaultService: CRUD, encryption, session management
   storage.rs          # SQLite connection + schema + the 0600/0700 permission helpers
+  rename_migration.rs # One-time copy of a pre-rename (Passless) vault + webview profile to the Mimatory paths
   crypto.rs           # AES-GCM + argon2 KDF
   favicon.rs          # Website icon fetch: https-only, SSRF guard, caps, decode + re-encode as a 64px PNG
   biometric.rs        # Touch ID (objc2) on macOS, tauri-plugin-biometric on iOS/Android, none elsewhere
@@ -246,13 +249,14 @@ Wayland; X11 is not supported.
   `WAYLAND_DISPLAY` is unset and pins `GDK_BACKEND=wayland` so XWayland never wins. Windows are undecorated
   (`tauri.linux.conf.json`, min 480×420 so the app tiles; below 760px it switches to the phone layout) and the
   settings window brings its own close button + Escape. Wayland gives an app no global hotkeys, so Quick Access is
-  summoned by the compositor: `bind = SUPER SHIFT, SPACE, exec, passless --quick-access` — the single-instance
+  summoned by the compositor: `bind = SUPER SHIFT, SPACE, exec, mimatory --quick-access` — the single-instance
   plugin forwards the flag and the running app toggles the panel (a first launch with the flag opens it too).
   Positioning a window is ignored under Wayland; a Hyprland rule such as
-  `windowrulev2 = float, title:^(Passless Quick Access)$` floats the panel.
+  `windowrulev2 = float, title:^(Mimatory Quick Access)$` floats the panel.
 - **Per-platform Tauri config** is JSON Merge Patch on `tauri.conf.json`: **arrays replace**, so each
-  `tauri.<platform>.conf.json` carries the whole `windows` entry. The bundle identifier `app.passless.desktop` is
-  the same on every platform (changing it would move existing desktop vaults' data directory).
+  `tauri.<platform>.conf.json` carries the whole `windows` entry. The bundle identifier `app.mimatory.desktop` is
+  the same on every platform. Changing it moves the webview profile (localStorage) on desktop and the whole app
+  sandbox — vault included — on iOS/Android, which is why the 2026-10-23 rename needed `rename_migration.rs`.
 - **`macOSPrivateApi` is gone.** In Tauri 2.12.1 the `macos-private-api` feature is a documented no-op (the private
   APIs are always on) and the config key only feeds tauri-build's feature check, which compares the merged
   per-platform config against `[dependencies] tauri` features — a macOS-only value would fail every other
@@ -268,6 +272,37 @@ Wayland; X11 is not supported.
   keystore (`ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_KEY_BASE64`) for a release APK.
 - **Screenshots**: the Playwright harness in `work/pwt/shoot-platforms.mjs` (outside the repo, never committed)
   loads `?platform=<p>` at 1280×800 for desktop and 390×844 for phones, light and dark.
+
+## The Passless → Mimatory rename (2026-10-23)
+
+Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, identifier `app.passless.desktop` →
+`app.mimatory.desktop`, product name and every UI string `Passless` → `Mimatory`, localStorage `passless-*` →
+`mimatory-*`, Tauri events, the extension's `mimatoryToken` / `X-Mimatory-Token` / `#mimatory-fill=` /
+`__mimatory` messages, CI artifact names. Existing installs carry real vaults, so the data moves **by copy**:
+
+- **Vault file** (`rename_migration.rs`, run in `run()` before the Tauri builder on desktop, and in `setup` after
+  `set_app_data_directory` on phones): `<data dir>/Passless/passless.sqlite3` → `<data dir>/Mimatory/mimatory.sqlite3`
+  (macOS `~/Library/Application Support`, Windows `%APPDATA%`, Linux `~/.local/share`). Copied with SQLite
+  `VACUUM INTO` from a read-only connection (one consistent snapshot, journal included), `PRAGMA quick_check`ed,
+  renamed into place from `*.migrating`, 0600, with `.migrated-from-passless` beside it. **Never** when the new
+  file exists; the old file is never modified or deleted. `storage::default_database_path` answers with the old
+  file while only it exists, so a failed copy keeps the user on their real vault instead of a first-run screen —
+  never "simplify" that fallback away, and never let anything create the new file before the migration runs.
+- **Webview profile** (desktop, best-effort, before any window exists): macOS `~/Library/WebKit/<identifier>`,
+  Windows/Linux `<local data dir>/<identifier>` copied once from the old identifier when the new one is absent.
+  `src/app/storageMigration.ts` (main.tsx's first import) then renames `passless-*` keys to `mimatory-*` (an
+  existing new key wins; `passless-theme` is left for `theme.ts` to delete). Losing it only resets preferences.
+- **Phones cannot be migrated**: a new bundle id / Android package is a different app with its own sandbox, and
+  there is no export. An install of the old identifier keeps its vault in the old app.
+- **No Keychain / Touch ID entries exist** (no `keyring` since 2026-10-09; Touch ID only gates `biometric_session`
+  in memory), so nothing there needed moving.
+- **Extension pairing**: the token is in app memory only (re-paired after every app restart anyway); the
+  extension moves a saved `passlessToken` to `mimatoryToken`, and the bridge still accepts `X-Passless-Token`
+  from an un-updated extension.
+- **Not migrated, by design**: an autostart entry registered by the old app (re-enable Open at Login), Hyprland
+  binds (`exec, passless --quick-access` → `mimatory --quick-access`, window rule title `Mimatory Quick Access`).
+- **`MASTER_VERIFIER_TEXT` stays `"passless-master-verifier"`** — it is encrypted into every vault and compared on
+  unlock; renaming it locks every existing vault.
 
 ## Vault security
 
@@ -379,7 +414,7 @@ Wayland; X11 is not supported.
   `openSectionHighlightMenu` refuses to open when the section has no *rendered* highlighted row (a stale key
   would offer a dead button). Panel heights are constants: `highlightMenuHeight` for a category's single row,
   `tagMenuHeight = 3 * menuRowHeight + 24` for a tag's three.
-  **Keys live in localStorage, not the vault** (`passless-sidebar-highlights`, `src/app/sidebarHighlights.ts`,
+  **Keys live in localStorage, not the vault** (`mimatory-sidebar-highlights`, `src/app/sidebarHighlights.ts`,
   beside the theme and language): `tag:<tagKey>` or `category:<itemType>`, the same namespacing the nav ids use.
   A tag's key is its case-normalised spelling, so renaming a tag must re-key its highlight
   (`renameHighlightKeys` in `handleTagSave`) or the row the user just kept silently unpins itself. A deleted tag's
@@ -602,7 +637,7 @@ Wayland; X11 is not supported.
   secrets — passwords, concealed fields, card numbers, OTP codes, OTP seeds and setup links — honour the 90-second
   clear, plain values do not; Quick Access reads the setting fresh from localStorage at copy time.
   **Open & Fill has no channel into the browser**, so it rides the URL: `openAndFillUrl` appends
-  `#passless-fill=<item id>` (a *fragment*, never sent to the server — 1Password's query parameter breaks some
+  `#mimatory-fill=<item id>` (a *fragment*, never sent to the server — 1Password's query parameter breaks some
   sites), skipped when the URL already has a fragment (hash-routed apps). `content.js` strips it with
   `history.replaceState`, then fills **that** item through the ordinary origin-scoped `/fill` (an id from another
   site finds no match), retrying for ~5s while a late sign-in form renders. No bridge endpoint was added. The page's
@@ -663,7 +698,7 @@ Wayland; X11 is not supported.
   `navigator.credentials.create`; `content.js` checks the rp id fits the page's host (a page may only name its own
   host or a parent domain), asks in a closed-shadow prompt (a login for this site, or New Item), and only Save posts
   `/passkey-event` with `item_id` / `new_item` (`VaultService::save_passkey`, `PasskeyTarget`). A content script's
-  isolated world cannot see the page's `navigator.credentials` calls — the old observer there never fired. Passless
+  isolated world cannot see the page's `navigator.credentials` calls — the old observer there never fired. Mimatory
   stores metadata only; the private key stays with the platform authenticator.
 
 ## Testing and verification

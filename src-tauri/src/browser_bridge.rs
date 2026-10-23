@@ -61,7 +61,7 @@ impl From<LoginItem> for BridgeMatch {
     }
 }
 
-/// `navigator.credentials.create()` handed to Passless (all binary values base64url).
+/// `navigator.credentials.create()` handed to Mimatory (all binary values base64url).
 #[derive(Deserialize)]
 struct PasskeyCreateRequest {
     origin: String,
@@ -83,7 +83,7 @@ struct PasskeyCreateRequest {
     new_item: bool,
 }
 
-/// The accounts Passless can sign in with on this page: by RP ID, narrowed to the site's allow list.
+/// The accounts Mimatory can sign in with on this page: by RP ID, narrowed to the site's allow list.
 #[derive(Deserialize)]
 struct PasskeyListRequest {
     origin: String,
@@ -317,6 +317,9 @@ fn sign_with_passkey(session: &SharedSession, input: PasskeyGetRequest) -> Bridg
     Ok(assertion)
 }
 
+const TOKEN_HEADER: &str = "X-Mimatory-Token";
+const LEGACY_TOKEN_HEADER: &str = "X-Passless-Token";
+
 fn authorize(request: &tiny_http::Request, bridge_token: &SharedBridgeToken) -> Result<(), String> {
     let expected = bridge_token
         .lock()
@@ -326,7 +329,9 @@ fn authorize(request: &tiny_http::Request, bridge_token: &SharedBridgeToken) -> 
     let provided = request
         .headers()
         .iter()
-        .find(|header| header.field.equiv("X-Passless-Token"))
+        .find(|header| header.field.equiv(TOKEN_HEADER))
+        // An extension from before the 2026-10-23 rename (Passless) still sends the old header name.
+        .or_else(|| request.headers().iter().find(|header| header.field.equiv(LEGACY_TOKEN_HEADER)))
         .map(|header| header.value.as_str().to_string())
         .unwrap_or_default();
     if tokens_match(&provided, &expected) {
@@ -459,7 +464,11 @@ fn with_cors(response: Response<std::io::Cursor<Vec<u8>>>) -> Response<std::io::
     response
         .with_header(Header::from_bytes("Access-Control-Allow-Origin", "*").expect("header"))
         .with_header(
-            Header::from_bytes("Access-Control-Allow-Headers", "Content-Type, X-Passless-Token").expect("header"),
+            Header::from_bytes(
+                "Access-Control-Allow-Headers",
+                "Content-Type, X-Mimatory-Token, X-Passless-Token",
+            )
+            .expect("header"),
         )
         .with_header(
             Header::from_bytes("Access-Control-Allow-Methods", "GET, POST, OPTIONS")

@@ -1,3 +1,5 @@
+// First import: carries passless-* preferences over to mimatory-* before i18n reads the language.
+import './app/storageMigration'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './App'

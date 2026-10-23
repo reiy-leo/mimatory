@@ -5,6 +5,7 @@ mod crypto;
 mod favicon;
 mod import_1pux;
 mod passkey;
+mod rename_migration;
 #[cfg(desktop)]
 mod shell;
 mod site_match;
@@ -47,7 +48,7 @@ fn initialize_database(state: State<AppState>) -> Result<AppStatus, String> {
     let has_master_password = service.has_master_password().map_err(String::from)?;
 
     Ok(AppStatus {
-        name: "Passless",
+        name: "Mimatory",
         database_ready: true,
         has_master_password,
         unlocked: state
@@ -674,7 +675,7 @@ fn export_attachment_to_temp(id: String, state: State<AppState>) -> Result<Strin
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| "attachment".to_string());
-    let directory = storage::temp_base_directory().join("Passless Attachments");
+    let directory = storage::temp_base_directory().join("Mimatory Attachments");
     storage::create_private_directory(&directory).map_err(|error| error.to_string())?;
     let path = directory.join(file_name);
     fs::write(&path, attachment.bytes).map_err(|error| error.to_string())?;
@@ -723,7 +724,7 @@ async fn unlock_with_biometrics(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<LoginItemSummary>, String> {
-    biometric::authenticate(&app, "unlock your Passless vault").map_err(|error| error.to_string())?;
+    biometric::authenticate(&app, "unlock your Mimatory vault").map_err(|error| error.to_string())?;
     let session = state
         .biometric_session
         .lock()
@@ -807,8 +808,8 @@ fn require_wayland() {
     let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some_and(|value| !value.is_empty());
     if !wayland {
         eprintln!(
-            "Passless needs a Wayland session (it is built for Hyprland); X11 is not supported.\n\
-             WAYLAND_DISPLAY is not set — start Passless from your Wayland compositor."
+            "Mimatory needs a Wayland session (it is built for Hyprland); X11 is not supported.\n\
+             WAYLAND_DISPLAY is not set — start Mimatory from your Wayland compositor."
         );
         std::process::exit(1);
     }
@@ -819,6 +820,9 @@ fn require_wayland() {
 pub fn run() {
     #[cfg(target_os = "linux")]
     require_wayland();
+    // Before the builder: the main window's webview must open on the copied profile, not a fresh one.
+    #[cfg(desktop)]
+    rename_migration::run_desktop();
 
     let session = Arc::new(Mutex::new(None));
     let biometric_session = Arc::new(Mutex::new(None));
@@ -841,6 +845,9 @@ pub fn run() {
             {
                 use tauri::Manager;
                 storage::set_app_data_directory(app.path().app_data_dir()?);
+                if let Err(error) = storage::migrate_legacy_database() {
+                    eprintln!("Mimatory: vault migration skipped: {error}");
+                }
             }
             // The extension lives in a desktop browser; iOS and Android get no loopback listener at all.
             // Started here so its writes can tell the window to reload (`vault:changed`).
@@ -921,5 +928,5 @@ pub fn run() {
             hide_quick_access
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Passless");
+        .expect("error while running Mimatory");
 }

@@ -24,6 +24,8 @@ use uuid::Uuid;
 const LEGACY_MIGRATIONS_META: &str = "legacy_migrations";
 const LEGACY_MIGRATIONS_VERSION: &str = "1";
 const DEFAULT_VAULT_ID: &str = "personal";
+/// Encrypted into every existing vault when its master password was set and compared on unlock, so it keeps
+/// the pre-rename (Passless) spelling for good: changing it would lock every existing vault.
 const MASTER_VERIFIER_TEXT: &str = "passless-master-verifier";
 /// The field type older builds used to point at another item before links were real.
 const LEGACY_RELATED_FIELD: &str = "related_item";
@@ -1352,7 +1354,7 @@ impl VaultService {
         self.save_passkey(&vault, overwrite, origin, rp_id, user_name, target, credential)
     }
 
-    /// Every passkey Passless itself holds for a relying party, across the open vaults, with the item
+    /// Every passkey Mimatory itself holds for a relying party, across the open vaults, with the item
     /// that carries it (the extension's sign-in picker and its signer).
     pub fn passkey_credentials_everywhere(
         &self,
@@ -2120,7 +2122,7 @@ impl VaultService {
                     url: origin.to_string(),
                     match_type: default_match_type(),
                 }],
-                // The legacy note says the key stays with the platform authenticator — untrue once Passless holds it.
+                // The legacy note says the key stays with the platform authenticator — untrue once Mimatory holds it.
                 notes: if credential.is_some() { String::new() } else { PASSKEY_NOTE.to_string() },
                 tags: vec!["passkey".to_string()],
                 custom_fields: with_passkey_credential(vec![passkey_field(rp_id, user_name)], credential),
@@ -3532,7 +3534,7 @@ mod tests {
     fn test_database_path(name: &str) -> std::path::PathBuf {
         let mut path = std::env::temp_dir();
         path.push(format!(
-            "passless-{name}-{}-{}.sqlite3",
+            "mimatory-{name}-{}-{}.sqlite3",
             std::process::id(),
             uuid::Uuid::new_v4()
         ));
@@ -4621,7 +4623,7 @@ mod tests {
 
         let mut file = std::env::temp_dir();
         file.push(format!(
-            "passless-duplicate-{}-{}.bin",
+            "mimatory-duplicate-{}-{}.bin",
             std::process::id(),
             uuid::Uuid::new_v4()
         ));

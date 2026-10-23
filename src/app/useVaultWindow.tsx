@@ -1895,7 +1895,7 @@ export function useVaultWindow() {
         resizable: false,
         shadow: true,
         skipTaskbar: true,
-        title: 'Passless Settings',
+        title: 'Mimatory Settings',
         url: tab ? `/?view=settings&tab=${tab}` : '/?view=settings',
         width: settingsWindowSize.width,
         // Title bar and window material per platform (macOS: overlay + sidebar vibrancy, as before).

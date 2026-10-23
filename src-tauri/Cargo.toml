@@ -1,12 +1,12 @@
 [package]
-name = "passless"
+name = "mimatory"
 version = "0.1.0-alpha.2"
 description = "A personal password manager"
-authors = ["Passless"]
+authors = ["Mimatory"]
 edition = "2021"
 
 [lib]
-name = "passless_lib"
+name = "mimatory_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -64,7 +64,7 @@ tauri-plugin-positioner = { version = "2.4.0", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2.5.2"
 
 # The global ⌘⇧Space / Ctrl+Shift+Space hotkey. Not on Linux: global-hotkey grabs keys through X11, which
-# a Wayland compositor never routes to it, so Hyprland binds `passless --quick-access` instead (shell.rs).
+# a Wayland compositor never routes to it, so Hyprland binds `mimatory --quick-access` instead (shell.rs).
 [target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
 tauri-plugin-global-shortcut = "2.4.0"
 

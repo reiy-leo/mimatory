@@ -27,11 +27,11 @@
 		"vite": "^6.0.1",
 		"vitest": "^2.1.5"
 	},
-	"name": "passless",
+	"name": "mimatory",
 	"private": true,
 	"scripts": {
 		"build": "npm run build:extension-css && tsc && vite build",
-		"build:css": "tailwindcss -c tailwind.config.js -i src/styles.css -o /tmp/passless-app.css",
+		"build:css": "tailwindcss -c tailwind.config.js -i src/styles.css -o /tmp/mimatory-app.css",
 		"build:extension-css": "tailwindcss -c tailwind.config.js -i browser-extension/popup.tailwind.css -o browser-extension/popup.css --minify",
 		"dev": "vite",
 		"lint": "biome check .",

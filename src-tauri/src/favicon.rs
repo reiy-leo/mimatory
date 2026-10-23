@@ -246,7 +246,7 @@ fn get(start: &Url, cap: usize, accept: &str, policy: &FetchPolicy, over_cap: Ov
             .timeout(policy.timeout)
             .connect_timeout(Duration::from_secs(5))
             .resolve_to_addrs(&host, &addresses)
-            .user_agent("Mozilla/5.0 (compatible; Passless website icon)")
+            .user_agent("Mozilla/5.0 (compatible; Mimatory website icon)")
             .build()
             .map_err(|error| FaviconError::Network(error.to_string()))?;
         let response = client

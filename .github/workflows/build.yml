@@ -29,12 +29,12 @@ jobs:
           ref = os.environ["GITHUB_REF"]
           alpha = ref.startswith("refs/tags/") and "-alpha" in ref
           mac = {"name": "macOS (universal)", "os": "macos-latest", "args": "--target universal-apple-darwin",
-                 "rust-targets": "aarch64-apple-darwin,x86_64-apple-darwin", "artifact": "passless-macos",
+                 "rust-targets": "aarch64-apple-darwin,x86_64-apple-darwin", "artifact": "mimatory-macos",
                  "bundle": "src-tauri/target/universal-apple-darwin/release/bundle"}
           win = {"name": "Windows", "os": "windows-latest", "args": "", "rust-targets": "",
-                 "artifact": "passless-windows", "bundle": "src-tauri/target/release/bundle"}
+                 "artifact": "mimatory-windows", "bundle": "src-tauri/target/release/bundle"}
           linux = {"name": "Linux (Wayland)", "os": "ubuntu-22.04", "args": "", "rust-targets": "",
-                   "artifact": "passless-linux", "bundle": "src-tauri/target/release/bundle"}
+                   "artifact": "mimatory-linux", "bundle": "src-tauri/target/release/bundle"}
           include = [mac] if alpha else [mac, win, linux]
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write("matrix=" + json.dumps({"include": include}) + "\n")
@@ -80,7 +80,7 @@ jobs:
           args: ${{ matrix.args }}
           # Only a tag creates the draft Release; a manual run only uploads artifacts.
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-          releaseName: Passless ${{ github.ref_name }}
+          releaseName: Mimatory ${{ github.ref_name }}
           # Alpha tags publish a prerelease right away; other tags stay drafts for review.
           releaseDraft: ${{ needs.plan.outputs.alpha != 'true' }}
           prerelease: true
@@ -144,7 +144,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: passless-android-debug
+          name: mimatory-android-debug
           if-no-files-found: error
           path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
 
@@ -157,12 +157,12 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: passless-android-debug
+          name: mimatory-android-debug
           path: apk
       - name: Upload
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           f=$(find apk -name '*.apk' | head -1)
-          cp "$f" "Passless-${GITHUB_REF_NAME}-android-arm64-debug.apk"
-          gh release upload "$GITHUB_REF_NAME" "Passless-${GITHUB_REF_NAME}-android-arm64-debug.apk" --clobber -R "$GITHUB_REPOSITORY"
+          cp "$f" "Mimatory-${GITHUB_REF_NAME}-android-arm64-debug.apk"
+          gh release upload "$GITHUB_REF_NAME" "Mimatory-${GITHUB_REF_NAME}-android-arm64-debug.apk" --clobber -R "$GITHUB_REPOSITORY"

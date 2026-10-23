@@ -85,11 +85,11 @@ export function shortcutLabel(shortcut: string, platform: Platform): string {
 
 /**
  * How Quick Access is summoned: a global hotkey on macOS and Windows; on Linux the compositor owns global keys,
- * so the user binds `passless --quick-access` (Hyprland: `bind = SUPER SHIFT, SPACE, exec, passless
+ * so the user binds `mimatory --quick-access` (Hyprland: `bind = SUPER SHIFT, SPACE, exec, mimatory
  * --quick-access`) and the running app toggles the panel. Null where there is no Quick Access.
  */
 export function quickAccessKeys(platform: Platform): string | null {
   if (!featuresFor(platform).quickAccess) return null
-  if (platform === 'linux') return 'passless --quick-access'
+  if (platform === 'linux') return 'mimatory --quick-access'
   return shortcutLabel('mod+shift+Space', platform)
 }

@@ -1,7 +1,7 @@
-/* Every call to the Passless app goes through the extension's service worker (background.js), which adds the
+/* Every call to the Mimatory app goes through the extension's service worker (background.js), which adds the
    pairing token and the page's real origin. */
 async function bridge(path, body = {}) {
-  const answer = await chrome.runtime.sendMessage({ body, path, type: 'PASSLESS_BRIDGE' })
+  const answer = await chrome.runtime.sendMessage({ body, path, type: 'MIMATORY_BRIDGE' })
   if (!answer) throw new Error('0')
   return answer
 }
@@ -142,7 +142,7 @@ function highlightProviderButton(button) {
   }, 6000)
 }
 
-async function fillFromPassless(itemId) {
+async function fillFromMimatory(itemId) {
   const items = await fetchMatches()
   // Open & Fill names its item; the popup's Fill takes the best match for the page.
   const item = itemId ? items.find((match) => match.id === itemId) : items[0]
@@ -179,10 +179,10 @@ function fillLogin(item, { submit }) {
 
 let suppressMenuUntil = 0
 
-// What Passless itself just filled: submitting it unchanged is not a new login to offer saving.
+// What Mimatory itself just filled: submitting it unchanged is not a new login to offer saving.
 let lastFilled = null
 
-async function saveToPassless() {
+async function saveToMimatory() {
   const login = findLoginForm()
   if (!login?.password?.value) return
   if (
@@ -200,23 +200,23 @@ async function saveToPassless() {
   }).catch(() => {})
 }
 
-// Any sign-in form, including one rendered after load, offers its new login to Passless on submit.
+// Any sign-in form, including one rendered after load, offers its new login to Mimatory on submit.
 document.addEventListener(
   'submit',
   (event) => {
     if (event.target instanceof HTMLFormElement && event.target.querySelector('input[type="password"]')) {
-      saveToPassless()
+      saveToMimatory()
     }
   },
   true,
 )
 
-/* Open & Fill from the Passless app: the app opens the item's website with `#passless-fill=<item id>` in the
+/* Open & Fill from the Mimatory app: the app opens the item's website with `#mimatory-fill=<item id>` in the
    fragment (never sent to the server). The marker is removed from the address bar at once, then this one item
    is filled through the ordinary origin-scoped /fill — an id for another site's item simply finds no match.
    Sign-in forms that render late get a few seconds to appear. */
 function pendingFillItemId() {
-  const match = /^#passless-fill=([^&]+)$/.exec(location.hash)
+  const match = /^#mimatory-fill=([^&]+)$/.exec(location.hash)
   if (!match) return null
   history.replaceState(history.state, '', `${location.pathname}${location.search}`)
   try {
@@ -227,7 +227,7 @@ function pendingFillItemId() {
 }
 
 async function openAndFill(itemId, attemptsLeft = 10) {
-  const result = await fillFromPassless(itemId).catch(() => ({ kind: 'error' }))
+  const result = await fillFromMimatory(itemId).catch(() => ({ kind: 'error' }))
   if (result.kind === 'noLoginForm' && attemptsLeft > 0) {
     window.setTimeout(() => openAndFill(itemId, attemptsLeft - 1), 500)
   }
@@ -237,8 +237,8 @@ const openAndFillItemId = pendingFillItemId()
 if (openAndFillItemId) openAndFill(openAndFillItemId)
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === 'PASSLESS_FILL') {
-    fillFromPassless()
+  if (message?.type === 'MIMATORY_FILL') {
+    fillFromMimatory()
       .then(sendResponse)
       .catch(() => sendResponse({ kind: 'error' }))
     // Keeps the channel open for the asynchronous answer.
@@ -309,13 +309,13 @@ function el(tag, attributes = {}, children = []) {
 }
 
 /* ── Inline fill menu (owner, 2026-10-18: "like 1Password") ──────────────────────────────────────────────
-   Focusing or clicking a sign-in field on a site Passless has logins for opens a small menu under the field
+   Focusing or clicking a sign-in field on a site Mimatory has logins for opens a small menu under the field
    with those logins. Picking one fills the username and password and presses the page's own Next / Sign in.
    On an identifier-first page the item stays pending for a minute, so the password step that follows is
    filled and submitted as well. A "Sign in with…" login only points at the provider's button, as before.
    The menu lives in a closed shadow root: the site's CSS cannot restyle it and its scripts cannot read it. */
 
-const PENDING_KEY = 'passless-pending-step'
+const PENDING_KEY = 'mimatory-pending-step'
 const PENDING_TTL_MS = 60 * 1000
 
 function rememberPendingStep(itemId) {
@@ -445,7 +445,7 @@ function pickItem(item) {
 async function openMenu(field) {
   if (menuState?.field === field || Date.now() < suppressMenuUntil) return
   const logins = (await cachedMatches()).filter((item) => item.sign_in_with || item.password || item.username)
-  // A site waiting on passkey autofill (mediation "conditional") gets Passless's passkeys first.
+  // A site waiting on passkey autofill (mediation "conditional") gets Mimatory's passkeys first.
   const passkeys = conditionalRequest
     ? conditionalRequest.choices.map((choice) => ({ ...choice, passkeyChoice: true }))
     : []
@@ -454,7 +454,7 @@ async function openMenu(field) {
   if (!items.length || document.activeElement !== field) return
   closeMenu()
 
-  const host = el('div', { 'data-passless-menu': '' })
+  const host = el('div', { 'data-mimatory-menu': '' })
   const root = host.attachShadow({ mode: 'closed' })
   root.append(el('style', { text: MENU_STYLE }))
   const menu = el('ul', { 'aria-label': msg('inlineMenuLabel'), class: 'menu', role: 'listbox' })
@@ -579,9 +579,9 @@ if (pendingStepItemId()) {
 if (isLoginField(document.activeElement)) openMenu(document.activeElement)
 
 /* ── Passkeys (owner 2026-10-18: "完整passkey支持") ───────────────────────────────────────────────────────
-   passkey-provider.js hands the page's navigator.credentials.create() / .get() here. Passless answers only
+   passkey-provider.js hands the page's navigator.credentials.create() / .get() here. Mimatory answers only
    after the user chose it in a prompt the page cannot read or click (closed shadow root, trusted events
-   only); the bridge holds the private key and returns signatures. "Use another device", or a site Passless
+   only); the bridge holds the private key and returns signatures. "Use another device", or a site Mimatory
    has nothing for, sends the call on to the browser's own WebAuthn untouched. */
 
 const KEY_ICON =
@@ -604,7 +604,7 @@ const CARD_EXTRA_STYLE = `
 `
 
 function respondToPage(id, answer) {
-  window.postMessage({ __passless: 'webauthn-response', id, ...answer }, location.origin)
+  window.postMessage({ __mimatory: 'webauthn-response', id, ...answer }, location.origin)
 }
 
 const notAllowed = { message: 'The operation either timed out or was not allowed.', name: 'NotAllowedError' }
@@ -615,7 +615,7 @@ let conditionalRequest = null
    page abort; the caller's own buttons close it with `done`. */
 function passkeyCard(id, { title, detail, onCancel }) {
   openCards.get(id)?.close()
-  const host = el('div', { 'data-passless-prompt': '' })
+  const host = el('div', { 'data-mimatory-prompt': '' })
   const root = host.attachShadow({ mode: 'closed' })
   root.append(el('style', { text: PROMPT_STYLE + CARD_EXTRA_STYLE }))
   const card = el('div', { 'aria-label': title, class: 'card', role: 'dialog' })
@@ -665,7 +665,7 @@ function bridgeFailure(answer) {
   return null
 }
 
-async function passlessAvailable(request) {
+async function mimatoryAvailable(request) {
   const answer = await bridge('/passkey/list', {
     allow_credentials: request.allow_credentials || [],
     rp_id: request.rp_id,
@@ -674,8 +674,8 @@ async function passlessAvailable(request) {
 }
 
 async function handleCreate(id, request) {
-  // Not paired, locked or not running: the browser's own passkey flow, as if Passless were absent.
-  if ((await passlessAvailable({ rp_id: request.rp_id })) === null) {
+  // Not paired, locked or not running: the browser's own passkey flow, as if Mimatory were absent.
+  if ((await mimatoryAvailable({ rp_id: request.rp_id })) === null) {
     respondToPage(id, { fallback: true })
     return
   }
@@ -688,7 +688,7 @@ async function handleCreate(id, request) {
   })
   const choices = el('fieldset', { class: 'choices' })
   const option = (value, title, sub, checked) => {
-    const input = el('input', { name: 'passless-target', type: 'radio', value })
+    const input = el('input', { name: 'mimatory-target', type: 'radio', value })
     input.checked = checked
     const text = el('span', {}, [el('span', { class: 'choice-title', text: title })])
     if (sub) text.append(el('span', { class: 'choice-sub', text: sub }))
@@ -757,7 +757,7 @@ function answerConditional(choice) {
 }
 
 async function handleGet(id, request) {
-  const choices = await passlessAvailable(request)
+  const choices = await mimatoryAvailable(request)
   if (!choices?.length) {
     respondToPage(id, { fallback: true })
     return
@@ -807,12 +807,12 @@ async function handleGet(id, request) {
 window.addEventListener('message', (event) => {
   if (event.source !== window || event.origin !== location.origin) return
   const data = event.data
-  if (data?.__passless === 'webauthn-abort') {
+  if (data?.__mimatory === 'webauthn-abort') {
     openCards.get(data.id)?.close()
     if (conditionalRequest?.id === data.id) conditionalRequest = null
     return
   }
-  if (data?.__passless !== 'webauthn-request' || typeof data.id !== 'string') return
+  if (data?.__mimatory !== 'webauthn-request' || typeof data.id !== 'string') return
   const request = { ...data.request }
   const run = data.kind === 'create' ? handleCreate : data.kind === 'get' ? handleGet : null
   if (!run) return

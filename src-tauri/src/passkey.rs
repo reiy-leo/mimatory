@@ -1,7 +1,7 @@
-//! Passless as a WebAuthn authenticator for the browser extension (owner 2026-10-18: "完整passkey支持").
+//! Mimatory as a WebAuthn authenticator for the browser extension (owner 2026-10-18: "完整passkey支持").
 //!
 //! The extension hands a site's `navigator.credentials.create()` / `.get()` to the bridge after the user
-//! picked Passless in its prompt. A registration mints a P-256 key (ES256, the one algorithm every relying
+//! picked Mimatory in its prompt. A registration mints a P-256 key (ES256, the one algorithm every relying
 //! party accepts) and answers with "none" attestation; the private key is stored in the item's encrypted
 //! custom fields as a `passkey_credential` field and never leaves the app — the extension only ever sees
 //! public data and signatures. A sign-in signs `authenticatorData || SHA-256(clientDataJSON)`.

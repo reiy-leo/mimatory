@@ -84,7 +84,7 @@ export function phoneHref(value: string): string | null {
 }
 
 /** The fragment the browser extension looks for on load (content.js `pendingFillItemId`). */
-export const openAndFillMarker = 'passless-fill'
+export const openAndFillMarker = 'mimatory-fill'
 
 /**
  * Open & Fill without a channel into the browser: the URL carries the item id in its *fragment* (never sent to

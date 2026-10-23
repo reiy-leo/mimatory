@@ -30,7 +30,7 @@ export const settingsSearchEntries: Array<{
 ]
 
 /** Settings opened from the toolbar search land on this pane: the window's URL for a new one, an event otherwise. */
-export const settingsTabEvent = 'passless://settings-tab'
+export const settingsTabEvent = 'mimatory://settings-tab'
 
 export function isSettingsTab(value: unknown): value is SettingsTab {
   return typeof value === 'string' && (settingsTabs as string[]).includes(value)

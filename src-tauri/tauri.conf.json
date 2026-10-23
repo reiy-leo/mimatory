@@ -16,7 +16,7 @@
 				"height": 760,
 				"minHeight": 640,
 				"minWidth": 960,
-				"title": "Passless",
+				"title": "Mimatory",
 				"width": 1180
 			}
 		]
@@ -38,7 +38,7 @@
 		},
 		"targets": "all"
 	},
-	"identifier": "app.passless.desktop",
-	"productName": "Passless",
+	"identifier": "app.mimatory.desktop",
+	"productName": "Mimatory",
 	"version": "0.1.0-alpha.2"
 }

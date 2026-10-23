@@ -6,7 +6,7 @@ import { type CachedSiteIcon, type LoginItem, vaultApi } from './vaultApi'
 // for the window's lifetime and hands each tile its data URL. Nothing here talks to the network.
 
 // The "Download website icons" setting. Device-local like the theme and language, on by default.
-export const siteIconsPreferenceKey = 'passless-site-icons'
+export const siteIconsPreferenceKey = 'mimatory-site-icons'
 
 export function readSiteIconsEnabled(storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage) {
   return storage?.getItem(siteIconsPreferenceKey) !== 'off'

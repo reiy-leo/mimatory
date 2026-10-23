@@ -78,7 +78,7 @@ export const itemListWidthLimits = { default: 220, max: 250, min: 180 }
 export const sidebarWidthLimits = { default: 220, max: 220, min: 150 }
 
 // Column widths the user dragged survive relaunches (owner 2026-10-18), clamped in case the limits changed.
-export const columnWidthStorageKey = 'passless-column-widths'
+export const columnWidthStorageKey = 'mimatory-column-widths'
 
 export function readColumnWidth(key: 'itemList' | 'sidebar', limits: { default: number; max: number; min: number }) {
   try {
@@ -162,7 +162,7 @@ export const itemMenuHeight = 10 * menuRowHeight + 40
 // password group instead of the custom field list.
 export const loginSectionFieldTypes = ['otp', 'sign_in_with', 'passkey']
 
-/** Passkeys Passless itself created (passkey.rs): JSON with the private key, kept but never shown. */
+/** Passkeys Mimatory itself created (passkey.rs): JSON with the private key, kept but never shown. */
 export const passkeyCredentialFieldType = 'passkey_credential'
 
 export const categoryItems = [
