@@ -208,7 +208,8 @@ dark values), `--material-filter: saturate(180%) blur(20px)`. Radius `xsmall` 2,
 
 ## The rules are tested
 
-`src/app/designContract.test.ts` (`npm run test:design`) reads the stylesheets, `App.tsx`, the popup and
+`src/app/designContract.test.ts` (`npm run test:design`) reads the stylesheets, every component that carries class names (`App.tsx` and the windows, panes and
+dialogs split out of it into `src/app/`, listed in its `windowSources`), the popup and
 `tailwind.config.js` and fails on: a hex or `rgb()` in a component rule; the default Tailwind palette; an
 arbitrary `px`/`rem`/hex bracket; a webfont or a font stack that is not the system font; a focus ring not
 drawn with `--focus-ring-width` + `--color-focus-ring` + `--focus-ring-offset`, or a ring colour that is not

@@ -101,7 +101,7 @@ describe('i18n', () => {
      item type comes from the sidebar's categories, the placeholder from the add-field menu, and the icon
      name from the tag picker's grid. */
   it('translates the keys built at runtime', () => {
-    const app = readFileSync('src/App.tsx', 'utf8')
+    const app = readFileSync('src/app/vaultModel.ts', 'utf8')
     const itemTypes = [...app.matchAll(/icon: \w+, itemType: '([a-z_]+)' \}/g)].map((match) => match[1])
     /* The Add More menu's field entries (addMoreOptions.ts) each pick a default label and a placeholder. */
     const addMore = readFileSync('src/app/addMoreOptions.ts', 'utf8')

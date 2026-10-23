@@ -15,10 +15,10 @@ function hasKey(language: string, key: string) {
   return i18n.exists(key, { fallbackLng: [], lng: language })
 }
 
-/* The sidebar's category table lives in App.tsx; every category in it is expected to have a template. */
-const categoryTypes = [...readFileSync('src/App.tsx', 'utf8').matchAll(/icon: \w+, itemType: '([a-z_]+)' \}/g)].map(
-  (match) => match[1],
-)
+/* The sidebar's category table lives in vaultModel.ts; every category in it is expected to have a template. */
+const categoryTypes = [
+  ...readFileSync('src/app/vaultModel.ts', 'utf8').matchAll(/icon: \w+, itemType: '([a-z_]+)' \}/g),
+].map((match) => match[1])
 
 describe('item templates', () => {
   it('gives every sidebar category its own template', () => {

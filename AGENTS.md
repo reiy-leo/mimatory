@@ -109,7 +109,16 @@ Biome (not ESLint/Prettier), config `biome.json`, run `npm run lint:fix`.
 ```
 src/                  # React frontend
   main.tsx            # ReactDOM entry
-  App.tsx             # Single-file UI: VaultWindow / SettingsWindow / QuickAccessWindow (no router, ~4500 lines)
+  App.tsx             # ~26 lines: picks the window from ?view= and blocks the native context menu (no router)
+  app/vaultWindow.tsx settingsWindow.tsx quickAccessWindow.tsx  # the three windows
+  app/useVaultWindow.tsx  # VaultWindow's state + behaviour (~2300 lines); returns the model every pane reads (`vw`)
+  app/useVaultItems.ts useVaultSession.ts useWindowAppearance.ts  # vault data + selection, lock/unlock/idle, theme/language/security prefs
+  app/useItemSort.ts useColumnWidths.ts useTotpPreviews.ts useItemFormFields.ts useItemActions.ts  # list sort, gutters, OTP codes, editor changes, item menu actions
+  app/vaultLockScreen.tsx vaultSidebar.tsx vaultToolbar.tsx itemList.tsx itemDetailPane.tsx  # the main window's panes
+  app/itemEditForm.tsx itemDetailView.tsx otpFieldView.tsx  # the detail pane's edit form and read-only view
+  app/itemPickers.tsx itemActionsMenu.tsx sidebarMenus.tsx vaultDialogs.tsx styleEditorDialog.tsx mobileTabBar.tsx  # sheets, menus, dialogs, phone tab bar
+  app/vaultModel.ts   # form state + conversions, menu/column constants, `categoryItems` (the one item-type table)
+  app/settingsTabs.ts # the Settings panes list
   styles.css          # Tailwind + all custom CSS + the token values in :root (~2380 lines)
   app/vaultApi.ts     # All Tauri invoke() calls — typed wrappers
   app/navigation.ts   # Sidebar nav rows (4 rows in 2 groups)
@@ -159,8 +168,8 @@ browser-extension/    # Manifest V3 extension (not built by Vite), desktop only;
   `storage::open_default_database()` connection — there is no pooling.
 - **Three windows**: `main`, `settings` (`/?view=settings`), `quick-access` (`/?view=quick-access`, created on
   demand by `shell.rs`). **Any new window label must also be added to `src-tauri/capabilities/main.json`
-  `windows`, or its `invoke()` calls are denied at runtime.** No router: the view comes from `?view=` and
-  `App.tsx` holds all state.
+  `windows`, or its `invoke()` calls are denied at runtime.** No router: the view comes from `?view=` in
+  `App.tsx`; each window owns its state (`VaultWindow`'s lives in `useVaultWindow` and the hooks it composes).
 - **A second window is placed against `main`, never centred on the screen.** `center: true` does not mean
   "where the user is": `tauri-runtime-wry-2.12.1/src/lib.rs` centres a position-less window on
   `event_loop.primary_monitor()`, so with a display to the right of the primary one the panel opens on the
@@ -283,7 +292,7 @@ Wayland; X11 is not supported.
   `Access-Control-Allow-Origin: *` on `127.0.0.1:17891` and returns plaintext credentials to a paired client —
   do not widen its reach or add an endpoint that exposes more.
 - **The TOTP seed rests masked**: `fieldValueInputProps` gives an `otp` input `type="password"` unless it is
-  the focused field (`focusedOtpField` in `App.tsx`), so a saved key is legible only while being typed. Import
+  the focused field (`focusedOtpField` in `useVaultWindow.tsx`), so a saved key is legible only while being typed. Import
   runs the other way: the QR button in `OtpFieldActions` reads an image **off the clipboard**
   (`src/app/otpQrImport.ts`, decoded with `jsqr`) and stores the `secret` of an `otpauth://` link or a bare
   base32 key, and nothing else. The app never renders a seed as a QR image and there is no screen-region
@@ -293,7 +302,7 @@ Wayland; X11 is not supported.
 
 - **No text selection and no native context menu.** `@layer base` sets `user-select: none` on `*`, re-enabling
   `text` only for `input`, `textarea`, `select` and `[contenteditable="true"]`; one `useEffect` in `App()`
-  (registered *before* its `?view=` early returns, so it runs in all three windows) calls `preventDefault()` on
+  (`src/App.tsx`, registered *before* its `?view=` early returns, so it runs in all three windows) calls `preventDefault()` on
   every `contextmenu` event on `window`. The webview's own Reload / Save As / spelling panel is thereby
   unreachable and a credential cannot be highlighted into the clipboard by accident. Anything the user *should*
   copy stays reachable through an explicit button (复制密码, the field menus). A right-click that must do
@@ -383,7 +392,7 @@ Wayland; X11 is not supported.
   draft, sets `activeNavigation` to `category:<type>`, unfolds 分类 if needed, then focuses and
   `scrollIntoView({ block: 'nearest' })`s the row via `data-item-type` — looked up in `[categoryListRef]` on the
   **next** commit, because a row inside a section that just unfolded does not exist yet. `categoryItems` (the
-  table is declared in `App.tsx`, not in a module of its own) is therefore the one type table (17 entries,
+  table is declared in `src/app/vaultModel.ts`) is therefore the one type table (17 entries,
   sidebar rows and picker both), and `i18n.test.ts` reads *its* shape
   (`icon: <Component>, itemType: 'x' }`) to derive the `itemTypes.*` keys — widening that regex is how a new type
   gets its translations checked.
@@ -553,7 +562,7 @@ Wayland; X11 is not supported.
 - **Item templates and typed fields** (2026-10-14). Every category's default fields are data in
   `src/app/itemTemplates.ts` (key, `field_type`, label key, options, rules); the editor and the read-only view
   draw every field through `FieldEditor` / `FieldView` in `src/app/fieldControls.tsx`, chosen by type alone, so a
-  new behaviour is a type or a template change, never a per-category branch in `App.tsx`. **The vault format did
+  new behaviour is a type or a template change, never a per-category branch in the editor (`itemEditForm.tsx`). **The vault format did
   not change**: a template section is still a `section` custom field whose value is a JSON array of children,
   and each child a template seeds carries a `key` inside that JSON (Rust treats both as opaque strings; a
   top-level `CustomField` cannot take a new property, because serde drops unknown fields on the round trip).

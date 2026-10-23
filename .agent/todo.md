@@ -24,7 +24,7 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
   unpersisted (see AGENTS.md), which is why it is a decision and not a task.
 - **⌘K should become search / command palette.** It currently locks the vault; `⌘F` only focuses the list
   search. Carried over from the pre-2026-10-08 rulings.
-- **Rust errors are not translated.** Every `catch` in `App.tsx` does `setError(String(nextError))`, so a
+- **Rust errors are not translated.** Every `catch` in the window code (`useVaultWindow.tsx` and its hooks) does `setError(String(nextError))`, so a
   backend failure renders as `Error: invalid master password` in zh and ja. The locale bundles themselves are
   clean. The fix is error **codes** across the bridge, not more strings — do not paper over it with
   per-message lookups in the frontend.
@@ -208,6 +208,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-23 | `App.tsx` (~6000 lines) split into the three windows, `useVaultWindow` + focused hooks, and one component per pane / menu / dialog; behaviour unchanged (262 tests) | `AGENTS.md` Architecture |
 | 2026-10-23 | Item list returns summaries only (`LoginItemSummary`); the selected item is decrypted on demand by `get_login_item`, Quick Access reads secrets at copy time | `AGENTS.md` The list carries summaries |
 | 2026-10-17 | One field row for every field in view and edit (fieldRows.tsx: drag handle outside the card, label above value, trailing type buttons + red remove, whole-cell focus ring; sections as cards with their own "add more"; drag and Alt+↑/↓ reorder within and across sections), websites with label + autofill behaviour (anywhere / exact host / never) enforced in Rust with the Public Suffix List, OTP edit row (grouped key, QR scan) and view row ("214 • 685" + countdown) | `AGENTS.md` Websites and autofill behaviour, Field rows; `design.md` exceptions |
 | 2026-10-17 | 1Password-style field actions: row = primary action, per-type menu / phone action sheet, Show in Large Type, Open & Fill via the extension, item and Quick Access copy shortcuts, ⌘R, one clipboard helper (OTP and Quick Access copies now cleared) | `AGENTS.md` Field actions; `design.md` exceptions |

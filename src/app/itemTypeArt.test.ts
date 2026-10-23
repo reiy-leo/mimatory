@@ -2,8 +2,8 @@ import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { itemTypeArtFor } from './itemTypeArt'
 
-// The picker's types come from App.tsx's categoryItems table (the same shape i18n.test.ts reads).
-const app = readFileSync('src/App.tsx', 'utf8')
+// The picker's types come from vaultModel.ts's categoryItems table (the same shape i18n.test.ts reads).
+const app = readFileSync('src/app/vaultModel.ts', 'utf8')
 const table = app.slice(
   app.indexOf('const categoryItems = ['),
   app.indexOf('] as const', app.indexOf('const categoryItems = [')),
