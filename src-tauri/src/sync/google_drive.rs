@@ -136,7 +136,7 @@ impl DriveStore {
     }
 
     fn create(&mut self, name: &str, bytes: Vec<u8>) -> SyncResult<String> {
-        let boundary = format!("passless-{}", uuid::Uuid::new_v4().simple());
+        let boundary = format!("mimatory-{}", uuid::Uuid::new_v4().simple());
         let metadata = serde_json::json!({ "name": drive_name(name), "parents": ["appDataFolder"] });
         let mut body = Vec::with_capacity(bytes.len() + 512);
         body.extend_from_slice(

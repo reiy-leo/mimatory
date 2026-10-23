@@ -28,7 +28,7 @@ pub enum SyncError {
     Locked,
     #[error("其他设备正在写入，多次重试仍冲突（412 前置条件失败）")]
     ConflictRetriesExhausted,
-    #[error("Google 同步未配置（构建时缺少 PASSLESS_GOOGLE_CLIENT_ID）")]
+    #[error("Google 同步未配置（构建时缺少 MIMATORY_GOOGLE_CLIENT_ID）")]
     GoogleNotConfigured,
     #[error("此平台暂不支持 Google 同步")]
     GoogleUnsupportedPlatform,

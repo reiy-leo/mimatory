@@ -1,6 +1,6 @@
 //! End-to-end sync tests: two (or three) real SQLite vault files with different salts and keys,
 //! the real engine/merge/local code, against an in-memory store and — when
-//! `PASSLESS_WEBDAV_URL` is set — a real WebDAV server (wsgidav).
+//! `MIMATORY_WEBDAV_URL` is set — a real WebDAV server (wsgidav).
 
 use super::engine::{self, JoinOutcome};
 use super::error::SyncError;
@@ -382,15 +382,15 @@ fn sync_config_is_encrypted_at_rest() {
 
 /// Against a real WebDAV server, e.g.:
 /// `wsgidav --host 127.0.0.1 --port 18080 --root /tmp/dav --auth-file …` and
-/// `PASSLESS_WEBDAV_URL=http://127.0.0.1:18080/ PASSLESS_WEBDAV_USER=… PASSLESS_WEBDAV_PASS=…`.
+/// `MIMATORY_WEBDAV_URL=http://127.0.0.1:18080/ MIMATORY_WEBDAV_USER=… MIMATORY_WEBDAV_PASS=…`.
 #[test]
 fn two_devices_converge_through_webdav() {
-    let Ok(url) = std::env::var("PASSLESS_WEBDAV_URL") else {
-        eprintln!("PASSLESS_WEBDAV_URL not set; skipping WebDAV e2e");
+    let Ok(url) = std::env::var("MIMATORY_WEBDAV_URL") else {
+        eprintln!("MIMATORY_WEBDAV_URL not set; skipping WebDAV e2e");
         return;
     };
-    let user = std::env::var("PASSLESS_WEBDAV_USER").unwrap_or_default();
-    let pass = std::env::var("PASSLESS_WEBDAV_PASS").unwrap_or_default();
+    let user = std::env::var("MIMATORY_WEBDAV_USER").unwrap_or_default();
+    let pass = std::env::var("MIMATORY_WEBDAV_PASS").unwrap_or_default();
     let mut sa = WebDavStore::new(&url, &user, &pass).unwrap();
     let mut sb = WebDavStore::new(&url, &user, &pass).unwrap();
     two_devices_converge(&mut sa, &mut sb);

@@ -30,11 +30,16 @@ Status: Rust core, Tauri commands and tests are done (branch `feat/sync`). **No 
 WebDAV — one folder in the server root, created on connect:
 
 ```
-passless/
+mimatory/
   manifest.json        plaintext, non-secret: format, KDF params + salt, wrapped sync key
-  vault.enc            the whole merged state, AES-256-GCM under the sync key (AAD "passless-sync/v1/state")
+  vault.enc            the whole merged state, AES-256-GCM under the sync key (AAD "mimatory-sync/v1/state")
   blobs/<attachment-id>.bin   one per attachment, AES-256-GCM under the sync key (AAD binds the id)
 ```
+
+Renamed with the app on 2026-10-23 (Passless → Mimatory): folder `mimatory/`, manifest `app: "mimatory"`, AAD and
+HMAC domain prefixes `mimatory-sync…`, env vars `MIMATORY_GOOGLE_CLIENT_ID` / `MIMATORY_GOOGLE_CLIENT_SECRET` /
+`MIMATORY_WEBDAV_*`. No remote or `sync_base` data had been written by then, so nothing was migrated; a remote
+written by a pre-rename build would not be readable (different folder and AAD).
 
 Google Drive — the hidden `appDataFolder` (scope `drive.appdata`, invisible in the user's Drive and to other apps),
 flat: `manifest.json`, `vault.enc`, `blobs.<attachment-id>.bin`.
@@ -113,9 +118,9 @@ differ in size; residual risk accepted, same as Navill.
   new target (full upload; whatever the new target already held is merged, not overwritten). The old target keeps
   its data; disconnect deletes nothing remote.
 - **WebDAV**: server URL, username, app password; credentials only on this device (encrypted). `https://` required
-  (bare host gets `https://` prepended); `http://` only for loopback (tests). No redirects followed (Basic auth must
-  not follow a server elsewhere). Folder: **`passless/`** (product name; matches the bundle/app data folder).
-- **Google**: desktop only. `PASSLESS_GOOGLE_CLIENT_ID` (+ `PASSLESS_GOOGLE_CLIENT_SECRET` if the Desktop client
+  (bare host gets `https://` prepended); `http://` only for loopback (tests) — owner decision 2026-10-23: no WebDAV without TLS. No redirects followed (Basic auth must
+  not follow a server elsewhere). Folder: **`mimatory/`** (product name; matches the bundle/app data folder).
+- **Google**: desktop only. `MIMATORY_GOOGLE_CLIENT_ID` (+ `MIMATORY_GOOGLE_CLIENT_SECRET` if the Desktop client
   needs it — Google treats an installed app's secret as non-confidential) are read with `option_env!` at **build
   time**; without the id `google_available` is false and connect returns `google_not_configured`. Consent opens in
   the system browser (`tauri_plugin_opener::open_url`), redirect to `http://127.0.0.1:<random port>`, PKCE S256,
@@ -150,7 +155,7 @@ second one a no-op (`busy` is swallowed).
 ## Tests (standalone crate, the full crate's `cargo test` OOMs here)
 
 The e2e tests live in `src-tauri/src/sync/e2e.rs` (`#[cfg(test)]`), so a normal `cd src-tauri && cargo test`
-on a Mac runs them (the WebDAV one only with `PASSLESS_WEBDAV_URL`/`_USER`/`_PASS` set). In the agent sandbox,
+on a Mac runs them (the WebDAV one only with `MIMATORY_WEBDAV_URL`/`_USER`/`_PASS` set). In the agent sandbox,
 `/workspace/work/synctest` copies `crypto.rs`, `storage.rs` and `sync/*` (minus `commands.rs`) with a stub
 `vault::tag_name_hash`; `sync.sh` re-copies. 33 tests: merge rules, cipher/manifest, WebDAV URL/ETag parsing,
 PKCE (RFC 7636 vector), config encryption, and e2e with real SQLite vaults of **different salts/keys**: two devices
@@ -163,14 +168,14 @@ the proxy variables unset or loopback goes to the proxy.
 
 Not tested: Google Drive and OAuth against Google (needs Rei's client id), anything in a running Tauri window.
 
-## Open owner decisions
+## Owner decisions (3 and 9 decided 2026-10-23; the rest still open)
 
 1. **Different master passwords on two devices** — supported (the remote password is typed once per device). Should
    the app instead require the same master password, or offer to change the local one to match?
 2. **Master-password change** (no such feature yet): the manifest stays wrapped under the *old* password, so a new
    device would need the old one. When a change feature lands it must re-wrap the manifest.
-3. **Both devices already have vaults** — merged (union), not first-device-wins. Both default "Personal" vaults
-   have id `personal`, so they merge into one; LWW picks one name. OK?
+3. ~~**Both devices already have vaults**~~ — **decided (owner, 2026-10-23): merge.** Union, not first-device-wins
+   (the current behaviour); both default "Personal" vaults have id `personal`, so they become one, LWW picks the name.
 4. **Multi-vault**: all vaults sync, including archived ones. No per-vault opt-out.
 5. **Attachments**: synced as separate blobs, no size cap, orphaned blobs (after an attachment/item is purged) are
    never deleted from the remote.
@@ -178,7 +183,8 @@ Not tested: Google Drive and OAuth against Google (needs Rei's client id), anyth
 7. **Website-icon cache is excluded** (each device refetches).
 8. **Tombstones are kept forever** in `vault.enc` (small). Pruning after N days would resurrect deletions on a
    device offline longer than N.
-9. **`http://` WebDAV** is refused except loopback. A LAN NAS without TLS would need an explicit opt-in.
+9. ~~**`http://` WebDAV**~~ — **decided (owner, 2026-10-23): no WebDAV without TLS.** Plain `http://` stays refused
+   except loopback (tests); no opt-in for a LAN NAS. Do not add one without the owner asking.
 10. **Google on iOS/Android** is not wired (needs an iOS/Android OAuth client with a custom scheme / app link,
     not loopback). WebDAV works on every platform.
 11. **Recovery**: sync is also the first recovery path — a remote plus the master password restores a lost vault on
@@ -187,7 +193,7 @@ Not tested: Google Drive and OAuth against Google (needs Rei's client id), anyth
 ## Follow-up UI task (after the App.tsx split lands)
 
 - Settings ▸ Sync pane: provider choice (Google Drive / WebDAV, 二选一), WebDAV form (URL, username, app password,
-  hint that `passless/` is created in the root), Google button (hidden or disabled with a note when
+  hint that `mimatory/` is created in the root), Google button (hidden or disabled with a note when
   `google_available` is false), connected state (provider, URL/user, last sync, Sync Now, Disconnect / Switch).
 - `needs_remote_password` → a sheet asking for the remote vault's master password (`syncApi.unlockRemote`).
 - Errors: translate `SyncErrorInfo.code` in zh/en/ja (`i18n.ts`); show `status` with its gloss.

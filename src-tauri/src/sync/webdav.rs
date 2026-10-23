@@ -1,6 +1,6 @@
 //! Minimal WebDAV client (坚果云, Nextcloud, Synology, Alist, …), mirroring Navill's: Basic auth
-//! with an app password, everything inside one folder in the server root (`passless/`, created on
-//! connect, plus `passless/blobs/`), ETag + `If-Match` / `If-None-Match: *` for conditional writes.
+//! with an app password, everything inside one folder in the server root (`mimatory/`, created on
+//! connect, plus `mimatory/blobs/`), ETag + `If-Match` / `If-None-Match: *` for conditional writes.
 //!
 //! Plain `http://` is refused except for loopback: Basic auth over cleartext would leak the app
 //! password even though the payload itself is encrypted.
@@ -11,7 +11,7 @@ use reqwest::blocking::{Client, Response};
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE, ETAG, IF_MATCH, IF_NONE_MATCH};
 use reqwest::{Method, StatusCode};
 
-pub const FOLDER: &str = "passless/";
+pub const FOLDER: &str = "mimatory/";
 const SUBFOLDERS: [&str; 1] = ["blobs/"];
 
 const PROPFIND_BODY: &str = r#"<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:getetag/><d:resourcetype/></d:prop></d:propfind>"#;

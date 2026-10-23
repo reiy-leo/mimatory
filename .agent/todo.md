@@ -264,10 +264,11 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 - **Next: the Settings ▸ Sync UI** (after the App.tsx split) — checklist in `.agent/sync.md` "Follow-up UI task";
   the window must call `syncApi.request()` after every write.
 - **Owner: Google OAuth client** — create a "Desktop app" OAuth client (Google Cloud ▸ APIs & Services ▸ Credentials),
-  enable the Drive API, consent screen with scope `drive.appdata`; build with `PASSLESS_GOOGLE_CLIENT_ID`
-  (+ `PASSLESS_GOOGLE_CLIENT_SECRET`) in the environment (CI secrets for `build.yml`). Until then Google reports
+  enable the Drive API, consent screen with scope `drive.appdata`; build with `MIMATORY_GOOGLE_CLIENT_ID`
+  (+ `MIMATORY_GOOGLE_CLIENT_SECRET`) in the environment (CI secrets for `build.yml`). Until then Google reports
   "not configured".
-- needs-owner-decision: the 11 items in `.agent/sync.md` "Open owner decisions" (different master passwords,
-  password change re-wrap, merge-not-replace for two existing vaults, all vaults sync, attachment size / orphan
-  blobs, passkeys + TOTP seeds sync, tombstones forever, http WebDAV on LAN, Google on phones).
+- needs-owner-decision: the open items in `.agent/sync.md` "Owner decisions" (different master passwords,
+  password change re-wrap, all vaults sync, attachment size / orphan blobs, passkeys + TOTP seeds sync, tombstones
+  forever, Google on phones). **Decided 2026-10-23 (owner):** two existing vaults are merged (two default
+  "Personal" become one), and WebDAV without TLS stays refused (loopback only).
 - Never seen: a real Google Drive round, any of it in a running Tauri window, a real 坚果云/Nextcloud server.

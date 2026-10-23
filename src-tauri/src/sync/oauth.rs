@@ -3,8 +3,8 @@
 //! `drive.appdata` scope is requested — non-sensitive, so the consent screen needs no verification.
 //!
 //! The client id (and the desktop "secret", which Google documents as non-confidential for
-//! installed apps) come from the build environment: `PASSLESS_GOOGLE_CLIENT_ID` and, if the client
-//! requires it, `PASSLESS_GOOGLE_CLIENT_SECRET`. Without the id the Google option reports "not
+//! installed apps) come from the build environment: `MIMATORY_GOOGLE_CLIENT_ID` and, if the client
+//! requires it, `MIMATORY_GOOGLE_CLIENT_SECRET`. Without the id the Google option reports "not
 //! configured". iOS/Android need a different client type (custom scheme), so they are not wired yet.
 
 use super::error::{SyncError, SyncResult};
@@ -36,8 +36,8 @@ pub struct GoogleClient {
 
 /// The OAuth client compiled into this build, if any.
 pub fn google_client() -> Option<GoogleClient> {
-    let client_id = option_env!("PASSLESS_GOOGLE_CLIENT_ID").map(str::trim).filter(|id| !id.is_empty())?;
-    let client_secret = option_env!("PASSLESS_GOOGLE_CLIENT_SECRET")
+    let client_id = option_env!("MIMATORY_GOOGLE_CLIENT_ID").map(str::trim).filter(|id| !id.is_empty())?;
+    let client_secret = option_env!("MIMATORY_GOOGLE_CLIENT_SECRET")
         .map(str::trim)
         .filter(|secret| !secret.is_empty())
         .map(str::to_string);
@@ -95,12 +95,12 @@ pub fn authorization_url(client: &GoogleClient, redirect_uri: &str, challenge: &
     url.to_string()
 }
 
-const DONE_PAGE: &str = "<!doctype html><meta charset=utf-8><title>Passless</title>\
+const DONE_PAGE: &str = "<!doctype html><meta charset=utf-8><title>Mimatory</title>\
 <body style=\"font:16px -apple-system,system-ui,sans-serif;text-align:center;padding-top:20vh\">\
-<p>Passless 已连接 Google Drive，可以关闭此页面。</p><p>Connected. You can close this tab.</p></body>";
-const FAIL_PAGE: &str = "<!doctype html><meta charset=utf-8><title>Passless</title>\
+<p>Mimatory 已连接 Google Drive，可以关闭此页面。</p><p>Connected. You can close this tab.</p></body>";
+const FAIL_PAGE: &str = "<!doctype html><meta charset=utf-8><title>Mimatory</title>\
 <body style=\"font:16px -apple-system,system-ui,sans-serif;text-align:center;padding-top:20vh\">\
-<p>授权未完成，请回到 Passless 重试。</p><p>Sign-in did not complete.</p></body>";
+<p>授权未完成，请回到 Mimatory 重试。</p><p>Sign-in did not complete.</p></body>";
 
 fn respond(request: tiny_http::Request, body: &str) {
     let header = tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..])

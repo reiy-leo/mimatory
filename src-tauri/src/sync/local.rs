@@ -49,12 +49,12 @@ fn hmac_hex(key: &VaultKey, domain: &str, data: &[u8]) -> String {
 /// anyone could dictionary-attack.
 pub fn record_hash(key: &VaultKey, record: &Record) -> String {
     let json = serde_json::to_vec(record).expect("records always serialize");
-    hmac_hex(key, "passless-sync-record:", &json)
+    hmac_hex(key, "mimatory-sync-record:", &json)
 }
 
 /// `sync_base` is keyed by a keyed hash of the record key, because a tag's key contains its name.
 fn base_key_hash(key: &VaultKey, record_key: &str) -> String {
-    hmac_hex(key, "passless-sync-key:", record_key.as_bytes())
+    hmac_hex(key, "mimatory-sync-key:", record_key.as_bytes())
 }
 
 fn decrypt(key: &VaultKey, blob: &[u8]) -> SyncResult<String> {

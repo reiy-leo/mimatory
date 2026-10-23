@@ -21,8 +21,8 @@ use serde::{Deserialize, Serialize};
 pub type SyncKey = [u8; 32];
 
 pub const MANIFEST_FORMAT: u32 = 1;
-const AAD_KEY: &[u8] = b"passless-sync/v1/sync-key";
-const AAD_STATE: &[u8] = b"passless-sync/v1/state";
+const AAD_KEY: &[u8] = b"mimatory-sync/v1/sync-key";
+const AAD_STATE: &[u8] = b"mimatory-sync/v1/state";
 
 pub fn aad_state() -> &'static [u8] {
     AAD_STATE
@@ -31,7 +31,7 @@ pub fn aad_state() -> &'static [u8] {
 /// Binds a blob to its attachment id, so the server cannot swap one attachment's ciphertext for
 /// another's (or for the state file) without decryption failing.
 pub fn aad_blob(attachment_id: &str) -> Vec<u8> {
-    format!("passless-sync/v1/blob/{attachment_id}").into_bytes()
+    format!("mimatory-sync/v1/blob/{attachment_id}").into_bytes()
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -129,7 +129,7 @@ impl KdfParams {
     }
 }
 
-/// `passless/manifest.json`, the one plaintext file on the remote. Nothing in it is secret.
+/// `mimatory/manifest.json`, the one plaintext file on the remote. Nothing in it is secret.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Manifest {
     pub format: u32,
@@ -154,7 +154,7 @@ impl Manifest {
         let sync_key = generate_sync_key();
         let manifest = Manifest {
             format: MANIFEST_FORMAT,
-            app: "passless".to_string(),
+            app: "mimatory".to_string(),
             kdf: KdfParams::app_default(local_salt),
             wrapped_key: seal_envelope(vault_key, AAD_KEY, &sync_key)?,
             created_at: now.to_string(),
