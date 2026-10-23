@@ -86,6 +86,12 @@ impl Session {
     pub fn for_vault(&self, vault_id: &str) -> Session {
         Session { key: self.key.clone(), vault_id: vault_id.to_string() }
     }
+
+    /// For sync only (`sync/`): it re-encrypts merged records under this device's key. The key
+    /// still never leaves memory.
+    pub(crate) fn key(&self) -> &VaultKey {
+        &self.key
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -2848,7 +2854,7 @@ fn normalized_tag_names(tags: &[String]) -> Vec<String> {
 /// Keyed blind index: one tag name always maps to one hash per vault, so SQLite
 /// can enforce tag uniqueness without the database holding any plaintext name.
 /// Case-folded, because "Work" and "work" are meant to be the same tag.
-fn tag_name_hash(key: &VaultKey, name: &str) -> Vec<u8> {
+pub(crate) fn tag_name_hash(key: &VaultKey, name: &str) -> Vec<u8> {
     let mut mac = Hmac::<Sha1>::new_from_slice(key)
         .expect("a 32 byte vault key is always a valid HMAC key for sha1");
     mac.update(name.to_lowercase().as_bytes());

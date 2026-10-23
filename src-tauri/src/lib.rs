@@ -9,6 +9,7 @@ mod passkey;
 mod shell;
 mod site_match;
 mod storage;
+mod sync;
 mod totp;
 mod vault;
 
@@ -804,6 +805,7 @@ pub fn run() {
     let bridge_token = Arc::new(Mutex::new(None));
     #[cfg(desktop)]
     let bridge_session = (session.clone(), bridge_token.clone());
+    let sync_session = session.clone();
 
     let builder = tauri::Builder::default();
     #[cfg(desktop)]
@@ -831,6 +833,8 @@ pub fn run() {
             );
             #[cfg(desktop)]
             shell::setup(app)?;
+            // Automatic sync rounds (after unlock, debounced after writes, every 15 minutes).
+            sync::commands::start_background(app.handle().clone(), sync_session.clone());
             #[cfg(mobile)]
             let _ = app;
             Ok(())
@@ -896,7 +900,15 @@ pub fn run() {
             check_breached_passwords,
             set_autostart,
             is_autostart_enabled,
-            hide_quick_access
+            hide_quick_access,
+            sync::commands::sync_status,
+            sync::commands::sync_connect_webdav,
+            sync::commands::sync_connect_google,
+            sync::commands::sync_cancel_connect,
+            sync::commands::sync_unlock_remote,
+            sync::commands::sync_disconnect,
+            sync::commands::sync_now,
+            sync::commands::sync_request
         ])
         .run(tauri::generate_context!())
         .expect("error while running Passless");
