@@ -1,4 +1,7 @@
-import type { LoginItem } from './vaultApi'
+import type { LoginItemSummary } from './vaultApi'
+
+/** What a sort reads: the list's summaries carry all of it, and so does a full item. */
+type Sortable = Pick<LoginItemSummary, 'created_at' | 'last_used_at' | 'title' | 'updated_at' | 'use_count'>
 
 /**
  * The item list's sort (owner 2026-10-18, after 1Password 8's "N items sorted by" menu): what to sort by, then
@@ -10,7 +13,7 @@ export type ItemSort = { key: ItemSortKey; direction: ItemSortDirection }
 
 export const itemSortKeys: readonly ItemSortKey[] = ['title', 'created', 'modified', 'frequent', 'recent']
 export const defaultItemSort: ItemSort = { direction: 'desc', key: 'modified' }
-export const itemSortStorageKey = 'passless-item-sort'
+export const itemSortStorageKey = 'mimatory-item-sort'
 
 /** Title reads A→Z by default; every other key starts at the newest or most used. */
 export function defaultDirectionFor(key: ItemSortKey): ItemSortDirection {
@@ -38,7 +41,7 @@ function time(value: string | undefined): number {
   return Number.isNaN(parsed) ? 0 : parsed
 }
 
-function compareTitles(a: LoginItem, b: LoginItem, locale: string): number {
+function compareTitles(a: Sortable, b: Sortable, locale: string): number {
   return a.title.localeCompare(b.title, locale, { numeric: true, sensitivity: 'base' })
 }
 
@@ -46,9 +49,9 @@ function compareTitles(a: LoginItem, b: LoginItem, locale: string): number {
  * Sorted copy of `items`. Ties (and Title itself as the last resort) fall back to the title A→Z so the order
  * never flickers between two reads of the same list.
  */
-export function sortItems(items: readonly LoginItem[], sort: ItemSort, locale = 'en'): LoginItem[] {
+export function sortItems<T extends Sortable>(items: readonly T[], sort: ItemSort, locale = 'en'): T[] {
   const sign = sort.direction === 'asc' ? 1 : -1
-  const primary = (a: LoginItem, b: LoginItem): number => {
+  const primary = (a: T, b: T): number => {
     switch (sort.key) {
       case 'title':
         return compareTitles(a, b, locale)

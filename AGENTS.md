@@ -2,7 +2,9 @@
 
 ## Project
 
-Tauri v2 password manager for macOS, Windows, Linux (Wayland/Hyprland only), iOS and Android (owner, 2026-10-17:
+**Mimatory** (renamed from Passless on 2026-10-23, owner: "名称以后都统一成mimatory，不再使用passless" — never
+reintroduce the old name; see "The Passless → Mimatory rename" below for the few places it must survive). GitHub:
+`reiy-leo/mimatory`. Tauri v2 password manager for macOS, Windows, Linux (Wayland/Hyprland only), iOS and Android (owner, 2026-10-17:
 "和mindough项目一样支持macOS、Windows、iOS、Android、Linux（hyprland，不支持X11）"). React 18 + TypeScript frontend,
 Rust backend with encrypted SQLite vault. Each OS wears its own skin, the same mapping as the Mindough project —
 see "Platforms" below.
@@ -110,11 +112,20 @@ Biome (not ESLint/Prettier), config `biome.json`, run `npm run lint:fix`.
 ```
 src/                  # React frontend
   main.tsx            # ReactDOM entry
-  App.tsx             # Single-file UI: VaultWindow / SettingsWindow / QuickAccessWindow (no router, ~4500 lines)
+  App.tsx             # ~26 lines: picks the window from ?view= and blocks the native context menu (no router)
+  app/vaultWindow.tsx settingsWindow.tsx quickAccessWindow.tsx  # the three windows
+  app/useVaultWindow.tsx  # VaultWindow's state + behaviour (~2300 lines); returns the model every pane reads (`vw`)
+  app/useVaultItems.ts useVaultSession.ts useWindowAppearance.ts  # vault data + selection, lock/unlock/idle, theme/language/security prefs
+  app/useItemSort.ts useColumnWidths.ts useTotpPreviews.ts useItemFormFields.ts useItemActions.ts  # list sort, gutters, OTP codes, editor changes, item menu actions
+  app/vaultLockScreen.tsx vaultSidebar.tsx vaultToolbar.tsx itemList.tsx itemDetailPane.tsx  # the main window's panes
+  app/itemEditForm.tsx itemDetailView.tsx otpFieldView.tsx  # the detail pane's edit form and read-only view
+  app/itemPickers.tsx itemActionsMenu.tsx sidebarMenus.tsx vaultDialogs.tsx styleEditorDialog.tsx mobileTabBar.tsx  # sheets, menus, dialogs, phone tab bar
+  app/vaultModel.ts   # form state + conversions, menu/column constants, `categoryItems` (the one item-type table)
+  app/settingsTabs.ts # the Settings panes list
   styles.css          # Tailwind + all custom CSS + the token values in :root (~2380 lines)
   app/vaultApi.ts     # All Tauri invoke() calls — typed wrappers
   app/navigation.ts   # Sidebar nav rows (4 rows in 2 groups)
-  app/theme.ts        # Appearance: system (default, follows prefers-color-scheme) / light / dark
+  app/theme.ts        # Appearance follows the system only (no in-app override since 2026-10-23); deletes the legacy `passless-theme` key
   app/i18n.ts         # zh (fallback) / en / ja bundles, one flat object per locale; parity is tested
   app/tagIcons.ts     # 43 pickable lucide glyphs + the 11 colour options, written out as full class pairs
   app/itemTags.ts sidebarHighlights.ts securityPreferences.ts lockScreen.ts totpDisplay.ts
@@ -135,9 +146,10 @@ src/                  # React frontend
 
 src-tauri/src/        # Rust backend
   lib.rs              # All #[tauri::command] handlers + AppState + plugin setup
-  main.rs             # Just calls passless_lib::run()
+  main.rs             # Just calls mimatory_lib::run()
   vault.rs            # VaultService: CRUD, encryption, session management
   storage.rs          # SQLite connection + schema + the 0600/0700 permission helpers
+  rename_migration.rs # One-time copy of a pre-rename (Passless) vault + webview profile to the Mimatory paths
   crypto.rs           # AES-GCM + argon2 KDF
   sync/               # Cloud sync (Google Drive appDataFolder or WebDAV): records, merge, local, cipher, engine, providers, commands — see .agent/sync.md
   favicon.rs          # Website icon fetch: https-only, SSRF guard, caps, decode + re-encode as a 64px PNG
@@ -161,8 +173,8 @@ browser-extension/    # Manifest V3 extension (not built by Vite), desktop only;
   `storage::open_default_database()` connection — there is no pooling.
 - **Three windows**: `main`, `settings` (`/?view=settings`), `quick-access` (`/?view=quick-access`, created on
   demand by `shell.rs`). **Any new window label must also be added to `src-tauri/capabilities/main.json`
-  `windows`, or its `invoke()` calls are denied at runtime.** No router: the view comes from `?view=` and
-  `App.tsx` holds all state.
+  `windows`, or its `invoke()` calls are denied at runtime.** No router: the view comes from `?view=` in
+  `App.tsx`; each window owns its state (`VaultWindow`'s lives in `useVaultWindow` and the hooks it composes).
 - **A second window is placed against `main`, never centred on the screen.** `center: true` does not mean
   "where the user is": `tauri-runtime-wry-2.12.1/src/lib.rs` centres a position-less window on
   `event_loop.primary_monitor()`, so with a display to the right of the primary one the panel opens on the
@@ -239,13 +251,14 @@ Wayland; X11 is not supported.
   `WAYLAND_DISPLAY` is unset and pins `GDK_BACKEND=wayland` so XWayland never wins. Windows are undecorated
   (`tauri.linux.conf.json`, min 480×420 so the app tiles; below 760px it switches to the phone layout) and the
   settings window brings its own close button + Escape. Wayland gives an app no global hotkeys, so Quick Access is
-  summoned by the compositor: `bind = SUPER SHIFT, SPACE, exec, passless --quick-access` — the single-instance
+  summoned by the compositor: `bind = SUPER SHIFT, SPACE, exec, mimatory --quick-access` — the single-instance
   plugin forwards the flag and the running app toggles the panel (a first launch with the flag opens it too).
   Positioning a window is ignored under Wayland; a Hyprland rule such as
-  `windowrulev2 = float, title:^(Passless Quick Access)$` floats the panel.
+  `windowrulev2 = float, title:^(Mimatory Quick Access)$` floats the panel.
 - **Per-platform Tauri config** is JSON Merge Patch on `tauri.conf.json`: **arrays replace**, so each
-  `tauri.<platform>.conf.json` carries the whole `windows` entry. The bundle identifier `app.passless.desktop` is
-  the same on every platform (changing it would move existing desktop vaults' data directory).
+  `tauri.<platform>.conf.json` carries the whole `windows` entry. The bundle identifier `app.mimatory.desktop` is
+  the same on every platform. Changing it moves the webview profile (localStorage) on desktop and the whole app
+  sandbox — vault included — on iOS/Android, which is why the 2026-10-23 rename needed `rename_migration.rs`.
 - **`macOSPrivateApi` is gone.** In Tauri 2.12.1 the `macos-private-api` feature is a documented no-op (the private
   APIs are always on) and the config key only feeds tauri-build's feature check, which compares the merged
   per-platform config against `[dependencies] tauri` features — a macOS-only value would fail every other
@@ -261,6 +274,37 @@ Wayland; X11 is not supported.
   keystore (`ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_KEY_BASE64`) for a release APK.
 - **Screenshots**: the Playwright harness in `work/pwt/shoot-platforms.mjs` (outside the repo, never committed)
   loads `?platform=<p>` at 1280×800 for desktop and 390×844 for phones, light and dark.
+
+## The Passless → Mimatory rename (2026-10-23)
+
+Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, identifier `app.passless.desktop` →
+`app.mimatory.desktop`, product name and every UI string `Passless` → `Mimatory`, localStorage `passless-*` →
+`mimatory-*`, Tauri events, the extension's `mimatoryToken` / `X-Mimatory-Token` / `#mimatory-fill=` /
+`__mimatory` messages, CI artifact names. Existing installs carry real vaults, so the data moves **by copy**:
+
+- **Vault file** (`rename_migration.rs`, run in `run()` before the Tauri builder on desktop, and in `setup` after
+  `set_app_data_directory` on phones): `<data dir>/Passless/passless.sqlite3` → `<data dir>/Mimatory/mimatory.sqlite3`
+  (macOS `~/Library/Application Support`, Windows `%APPDATA%`, Linux `~/.local/share`). Copied with SQLite
+  `VACUUM INTO` from a read-only connection (one consistent snapshot, journal included), `PRAGMA quick_check`ed,
+  renamed into place from `*.migrating`, 0600, with `.migrated-from-passless` beside it. **Never** when the new
+  file exists; the old file is never modified or deleted. `storage::default_database_path` answers with the old
+  file while only it exists, so a failed copy keeps the user on their real vault instead of a first-run screen —
+  never "simplify" that fallback away, and never let anything create the new file before the migration runs.
+- **Webview profile** (desktop, best-effort, before any window exists): macOS `~/Library/WebKit/<identifier>`,
+  Windows/Linux `<local data dir>/<identifier>` copied once from the old identifier when the new one is absent.
+  `src/app/storageMigration.ts` (main.tsx's first import) then renames `passless-*` keys to `mimatory-*` (an
+  existing new key wins; `passless-theme` is left for `theme.ts` to delete). Losing it only resets preferences.
+- **Phones cannot be migrated**: a new bundle id / Android package is a different app with its own sandbox, and
+  there is no export. An install of the old identifier keeps its vault in the old app.
+- **No Keychain / Touch ID entries exist** (no `keyring` since 2026-10-09; Touch ID only gates `biometric_session`
+  in memory), so nothing there needed moving.
+- **Extension pairing**: the token is in app memory only (re-paired after every app restart anyway); the
+  extension moves a saved `passlessToken` to `mimatoryToken`, and the bridge still accepts `X-Passless-Token`
+  from an un-updated extension.
+- **Not migrated, by design**: an autostart entry registered by the old app (re-enable Open at Login), Hyprland
+  binds (`exec, passless --quick-access` → `mimatory --quick-access`, window rule title `Mimatory Quick Access`).
+- **`MASTER_VERIFIER_TEXT` stays `"passless-master-verifier"`** — it is encrypted into every vault and compared on
+  unlock; renaming it locks every existing vault.
 
 ## Vault security
 
@@ -295,7 +339,7 @@ Wayland; X11 is not supported.
   `Access-Control-Allow-Origin: *` on `127.0.0.1:17891` and returns plaintext credentials to a paired client —
   do not widen its reach or add an endpoint that exposes more.
 - **The TOTP seed rests masked**: `fieldValueInputProps` gives an `otp` input `type="password"` unless it is
-  the focused field (`focusedOtpField` in `App.tsx`), so a saved key is legible only while being typed. Import
+  the focused field (`focusedOtpField` in `useVaultWindow.tsx`), so a saved key is legible only while being typed. Import
   runs the other way: the QR button in `OtpFieldActions` reads an image **off the clipboard**
   (`src/app/otpQrImport.ts`, decoded with `jsqr`) and stores the `secret` of an `otpauth://` link or a bare
   base32 key, and nothing else. The app never renders a seed as a QR image and there is no screen-region
@@ -305,7 +349,7 @@ Wayland; X11 is not supported.
 
 - **No text selection and no native context menu.** `@layer base` sets `user-select: none` on `*`, re-enabling
   `text` only for `input`, `textarea`, `select` and `[contenteditable="true"]`; one `useEffect` in `App()`
-  (registered *before* its `?view=` early returns, so it runs in all three windows) calls `preventDefault()` on
+  (`src/App.tsx`, registered *before* its `?view=` early returns, so it runs in all three windows) calls `preventDefault()` on
   every `contextmenu` event on `window`. The webview's own Reload / Save As / spelling panel is thereby
   unreachable and a credential cannot be highlighted into the clipboard by accident. Anything the user *should*
   copy stays reachable through an explicit button (复制密码, the field menus). A right-click that must do
@@ -382,7 +426,7 @@ Wayland; X11 is not supported.
   `openSectionHighlightMenu` refuses to open when the section has no *rendered* highlighted row (a stale key
   would offer a dead button). Panel heights are constants: `highlightMenuHeight` for a category's single row,
   `tagMenuHeight = 3 * menuRowHeight + 24` for a tag's three.
-  **Keys live in localStorage, not the vault** (`passless-sidebar-highlights`, `src/app/sidebarHighlights.ts`,
+  **Keys live in localStorage, not the vault** (`mimatory-sidebar-highlights`, `src/app/sidebarHighlights.ts`,
   beside the theme and language): `tag:<tagKey>` or `category:<itemType>`, the same namespacing the nav ids use.
   A tag's key is its case-normalised spelling, so renaming a tag must re-key its highlight
   (`renameHighlightKeys` in `handleTagSave`) or the row the user just kept silently unpins itself. A deleted tag's
@@ -395,7 +439,7 @@ Wayland; X11 is not supported.
   draft, sets `activeNavigation` to `category:<type>`, unfolds 分类 if needed, then focuses and
   `scrollIntoView({ block: 'nearest' })`s the row via `data-item-type` — looked up in `[categoryListRef]` on the
   **next** commit, because a row inside a section that just unfolded does not exist yet. `categoryItems` (the
-  table is declared in `App.tsx`, not in a module of its own) is therefore the one type table (17 entries,
+  table is declared in `src/app/vaultModel.ts`) is therefore the one type table (17 entries,
   sidebar rows and picker both), and `i18n.test.ts` reads *its* shape
   (`icon: <Component>, itemType: 'x' }`) to derive the `itemTypes.*` keys — widening that regex is how a new type
   gets its translations checked.
@@ -488,6 +532,35 @@ Wayland; X11 is not supported.
   one-line reason while the item has links; Archive sits right above. There is no bulk delete anywhere, so
   there is no bulk path to guard.
 
+- **The list carries summaries; one item is decrypted when it is opened** (owner 2026-10-23: "列表只返回摘要，选中条目时再解密详情").
+  Every list command the window calls (`unlock_vault`, `setup_master_password`, `unlock_with_biometrics`,
+  `switch_vault`, `list_login_items`, `list_all_login_items`, archived, trashed) answers with `LoginItemSummary`
+  (vault.rs): id, vault, type, title, username, **first** address, tags, favourite, the three sort timestamps + use
+  count, icon mode, the raw `sign_in_with` provider value, `parent_id` and `has_relations`. Never a password, notes,
+  custom-field value, second address or attachment. `list_summaries_by_state` reads the whole list in four queries
+  and skips the password/notes rows entirely; it still decrypts the custom-field JSON once per item, only to read the
+  "Sign in with" provider for the subtitle (there is no column for it). `get_login_item(itemId, vaultId?)` returns
+  the one full item with resolved links; `useItemDetail` (src/app/useItemDetail.ts) keeps **only the selected one**,
+  re-reads it whenever its row object changes (every re-list, so saves, favourites, links from the other end and
+  `vault:changed` all reach it), drops stale answers and forgets it on lock. While it loads the form does not switch
+  (`draftKey` is `null`) and the pane shows `.detail-loading`, a spinner that fades in after 250ms. Quick Access
+  reads the password / OTP seed with `get_login_item` at copy time. **Search**: the toolbar matches titles and Quick
+  Access title/username/first address, all summary fields; `list_login_items(query)` still searches every decrypted
+  value in Rust and answers with summaries. The bridge, Watchtower and breach check read their own full-item paths
+  (`list_live_items`, `export_login_items`) and are unchanged. The full-item list methods in vault.rs are
+  `#[cfg(test)]` now.
+
+- **The item list is virtualized** (`@tanstack/react-virtual`, `itemList.tsx`, 2026-10-23): only the rows near the
+  viewport exist. The rows stay in the normal flow of `.rows` and the off-screen ones are stood in for by the
+  container's inline `paddingTop`/`paddingBottom` (a grid adds no gap to padding), so every skin's row rules, the
+  grid gap and `.item-row + .item-row` apply unchanged; the gap and the rows' offset in the scroller are read off the
+  DOM each commit. Rows are measured with `getBoundingClientRect().height` (fractional — the default rounding
+  drifted a pixel within a few rows) and the last measured height is the estimate for unrendered rows, so the scroll
+  height equals the full list's. **A row off screen is not in the DOM**: anything that scrolls to an item goes
+  through `listScrollToItemRef` (⌘↑/⌘↓ and the toolbar arrows do), never `querySelector('[data-item-row]')`. jsdom
+  lays nothing out, so `App.itemMenu.test.tsx` gives `.item-list` an 800px `clientHeight`; a new DOM test that
+  renders the list needs the same. `content-visibility` on rows went with this.
+
 - **Website icons** (2026-10-17; sources changed 2026-10-18, owner: icons were blurry). An item's tile shows its
   first address's site icon, else the letter (`ItemIcon`: list rows, search results, detail header, Quick Access,
   picker rows). **Sources** (`favicon.rs`): Google's favicon service first (`t1.gstatic.com/faviconV2`, size 128,
@@ -547,7 +620,7 @@ Wayland; X11 is not supported.
 - **Item templates and typed fields** (2026-10-14). Every category's default fields are data in
   `src/app/itemTemplates.ts` (key, `field_type`, label key, options, rules); the editor and the read-only view
   draw every field through `FieldEditor` / `FieldView` in `src/app/fieldControls.tsx`, chosen by type alone, so a
-  new behaviour is a type or a template change, never a per-category branch in `App.tsx`. **The vault format did
+  new behaviour is a type or a template change, never a per-category branch in the editor (`itemEditForm.tsx`). **The vault format did
   not change**: a template section is still a `section` custom field whose value is a JSON array of children,
   and each child a template seeds carries a `key` inside that JSON (Rust treats both as opaque strings; a
   top-level `CustomField` cannot take a new property, because serde drops unknown fields on the round trip).
@@ -576,7 +649,7 @@ Wayland; X11 is not supported.
   secrets — passwords, concealed fields, card numbers, OTP codes, OTP seeds and setup links — honour the 90-second
   clear, plain values do not; Quick Access reads the setting fresh from localStorage at copy time.
   **Open & Fill has no channel into the browser**, so it rides the URL: `openAndFillUrl` appends
-  `#passless-fill=<item id>` (a *fragment*, never sent to the server — 1Password's query parameter breaks some
+  `#mimatory-fill=<item id>` (a *fragment*, never sent to the server — 1Password's query parameter breaks some
   sites), skipped when the URL already has a fragment (hash-routed apps). `content.js` strips it with
   `history.replaceState`, then fills **that** item through the ordinary origin-scoped `/fill` (an id from another
   site finds no match), retrying for ~5s while a late sign-in form renders. No bridge endpoint was added. The page's
@@ -637,7 +710,7 @@ Wayland; X11 is not supported.
   `navigator.credentials.create`; `content.js` checks the rp id fits the page's host (a page may only name its own
   host or a parent domain), asks in a closed-shadow prompt (a login for this site, or New Item), and only Save posts
   `/passkey-event` with `item_id` / `new_item` (`VaultService::save_passkey`, `PasskeyTarget`). A content script's
-  isolated world cannot see the page's `navigator.credentials` calls — the old observer there never fired. Passless
+  isolated world cannot see the page's `navigator.credentials` calls — the old observer there never fired. Mimatory
   stores metadata only; the private key stays with the platform authenticator.
 
 ## Testing and verification

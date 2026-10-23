@@ -1,13 +1,13 @@
-/* Passless as a passkey provider (owner 2026-10-18: "完整passkey支持"). Runs in the page's own world (manifest:
+/* Mimatory as a passkey provider (owner 2026-10-18: "完整passkey支持"). Runs in the page's own world (manifest:
    "world": "MAIN"), because only there does wrapping navigator.credentials see the site's calls.
 
    create() and get() for public-key credentials are handed to content.js, which asks the user in its own prompt
    (a closed shadow root the page cannot read). The bridge signs in the app; this side only ever sees public data
-   and signatures, never a private key. When the user picks "Use another device", or Passless holds nothing for
-   the site, the browser's own WebAuthn runs exactly as if Passless were not installed. */
+   and signatures, never a private key. When the user picks "Use another device", or Mimatory holds nothing for
+   the site, the browser's own WebAuthn runs exactly as if Mimatory were not installed. */
 ;(() => {
   const credentials = navigator.credentials
-  if (!credentials || typeof credentials.create !== 'function' || credentials.__passlessProvider) return
+  if (!credentials || typeof credentials.create !== 'function' || credentials.__mimatoryProvider) return
   const originalCreate = credentials.create.bind(credentials)
   const originalGet = credentials.get.bind(credentials)
 
@@ -34,7 +34,7 @@
   const pending = new Map()
 
   window.addEventListener('message', (event) => {
-    if (event.source !== window || event.data?.__passless !== 'webauthn-response') return
+    if (event.source !== window || event.data?.__mimatory !== 'webauthn-response') return
     const waiter = pending.get(event.data.id)
     if (!waiter) return
     pending.delete(event.data.id)
@@ -43,11 +43,11 @@
 
   function ask(kind, request, signal) {
     nextId += 1
-    const id = `passless-${Date.now()}-${nextId}`
+    const id = `mimatory-${Date.now()}-${nextId}`
     return new Promise((resolve, reject) => {
       const abort = () => {
         pending.delete(id)
-        window.postMessage({ __passless: 'webauthn-abort', id }, location.origin)
+        window.postMessage({ __mimatory: 'webauthn-abort', id }, location.origin)
         reject(
           signal.reason instanceof Error ? signal.reason : new DOMException('The operation was aborted.', 'AbortError'),
         )
@@ -58,7 +58,7 @@
         signal?.removeEventListener('abort', abort)
         resolve(answer)
       })
-      window.postMessage({ __passless: 'webauthn-request', id, kind, request }, location.origin)
+      window.postMessage({ __mimatory: 'webauthn-request', id, kind, request }, location.origin)
     })
   }
 
@@ -139,7 +139,7 @@
     )
   }
 
-  credentials.create = async function passlessCreate(options) {
+  credentials.create = async function mimatoryCreate(options) {
     const publicKey = options?.publicKey
     if (!publicKey) return originalCreate(options)
     let request
@@ -163,7 +163,7 @@
     return credentialFrom('create', answer.result, Boolean(publicKey.extensions?.credProps))
   }
 
-  credentials.get = async function passlessGet(options) {
+  credentials.get = async function mimatoryGet(options) {
     const publicKey = options?.publicKey
     if (!publicKey) return originalGet(options)
     let request
@@ -183,5 +183,5 @@
     return credentialFrom('get', answer.result, false)
   }
 
-  Object.defineProperty(credentials, '__passlessProvider', { value: true })
+  Object.defineProperty(credentials, '__mimatoryProvider', { value: true })
 })()

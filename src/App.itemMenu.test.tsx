@@ -17,7 +17,7 @@ const item = (id: string, title: string) => ({
   item_type: 'login',
   notes: '',
   password: 'correct-horse',
-  tags: [],
+  tags: [] as string[],
   title,
   updated_at: '2026-10-18T00:00:00Z',
   urls: [],
@@ -30,6 +30,15 @@ const items = [item('a', 'Alpha'), item('b', 'Bravo'), item('c', 'Charlie')]
 const workItem = { ...item('d', 'Delta'), tags: ['shared'], vault_id: 'work' }
 
 const switchedTo: string[] = []
+// Every get_login_item the window made: the list carries summaries, so a full item is read only when opened.
+const detailReads: Array<{ itemId: string; vaultId: string | null }> = []
+
+type StubItem = ReturnType<typeof item> & { vault_id?: string }
+
+// What the list commands answer with (vault.rs LoginItemSummary): no password, notes, fields or second address.
+function summary({ custom_fields: _fields, notes: _notes, password: _password, urls: _urls, ...rest }: StubItem) {
+  return structuredClone(rest)
+}
 
 function stubBridge() {
   mockWindows('main')
@@ -48,15 +57,22 @@ function stubBridge() {
         case 'switch_vault': {
           const id = (args as { id: string }).id
           switchedTo.push(id)
-          return id === 'work' ? [structuredClone(workItem)] : structuredClone(items)
+          return id === 'work' ? [summary(workItem)] : items.map(summary)
+        }
+        case 'get_login_item': {
+          const { itemId, vaultId } = args as { itemId: string; vaultId: string | null }
+          detailReads.push({ itemId, vaultId })
+          const found = [...items, workItem].find((entry) => entry.id === itemId)
+          if (!found) throw new Error('item not found')
+          return structuredClone(found)
         }
         case 'initialize_database':
-          return { database_ready: true, has_master_password: true, name: 'Passless', unlocked: false }
+          return { database_ready: true, has_master_password: true, name: 'Mimatory', unlocked: false }
         case 'unlock_vault':
         case 'list_login_items':
-          return structuredClone(items)
+          return items.map(summary)
         case 'list_all_login_items':
-          return structuredClone([...items.map((entry) => ({ ...entry, vault_id: 'personal' })), workItem])
+          return [...items.map((entry) => summary({ ...entry, vault_id: 'personal' })), summary(workItem)]
         case 'list_vaults':
           return [
             {
@@ -109,7 +125,16 @@ beforeAll(() => {
     removeListener() {},
   })) as unknown as typeof window.matchMedia
   Element.prototype.scrollIntoView ??= () => {}
-  localStorage.setItem('passless-language', 'en')
+  // The item list is virtualized and renders the rows that fit its scroll box. jsdom lays nothing out, so the
+  // list reports a tall box and every row measures 0px: the whole (short) test list is rendered.
+  const clientHeight = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight')
+  Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.classList.contains('item-list') ? 800 : (clientHeight?.get?.call(this) ?? 0)
+    },
+  })
+  localStorage.setItem('mimatory-language', 'en')
   void i18n.changeLanguage('en')
 })
 
@@ -254,8 +279,8 @@ describe('vault window', () => {
     fireEvent.click(screen.getByRole('button', { name: /Title/ }))
     fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Z to A' }))
     expect(titles()).toEqual(['Delta', 'Charlie', 'Bravo', 'Alpha'])
-    expect(JSON.parse(localStorage.getItem('passless-item-sort') ?? '{}')).toEqual({ direction: 'desc', key: 'title' })
-    localStorage.removeItem('passless-item-sort')
+    expect(JSON.parse(localStorage.getItem('mimatory-item-sort') ?? '{}')).toEqual({ direction: 'desc', key: 'title' })
+    localStorage.removeItem('mimatory-item-sort')
   })
 
   it('fills the header star as soon as the item is favourited', async () => {
@@ -276,8 +301,19 @@ describe('vault window', () => {
     expect(await screen.findByRole('button', { name: /Clipboard/ })).toHaveTextContent('Settings ▸ Security')
   })
 
+  it('reads only the selected item in full, and shows it once it arrives', async () => {
+    detailReads.length = 0
+    await renderUnlocked()
+    fireEvent.click(screen.getByRole('button', { name: /Charlie/ }))
+    // The password row comes from the detail read; the list rows never carried one.
+    expect(await screen.findByText('Charlie', { selector: '.detail-pane *' })).toBeInTheDocument()
+    await waitFor(() => expect(detailReads.map((read) => read.itemId)).toContain('c'))
+    // Every read was for a row the user selected, not one per listed item.
+    expect(new Set(detailReads.map((read) => read.itemId)).size).toBeLessThanOrEqual(2)
+  })
+
   it('remembers the dragged column widths', async () => {
-    localStorage.setItem('passless-column-widths', JSON.stringify({ itemList: 240, sidebar: 9999 }))
+    localStorage.setItem('mimatory-column-widths', JSON.stringify({ itemList: 240, sidebar: 9999 }))
     await renderUnlocked()
     const shell = document.querySelector('.app-shell') as HTMLElement
     expect(shell.style.getPropertyValue('--item-list-width')).toBe('240px')
@@ -286,7 +322,7 @@ describe('vault window', () => {
     fireEvent.mouseDown(handle, { clientX: 400 })
     fireEvent.mouseMove(window, { clientX: 390 })
     fireEvent.mouseUp(window)
-    expect(JSON.parse(localStorage.getItem('passless-column-widths') ?? '{}')).toEqual({ itemList: 230, sidebar: 9999 })
-    localStorage.removeItem('passless-column-widths')
+    expect(JSON.parse(localStorage.getItem('mimatory-column-widths') ?? '{}')).toEqual({ itemList: 230, sidebar: 9999 })
+    localStorage.removeItem('mimatory-column-widths')
   })
 })

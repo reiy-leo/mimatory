@@ -24,6 +24,8 @@ use uuid::Uuid;
 const LEGACY_MIGRATIONS_META: &str = "legacy_migrations";
 const LEGACY_MIGRATIONS_VERSION: &str = "1";
 const DEFAULT_VAULT_ID: &str = "personal";
+/// Encrypted into every existing vault when its master password was set and compared on unlock, so it keeps
+/// the pre-rename (Passless) spelling for good: changing it would lock every existing vault.
 const MASTER_VERIFIER_TEXT: &str = "passless-master-verifier";
 /// The field type older builds used to point at another item before links were real.
 const LEGACY_RELATED_FIELD: &str = "related_item";
@@ -146,6 +148,96 @@ pub struct LoginItem {
     /// `auto` (the website icon when there is one) or `letter`. Left out of the payload for `auto`.
     #[serde(default = "default_icon_mode", skip_serializing_if = "is_auto_icon_mode")]
     pub icon_mode: String,
+}
+
+/// One row of the app window's item list (owner 2026-10-23: "列表只返回摘要，选中条目时再解密详情"). Only
+/// what the list row, its sorts, the sidebar counts, tags, the link pickers and the "Sign in with"
+/// subtitle read; the password, notes, other websites, custom field values and attachments stay in
+/// the vault until `get_login_item` decrypts the one item the user opens.
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct LoginItemSummary {
+    pub id: String,
+    pub vault_id: String,
+    pub item_type: String,
+    pub title: String,
+    pub username: String,
+    /// The first address — the one the row's icon and the Quick Access search read.
+    pub website: String,
+    pub tags: Vec<String>,
+    pub favorite: bool,
+    pub updated_at: String,
+    pub created_at: String,
+    pub use_count: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_used_at: Option<String>,
+    #[serde(skip_serializing_if = "is_auto_icon_mode")]
+    pub icon_mode: String,
+    /// The raw value of the item's "Sign in with" field (a provider id or name, never an account),
+    /// for the "Sign in with Google" subtitle.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sign_in_with: Option<String>,
+    /// The resolvable parent, which the link pickers need to refuse a loop.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
+    /// Whether any link resolves (parent, child, related, sign-in either way): Delete and Move To
+    /// are refused while it is true.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub has_relations: bool,
+}
+
+impl LoginItemSummary {
+    fn from_item(item: &LoginItem) -> Self {
+        LoginItemSummary {
+            id: item.id.clone(),
+            vault_id: item.vault_id.clone(),
+            item_type: item.item_type.clone(),
+            title: item.title.clone(),
+            username: item.username.clone(),
+            website: item.website.clone(),
+            tags: item.tags.clone(),
+            favorite: item.favorite,
+            updated_at: item.updated_at.clone(),
+            created_at: item.created_at.clone(),
+            use_count: item.use_count,
+            last_used_at: item.last_used_at.clone(),
+            icon_mode: item.icon_mode.clone(),
+            sign_in_with: sign_in_field_value(&item.custom_fields),
+            parent_id: None,
+            has_relations: false,
+        }
+    }
+}
+
+/// Which items a summary list reads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ItemState {
+    Live,
+    Archived,
+    Trashed,
+}
+
+impl ItemState {
+    fn filter(self) -> &'static str {
+        match self {
+            ItemState::Live => "i.archived = 0 AND i.trashed = 0",
+            ItemState::Archived => "i.archived = 1 AND i.trashed = 0",
+            ItemState::Trashed => "i.trashed = 1",
+        }
+    }
+
+    fn order(self) -> &'static str {
+        match self {
+            ItemState::Trashed => "i.deleted_at DESC",
+            _ => "i.updated_at DESC",
+        }
+    }
+}
+
+fn sign_in_field_value(fields: &[CustomField]) -> Option<String> {
+    fields
+        .iter()
+        .find(|field| field.field_type == SIGN_IN_WITH_FIELD)
+        .map(|field| field.value.clone())
 }
 
 fn default_icon_mode() -> String {
@@ -421,6 +513,8 @@ pub enum VaultError {
     ItemRelationsBlockMove,
     #[error("unknown icon mode")]
     InvalidIconMode,
+    #[error("item not found")]
+    ItemNotFound,
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
     #[error("crypto error: {0}")]
@@ -1051,6 +1145,8 @@ impl VaultService {
         Ok(())
     }
 
+    // Test-only since the window reads summaries (`list_login_summaries`).
+    #[cfg(test)]
     pub fn list_trashed_login_items(
         &self,
         session: &Session,
@@ -1168,6 +1264,8 @@ impl VaultService {
         Ok(ids)
     }
 
+    // Test-only since the window reads summaries (`list_login_summaries`).
+    #[cfg(test)]
     /// All (owner 2026-10-18): every live item of every open vault, each carrying its `vault_id`.
     pub fn list_all_login_items(&self, session: &Session) -> Result<Vec<LoginItem>, VaultError> {
         let mut items = Vec::new();
@@ -1262,7 +1360,7 @@ impl VaultService {
         self.save_passkey(&vault, overwrite, origin, rp_id, user_name, target, credential)
     }
 
-    /// Every passkey Passless itself holds for a relying party, across the open vaults, with the item
+    /// Every passkey Mimatory itself holds for a relying party, across the open vaults, with the item
     /// that carries it (the extension's sign-in picker and its signer).
     pub fn passkey_credentials_everywhere(
         &self,
@@ -1443,6 +1541,8 @@ impl VaultService {
     }
 
 
+    // Test-only since the window reads summaries (`list_login_summaries`).
+    #[cfg(test)]
     /// The live items the app window lists, each with its links resolved.
     pub fn list_login_items(
         &self,
@@ -1452,6 +1552,248 @@ impl VaultService {
         let mut items = self.list_live_items(session, query)?;
         self.attach_relations(session, &mut items)?;
         Ok(items)
+    }
+
+    /// The app window's list (owner 2026-10-23): summaries only. Without a query only what a row needs
+    /// is decrypted — title, username, the first address, tag names, and the custom-field JSON, read
+    /// for the "Sign in with" provider and dropped — never the password, the notes or the other
+    /// addresses. A query searches the fully decrypted items here in Rust, as `matches_query` always
+    /// did (every field value included), and still answers with summaries.
+    pub fn list_login_summaries(
+        &self,
+        session: &Session,
+        query: Option<&str>,
+    ) -> Result<Vec<LoginItemSummary>, VaultError> {
+        let query = query
+            .map(|value| value.trim().to_lowercase())
+            .filter(|value| !value.is_empty());
+        let Some(query) = query else {
+            return self.list_summaries_by_state(session, ItemState::Live);
+        };
+        let mut summaries: Vec<LoginItemSummary> = self
+            .list_live_items(session, Some(&query))?
+            .iter()
+            .map(LoginItemSummary::from_item)
+            .collect();
+        self.attach_summary_relations(session, &mut summaries)?;
+        Ok(summaries)
+    }
+
+    /// All: every open vault's live items as summaries, each carrying its `vault_id`.
+    pub fn list_all_login_summaries(&self, session: &Session) -> Result<Vec<LoginItemSummary>, VaultError> {
+        let mut summaries = Vec::new();
+        for vault_id in self.open_vault_ids()? {
+            summaries.extend(self.list_summaries_by_state(&session.for_vault(&vault_id), ItemState::Live)?);
+        }
+        Ok(summaries)
+    }
+
+    pub fn list_archived_login_summaries(
+        &self,
+        session: &Session,
+    ) -> Result<Vec<LoginItemSummary>, VaultError> {
+        self.list_summaries_by_state(session, ItemState::Archived)
+    }
+
+    pub fn list_trashed_login_summaries(
+        &self,
+        session: &Session,
+    ) -> Result<Vec<LoginItemSummary>, VaultError> {
+        self.list_summaries_by_state(session, ItemState::Trashed)
+    }
+
+    /// One item, fully decrypted with its links resolved: what the detail pane opens.
+    pub fn login_item_detail(&self, session: &Session, item_id: &str) -> Result<LoginItem, VaultError> {
+        let mut item = self
+            .get_login_item(session, item_id)?
+            .ok_or(VaultError::ItemNotFound)?;
+        item.relations = self.item_relations(session, item_id)?;
+        Ok(item)
+    }
+
+    /// Four reads for the whole list instead of four per item, and only the columns a row shows.
+    fn list_summaries_by_state(
+        &self,
+        session: &Session,
+        state: ItemState,
+    ) -> Result<Vec<LoginItemSummary>, VaultError> {
+        let filter = state.filter();
+        let mut statement = self.connection.prepare(&format!(
+            "SELECT i.id, i.item_type, i.title_ciphertext, i.favorite, i.updated_at, i.icon_mode,
+                    i.created_at, i.use_count, i.last_used_at
+             FROM items i WHERE i.vault_id = ?1 AND {filter} ORDER BY {}",
+            state.order()
+        ))?;
+        let rows = statement
+            .query_map([&session.vault_id], |row| {
+                Ok((
+                    (row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Vec<u8>>(2)?),
+                    (row.get::<_, i64>(3)?, row.get::<_, String>(4)?, row.get::<_, String>(5)?),
+                    (row.get::<_, String>(6)?, row.get::<_, i64>(7)?, row.get::<_, Option<String>>(8)?),
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        drop(statement);
+        if rows.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // The username and the custom-field JSON only: the password and notes rows are never read.
+        let mut fields: HashMap<String, (Option<Vec<u8>>, Option<Vec<u8>>)> = HashMap::new();
+        {
+            let mut statement = self.connection.prepare(&format!(
+                "SELECT f.item_id, f.field_key, f.value_ciphertext FROM item_fields f
+                 JOIN items i ON i.id = f.item_id
+                 WHERE i.vault_id = ?1 AND {filter} AND f.field_key IN ('username', 'custom_fields')"
+            ))?;
+            let mut query = statement.query([&session.vault_id])?;
+            while let Some(row) = query.next()? {
+                let entry = fields.entry(row.get::<_, String>(0)?).or_default();
+                let blob = row.get::<_, Vec<u8>>(2)?;
+                if row.get::<_, String>(1)? == "username" {
+                    entry.0 = Some(blob);
+                } else {
+                    entry.1 = Some(blob);
+                }
+            }
+        }
+
+        // The first address of each item (lowest position), the one `get_login_item` calls `website`.
+        let mut first_urls: HashMap<String, Vec<u8>> = HashMap::new();
+        {
+            let mut statement = self.connection.prepare(&format!(
+                "SELECT u.item_id, u.url_ciphertext FROM item_urls u
+                 JOIN items i ON i.id = u.item_id
+                 WHERE i.vault_id = ?1 AND {filter}
+                 ORDER BY u.item_id, u.position"
+            ))?;
+            let mut query = statement.query([&session.vault_id])?;
+            while let Some(row) = query.next()? {
+                first_urls
+                    .entry(row.get::<_, String>(0)?)
+                    .or_insert(row.get::<_, Vec<u8>>(1)?);
+            }
+        }
+
+        // Tag names, each tag row decrypted once however many items carry it.
+        let mut tags: HashMap<String, Vec<String>> = HashMap::new();
+        {
+            let mut names: HashMap<String, String> = HashMap::new();
+            let mut statement = self.connection.prepare(&format!(
+                "SELECT it.item_id, t.id, t.name_ciphertext FROM item_tags it
+                 JOIN tags t ON t.id = it.tag_id
+                 JOIN items i ON i.id = it.item_id
+                 WHERE i.vault_id = ?1 AND {filter}
+                 ORDER BY it.item_id, it.position"
+            ))?;
+            let mut query = statement.query([&session.vault_id])?;
+            while let Some(row) = query.next()? {
+                let item_id = row.get::<_, String>(0)?;
+                let tag_id = row.get::<_, String>(1)?;
+                let name = match names.get(&tag_id) {
+                    Some(name) => name.clone(),
+                    None => {
+                        let name = decrypt_string_from_blob(&session.key, &row.get::<_, Vec<u8>>(2)?)?;
+                        names.insert(tag_id, name.clone());
+                        name
+                    }
+                };
+                tags.entry(item_id).or_default().push(name);
+            }
+        }
+
+        let mut summaries = Vec::with_capacity(rows.len());
+        for ((id, item_type, title_ciphertext), (favorite, updated_at, icon_mode), (created_at, use_count, last_used_at)) in
+            rows
+        {
+            let (username_blob, custom_blob) = fields.remove(&id).unwrap_or_default();
+            let username = username_blob
+                .map(|blob| decrypt_string_from_blob(&session.key, &blob))
+                .transpose()?
+                .unwrap_or_default();
+            let sign_in_with = match custom_blob {
+                Some(blob) => {
+                    let json = decrypt_string_from_blob(&session.key, &blob)?;
+                    // Most items have no "Sign in with" field; skip the parse for them.
+                    if json.contains(SIGN_IN_WITH_FIELD) {
+                        sign_in_field_value(&serde_json::from_str::<Vec<CustomField>>(&json)?)
+                    } else {
+                        None
+                    }
+                }
+                None => None,
+            };
+            let website = first_urls
+                .remove(&id)
+                .map(|blob| decrypt_string_from_blob(&session.key, &blob))
+                .transpose()?
+                .unwrap_or_default();
+            summaries.push(LoginItemSummary {
+                title: decrypt_string_from_blob(&session.key, &title_ciphertext)?,
+                tags: tags.remove(&id).unwrap_or_default(),
+                id,
+                vault_id: session.vault_id.clone(),
+                item_type,
+                username,
+                website,
+                favorite: favorite == 1,
+                updated_at,
+                created_at,
+                use_count,
+                last_used_at,
+                icon_mode,
+                sign_in_with,
+                parent_id: None,
+                has_relations: false,
+            });
+        }
+        self.attach_summary_relations(session, &mut summaries)?;
+        Ok(summaries)
+    }
+
+    /// `parent_id` and `has_relations` from one decrypted index, with the rule `relation_ref` applies:
+    /// a link counts only while its other end is an item of this vault outside the trash.
+    fn attach_summary_relations(
+        &self,
+        session: &Session,
+        summaries: &mut [LoginItemSummary],
+    ) -> Result<(), VaultError> {
+        let index = self.relation_index(session)?;
+        if index.is_empty() {
+            return Ok(());
+        }
+        let mut statement = self
+            .connection
+            .prepare("SELECT id FROM items WHERE vault_id = ?1 AND trashed = 0")?;
+        let resolvable = statement
+            .query_map([&session.vault_id], |row| row.get::<_, String>(0))?
+            .collect::<Result<HashSet<_>, _>>()?;
+        // Items another resolvable item names as its parent or its sign-in account.
+        let mut named_by_others: HashSet<&str> = HashSet::new();
+        for (other_id, record) in &index {
+            if !resolvable.contains(other_id) {
+                continue;
+            }
+            if let Some(parent) = &record.parent {
+                named_by_others.insert(parent.as_str());
+            }
+            if let Some(sign_in) = &record.sign_in {
+                named_by_others.insert(sign_in.as_str());
+            }
+        }
+        for summary in summaries.iter_mut() {
+            let own = index.get(&summary.id);
+            summary.parent_id = own
+                .and_then(|record| record.parent.clone())
+                .filter(|id| resolvable.contains(id));
+            summary.has_relations = summary.parent_id.is_some()
+                || named_by_others.contains(summary.id.as_str())
+                || own.is_some_and(|record| {
+                    record.related.iter().any(|id| resolvable.contains(id))
+                        || record.sign_in.as_ref().is_some_and(|id| resolvable.contains(id))
+                });
+        }
+        Ok(())
     }
 
     /// The live items without their links — what the bridge, Watchtower and the migrations read,
@@ -1485,6 +1827,8 @@ impl VaultService {
         Ok(items)
     }
 
+    // Test-only since the window reads summaries (`list_login_summaries`).
+    #[cfg(test)]
     pub fn list_archived_login_items(
         &self,
         session: &Session,
@@ -1784,7 +2128,7 @@ impl VaultService {
                     url: origin.to_string(),
                     match_type: default_match_type(),
                 }],
-                // The legacy note says the key stays with the platform authenticator — untrue once Passless holds it.
+                // The legacy note says the key stays with the platform authenticator — untrue once Mimatory holds it.
                 notes: if credential.is_some() { String::new() } else { PASSKEY_NOTE.to_string() },
                 tags: vec!["passkey".to_string()],
                 custom_fields: with_passkey_credential(vec![passkey_field(rp_id, user_name)], credential),
@@ -2139,6 +2483,8 @@ impl VaultService {
         self.resolve_relations(session, item_id, &index)
     }
 
+    // Test-only since the window reads summaries (`list_login_summaries`).
+    #[cfg(test)]
     fn attach_relations(&self, session: &Session, items: &mut [LoginItem]) -> Result<(), VaultError> {
         let index = self.relation_index(session)?;
         if index.is_empty() {
@@ -2334,6 +2680,8 @@ impl VaultService {
         Ok(())
     }
 
+    // Test-only since the window reads summaries (`list_login_summaries`).
+    #[cfg(test)]
     fn list_login_items_by_archive_state(
         &self,
         session: &Session,
@@ -3192,7 +3540,7 @@ mod tests {
     fn test_database_path(name: &str) -> std::path::PathBuf {
         let mut path = std::env::temp_dir();
         path.push(format!(
-            "passless-{name}-{}-{}.sqlite3",
+            "mimatory-{name}-{}-{}.sqlite3",
             std::process::id(),
             uuid::Uuid::new_v4()
         ));
@@ -4281,7 +4629,7 @@ mod tests {
 
         let mut file = std::env::temp_dir();
         file.push(format!(
-            "passless-duplicate-{}-{}.bin",
+            "mimatory-duplicate-{}-{}.bin",
             std::process::id(),
             uuid::Uuid::new_v4()
         ));
@@ -5518,6 +5866,141 @@ mod tests {
         ));
         let copy = service.duplicate_login_item(&session, &id, "Bank copy").expect("duplicate");
         assert_eq!(copy.icon_mode, "letter");
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    fn summary_input(title: &str, username: &str, custom_fields: Vec<CustomField>, tags: &[&str]) -> LoginItemInput {
+        LoginItemInput {
+            item_type: "login".into(),
+            title: title.into(),
+            username: username.into(),
+            password: format!("{title}-secret-password"),
+            website: String::new(),
+            urls: vec![
+                ItemUrl {
+                    label: "first".into(),
+                    url: format!("https://{}.example.com/login", title.to_lowercase()),
+                    match_type: "domain".into(),
+                },
+                ItemUrl {
+                    label: "second".into(),
+                    url: "https://second.example.org".into(),
+                    match_type: "exact".into(),
+                },
+            ],
+            notes: format!("{title} private notes"),
+            tags: tags.iter().map(|tag| tag.to_string()).collect(),
+            custom_fields,
+            favorite: false,
+        }
+    }
+
+    #[test]
+    fn summaries_carry_the_row_fields_and_never_a_secret() {
+        let path = test_database_path("vault-summaries");
+        initialize_database(&path).expect("database should initialize");
+        let connection = open_database(&path).expect("database should open");
+        let mut service = VaultService::new(connection);
+        let session = service.setup_master_password("master-password").expect("setup");
+
+        let account = service
+            .create_login_item(&session, summary_input("Google", "me@gmail.com", vec![], &["Work", "mail"]))
+            .expect("account");
+        let user = service
+            .create_login_item(
+                &session,
+                summary_input(
+                    "Figma",
+                    "",
+                    vec![
+                        CustomField {
+                            label: String::new(),
+                            value: "google".into(),
+                            field_type: SIGN_IN_WITH_FIELD.into(),
+                        },
+                        CustomField {
+                            label: "recovery".into(),
+                            value: "concealed-recovery-code".into(),
+                            field_type: "concealed".into(),
+                        },
+                    ],
+                    &["work"],
+                ),
+            )
+            .expect("user");
+        let child = service
+            .create_login_item(&session, summary_input("Child", "kid", vec![], &[]))
+            .expect("child");
+        let loose = service
+            .create_login_item(&session, summary_input("Loose", "solo", vec![], &[]))
+            .expect("loose");
+        let archived = service
+            .create_login_item(&session, summary_input("Parked", "old", vec![], &[]))
+            .expect("archived");
+        let trashed = service
+            .create_login_item(&session, summary_input("Binned", "gone", vec![], &[]))
+            .expect("trashed");
+        service.set_item_sign_in(&session, &user.id, Some(&account.id)).expect("sign in link");
+        service.set_item_parent(&session, &child.id, Some(&account.id)).expect("parent link");
+        service.archive_item(&session, &archived.id).expect("archive");
+        service.trash_item(&session, &trashed.id).expect("trash");
+
+        let summaries = service.list_login_summaries(&session, None).expect("summaries");
+        let full = service.list_login_items(&session, None).expect("full list");
+        assert_eq!(
+            summaries.iter().map(|summary| &summary.id).collect::<Vec<_>>(),
+            full.iter().map(|item| &item.id).collect::<Vec<_>>(),
+            "same items in the same order as the full list"
+        );
+        for item in &full {
+            let summary = summaries.iter().find(|summary| summary.id == item.id).expect("summary");
+            assert_eq!(summary.title, item.title);
+            assert_eq!(summary.username, item.username);
+            assert_eq!(summary.website, item.website);
+            assert_eq!(summary.tags, item.tags);
+            assert_eq!(summary.vault_id, item.vault_id);
+            assert_eq!(summary.updated_at, item.updated_at);
+            assert_eq!(summary.created_at, item.created_at);
+            assert_eq!(summary.has_relations, !item.relations.is_empty(), "{}", item.title);
+            assert_eq!(
+                summary.parent_id.as_deref(),
+                item.relations.parent.as_ref().map(|parent| parent.id.as_str())
+            );
+        }
+        let by_id = |id: &str| summaries.iter().find(|summary| summary.id == id).expect("summary");
+        assert_eq!(by_id(&user.id).sign_in_with.as_deref(), Some("google"));
+        assert_eq!(by_id(&account.id).sign_in_with, None);
+        assert_eq!(by_id(&child.id).parent_id.as_deref(), Some(account.id.as_str()));
+        assert!(by_id(&account.id).has_relations && by_id(&user.id).has_relations);
+        assert!(!by_id(&loose.id).has_relations);
+
+        let json = serde_json::to_string(&summaries).expect("json");
+        for secret in ["secret-password", "private notes", "concealed-recovery-code", "second.example.org", "recovery"] {
+            assert!(!json.contains(secret), "summary payload leaks {secret}");
+        }
+
+        // A query still searches every decrypted value, in Rust, and answers with summaries.
+        let hits = service.list_login_summaries(&session, Some("RECOVERY-code")).expect("search");
+        assert_eq!(hits.iter().map(|hit| hit.id.as_str()).collect::<Vec<_>>(), vec![user.id.as_str()]);
+        assert!(hits[0].has_relations);
+
+        let archived_rows = service.list_archived_login_summaries(&session).expect("archived");
+        assert_eq!(archived_rows.len(), 1);
+        assert_eq!(archived_rows[0].title, "Parked");
+        let trashed_rows = service.list_trashed_login_summaries(&session).expect("trashed");
+        assert_eq!(trashed_rows.len(), 1);
+        assert_eq!(trashed_rows[0].username, "gone");
+        assert_eq!(service.list_all_login_summaries(&session).expect("all").len(), full.len());
+
+        let detail = service.login_item_detail(&session, &user.id).expect("detail");
+        assert_eq!(detail.password, "Figma-secret-password");
+        assert_eq!(detail.urls.len(), 2);
+        assert_eq!(detail.relations.sign_in_with.as_ref().map(|account| account.id.as_str()), Some(account.id.as_str()));
+        assert!(matches!(
+            service.login_item_detail(&session, "missing"),
+            Err(VaultError::ItemNotFound)
+        ));
 
         let _ = std::fs::remove_file(path);
     }

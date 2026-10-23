@@ -1,4 +1,18 @@
-import type { ItemRelations, LoginItem, RelatedItemRef } from './vaultApi'
+import type { ItemRelations, RelatedItemRef } from './vaultApi'
+
+// What the pickers read off a list entry: a summary names its parent as `parent_id`, a full item as
+// `relations.parent`.
+export type RelationNode = {
+  id: string
+  item_type: string
+  parent_id?: string | null
+  relations?: ItemRelations
+  title: string
+}
+
+function parentIdOf(item: RelationNode): string | null {
+  return item.parent_id ?? item.relations?.parent?.id ?? null
+}
 
 // The links an open form is editing. Ids only: titles come from the live list (or the stored ref,
 // for an archived counterpart), so a rename elsewhere shows up without touching the draft.
@@ -77,12 +91,13 @@ export function relationChanges(itemId: string, baseline: RelationDraft, draft: 
   return changes
 }
 
-function storedParentId(items: LoginItem[], id: string): string | null {
-  return items.find((item) => item.id === id)?.relations?.parent?.id ?? null
+function storedParentId(items: RelationNode[], id: string): string | null {
+  const item = items.find((entry) => entry.id === id)
+  return item ? parentIdOf(item) : null
 }
 
 // Every item above `startId`, `startId` included, following the stored parents.
-export function ancestorIds(items: LoginItem[], startId: string | null): Set<string> {
+export function ancestorIds(items: RelationNode[], startId: string | null): Set<string> {
   const seen = new Set<string>()
   let cursor = startId
   while (cursor && !seen.has(cursor)) {
@@ -93,13 +108,13 @@ export function ancestorIds(items: LoginItem[], startId: string | null): Set<str
 }
 
 // Every item below the roots, the roots excluded, following the stored parents downward.
-export function descendantIds(items: LoginItem[], rootIds: string[]): Set<string> {
+export function descendantIds(items: RelationNode[], rootIds: string[]): Set<string> {
   const found = new Set<string>()
   const queue = [...rootIds]
   while (queue.length) {
     const current = queue.shift() as string
     for (const item of items) {
-      if (item.relations?.parent?.id === current && !found.has(item.id)) {
+      if (parentIdOf(item) === current && !found.has(item.id)) {
         found.add(item.id)
         queue.push(item.id)
       }
@@ -112,12 +127,12 @@ export function descendantIds(items: LoginItem[], rootIds: string[]): Set<string
 // linked to, and never a choice that would close a loop: a parent cannot come from below the item, a
 // child cannot come from above it. A child also has to be free — it already belonging to another
 // parent is changed from that item's own "Parent Item…", not stolen from here.
-export function relationCandidates(
-  items: LoginItem[],
+export function relationCandidates<T extends RelationNode>(
+  items: T[],
   selfId: string | null,
   kind: RelationKind,
   draft: RelationDraft,
-): LoginItem[] {
+): T[] {
   const linked = new Set([...(draft.parentId ? [draft.parentId] : []), ...draft.childIds, ...draft.relatedIds])
   const excluded = new Set(linked)
   if (selfId) excluded.add(selfId)
@@ -130,14 +145,14 @@ export function relationCandidates(
   return items.filter((item) => {
     if (excluded.has(item.id)) return false
     if (kind !== 'child') return true
-    const parentId = item.relations?.parent?.id
+    const parentId = parentIdOf(item)
     return !parentId || parentId === selfId
   })
 }
 
 // A draft id drawn as a row: the live item when there is one, else the ref the vault returned (an
 // archived counterpart is not in the live list).
-export function relationRef(id: string, items: LoginItem[], stored?: ItemRelations | null): RelatedItemRef | null {
+export function relationRef(id: string, items: RelationNode[], stored?: ItemRelations | null): RelatedItemRef | null {
   const live = items.find((item) => item.id === id)
   if (live) return { archived: false, id, item_type: live.item_type, title: live.title }
   const refs = stored
@@ -152,7 +167,7 @@ export function relationRef(id: string, items: LoginItem[], stored?: ItemRelatio
   return refs.find((ref) => ref.id === id) ?? null
 }
 
-export function filterByTitle(items: LoginItem[], query: string): LoginItem[] {
+export function filterByTitle<T extends { title: string }>(items: T[], query: string): T[] {
   const needle = query.trim().toLowerCase()
   if (!needle) return items
   return items.filter((item) => item.title.toLowerCase().includes(needle))

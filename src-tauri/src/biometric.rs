@@ -86,7 +86,7 @@ mod platform {
         can_authenticate(app)?;
         let options = AuthOptions {
             allow_device_credential: false,
-            title: Some("Passless".to_string()),
+            title: Some("Mimatory".to_string()),
             ..AuthOptions::default()
         };
         app.biometric()

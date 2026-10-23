@@ -1,9 +1,9 @@
 {
 	"extensionDescription": {
-		"message": "Autofill and save logins through the local Passless desktop app."
+		"message": "Autofill and save logins through the local Mimatory desktop app."
 	},
 	"extensionName": {
-		"message": "Passless Autofill"
+		"message": "Mimatory Autofill"
 	},
 	"filledPage": {
 		"message": "Filled the login on this page."
@@ -12,11 +12,11 @@
 		"message": "Fill Current Page"
 	},
 	"footerHint": {
-		"message": "Keep the Passless desktop app unlocked for autofill and save prompts."
+		"message": "Keep the Mimatory desktop app unlocked for autofill and save prompts."
 	},
 	"inlineMenuLabel": {
-		"description": "Logins saved in Passless for this site",
-		"message": "Passless"
+		"description": "Logins saved in Mimatory for this site",
+		"message": "Mimatory"
 	},
 	"noLoginForm": {
 		"message": "No login form found on this page."
@@ -49,7 +49,7 @@
 		"message": "New Item"
 	},
 	"passkeyNote": {
-		"message": "Passless creates the passkey and keeps its private key encrypted in your vault."
+		"message": "Mimatory creates the passkey and keeps its private key encrypted in your vault."
 	},
 	"passkeyNotNow": {
 		"message": "Not Now"
@@ -71,13 +71,13 @@
 		}
 	},
 	"passkeySaved": {
-		"message": "Saved to Passless."
+		"message": "Saved to Mimatory."
 	},
 	"passkeySaveFailed": {
-		"message": "Couldn’t reach Passless. Unlock the app and try again."
+		"message": "Couldn’t reach Mimatory. Unlock the app and try again."
 	},
 	"passkeySaveTitle": {
-		"message": "Save passkey to Passless?"
+		"message": "Save passkey to Mimatory?"
 	},
 	"passkeySignInTitle": {
 		"message": "Sign in with a passkey"

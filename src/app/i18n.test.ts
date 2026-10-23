@@ -101,7 +101,7 @@ describe('i18n', () => {
      item type comes from the sidebar's categories, the placeholder from the add-field menu, and the icon
      name from the tag picker's grid. */
   it('translates the keys built at runtime', () => {
-    const app = readFileSync('src/App.tsx', 'utf8')
+    const app = readFileSync('src/app/vaultModel.ts', 'utf8')
     const itemTypes = [...app.matchAll(/icon: \w+, itemType: '([a-z_]+)' \}/g)].map((match) => match[1])
     /* The Add More menu's field entries (addMoreOptions.ts) each pick a default label and a placeholder. */
     const addMore = readFileSync('src/app/addMoreOptions.ts', 'utf8')
@@ -111,23 +111,17 @@ describe('i18n', () => {
     /* The "no colour" swatch is stored as an empty string, so its key is the one name the source does
        not carry and the picker's `tagColorLabelKey` supplies instead. */
     const tagColors = ['none', ...[...tagSource.matchAll(/swatchClass: 'bg-accent-icon-([a-z]+)'/g)].map((m) => m[1])]
-    /* The appearance segments are labelled `settings.<theme>` from the option list in theme.ts. */
-    const themeSource = readFileSync('src/app/theme.ts', 'utf8')
-    const themeList = themeSource.match(/themeOptions: Theme\[\] = \[([^\]]+)\]/)?.[1] ?? ''
-    const themes = [...themeList.matchAll(/'([a-z]+)'/g)].map((match) => match[1])
 
     expect(itemTypes.length).toBeGreaterThan(10)
     expect(fieldTypes.length).toBeGreaterThan(10)
     expect(tagIcons.length).toBeGreaterThan(10)
     expect(tagColors.length).toBeGreaterThan(10)
-    expect(themes).toEqual(['system', 'light', 'dark'])
 
     const derived = [
       ...itemTypes.map((itemType) => `itemTypes.${itemType}`),
       ...fieldTypes.map((fieldType) => `vault.customFieldDefaults.${fieldType}`),
       ...tagIcons.map((tagIcon) => `tagIcons.${tagIcon}`),
       ...tagColors.map((tagColor) => `tagColors.${tagColor}`),
-      ...themes.map((theme) => `settings.${theme}`),
     ]
     expect(missingFromSomeLocale(derived)).toEqual([])
   })

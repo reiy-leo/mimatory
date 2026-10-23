@@ -46,6 +46,34 @@ export type LoginItem = {
   icon_mode?: ItemIconMode
 }
 
+/**
+ * One row of the item list (owner 2026-10-23: "列表只返回摘要，选中条目时再解密详情"). Every list command
+ * answers with these; the detail pane asks `getItem` for the one item it opens. No password, notes,
+ * custom field value, attachment or second address ever crosses the bridge in a summary.
+ */
+export type LoginItemSummary = {
+  id: string
+  item_type: string
+  title: string
+  username: string
+  // The first address: the row's icon and Quick Access search read it.
+  website: string
+  tags: string[]
+  favorite: boolean
+  updated_at: string
+  created_at?: string
+  use_count?: number
+  last_used_at?: string
+  vault_id?: string
+  icon_mode?: ItemIconMode
+  // The raw "Sign in with" field value (a provider id or name), for the "Sign in with Google" subtitle.
+  sign_in_with?: string
+  // The resolvable parent (the link pickers refuse a loop with it) and whether any link resolves
+  // (Delete and Move To are refused then). Both left out when empty.
+  parent_id?: string
+  has_relations?: boolean
+}
+
 export type ItemIconMode = 'auto' | 'letter'
 
 // One cached website icon: a PNG data URL (or null for a site that had none) and whether it is recent
@@ -232,10 +260,10 @@ export function tagsToInput(tags: string[]): string {
 
 export const vaultApi = {
   // All (owner 2026-10-18): every open vault's live items, and the tags across them, not tied to the open vault.
-  allItems: () => invoke<LoginItem[]>('list_all_login_items'),
+  allItems: () => invoke<LoginItemSummary[]>('list_all_login_items'),
   allTags: () => invoke<Tag[]>('list_all_tags'),
   archive: (id: string) => invoke<void>('archive_login_item', { id }),
-  archived: () => invoke<LoginItem[]>('list_archived_login_items'),
+  archived: () => invoke<LoginItemSummary[]>('list_archived_login_items'),
   attachFileToItem: (id: string, path: string) => invoke<CustomField>('attach_file_to_item', { id, path }),
   // Website icons the vault already holds, for these sites. Never touches the network.
   cachedSiteIcons: (domains: string[]) => invoke<Record<string, CachedSiteIcon>>('cached_site_icons', { domains }),
@@ -257,13 +285,17 @@ export const vaultApi = {
   generateBrowserPairingToken: () => invoke<string>('generate_browser_pairing_token'),
   generatePassword: (options: PasswordGeneratorOptions) => invoke<string>('generate_password_command', { options }),
   generateTotp: (secret: string) => invoke<TotpCode>('generate_totp_code', { secret }),
+  // One item in full (password, fields, attachments, resolved links), decrypted on demand for the detail pane.
+  getItem: (itemId: string, vaultId?: string) =>
+    invoke<LoginItem>('get_login_item', { itemId, vaultId: vaultId || null }),
   hideQuickAccess: () => invoke<void>('hide_quick_access'),
   import1pux: (path: string) => invoke<OnePuxSummary>('import_1pux_file', { path }),
   initialize: () => invoke<AppStatus>('initialize_database'),
   isAutostartEnabled: () => invoke<boolean>('is_autostart_enabled'),
   // Peer links are stored on both items, so either end unlinks both.
   linkRelated: (id: string, otherId: string) => invoke<void>('link_related_items', { id, otherId }),
-  list: (query?: string) => invoke<LoginItem[]>('list_login_items', { query: query || null }),
+  // Summaries only. A query is searched in Rust over the decrypted items (every field value), not here.
+  list: (query?: string) => invoke<LoginItemSummary[]>('list_login_items', { query: query || null }),
   listVaults: () => invoke<VaultSummary[]>('list_vaults'),
   lock: () => invoke<void>('lock_vault'),
   // The item leaves the vault the session is reading; this does not switch the app to the target.
@@ -285,16 +317,16 @@ export const vaultApi = {
   setParent: (id: string, parentId: string | null) => invoke<void>('set_item_parent', { id, parentId }),
   // `accountId: null` clears it. Rust refuses itself and an item outside this vault or in the trash.
   setSignIn: (id: string, accountId: string | null) => invoke<void>('set_item_sign_in', { accountId, id }),
-  setup: (password: string) => invoke<LoginItem[]>('setup_master_password', { password }),
+  setup: (password: string) => invoke<LoginItemSummary[]>('setup_master_password', { password }),
   // Archiving a vault archives what is in it too, so the items land in the view that already exists.
   setVaultArchived: (archived: boolean, id: string) => invoke<void>('set_vault_archived', { archived, id }),
-  switchVault: (id: string) => invoke<LoginItem[]>('switch_vault', { id }),
+  switchVault: (id: string) => invoke<LoginItemSummary[]>('switch_vault', { id }),
   tags: () => invoke<Tag[]>('list_tags'),
   trash: (id: string) => invoke<void>('trash_login_item', { id }),
-  trashed: () => invoke<LoginItem[]>('list_trashed_login_items'),
+  trashed: () => invoke<LoginItemSummary[]>('list_trashed_login_items'),
   unlinkRelated: (id: string, otherId: string) => invoke<void>('unlink_related_items', { id, otherId }),
-  unlock: (password: string) => invoke<LoginItem[]>('unlock_vault', { password }),
-  unlockWithBiometrics: () => invoke<LoginItem[]>('unlock_with_biometrics'),
+  unlock: (password: string) => invoke<LoginItemSummary[]>('unlock_vault', { password }),
+  unlockWithBiometrics: () => invoke<LoginItemSummary[]>('unlock_with_biometrics'),
   update: (id: string, input: LoginItemInput) => invoke<LoginItem>('update_login_item', { input: { id, ...input } }),
   updateTag: (patch: Tag & { from: string }) => invoke<void>('update_tag', patch),
   // One patch object rather than four positionals, for the same reason the tag editor takes one.

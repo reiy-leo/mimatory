@@ -16,7 +16,7 @@ export function getInitialLanguage(value: string | null): SupportedLanguage {
 
 function getStoredLanguage(): string | null {
   try {
-    return globalThis.localStorage?.getItem('passless-language') ?? null
+    return globalThis.localStorage?.getItem('mimatory-language') ?? null
   } catch {
     return null
   }
@@ -382,11 +382,11 @@ const resources = {
         dissolvedVault: 'Dissolved the vault {{name}}',
         duplicatedItem: 'Created {{title}}',
         exportedAttachment: 'Attachment exported to {{path}}',
-        iconNotFound: 'This website has no icon Passless can use.',
+        iconNotFound: 'This website has no icon Mimatory can use.',
         iconRefreshed: 'Icon updated.',
         imported1pux: 'Imported {{count}} items from 1Password.',
         movedItem: 'Moved to {{vault}}',
-        openedToFill: 'Opened {{host}}. The Passless extension fills the sign-in there if it is paired.',
+        openedToFill: 'Opened {{host}}. The Mimatory extension fills the sign-in there if it is paired.',
         renamedTag: 'Renamed the tag to {{name}}',
         restoredVault: 'Restored the vault {{name}}',
         settingsWindowFailed: 'Settings window failed: {{error}}',
@@ -413,11 +413,11 @@ const resources = {
         empty: 'No matching items.',
         searchPlaceholder: 'Search logins…',
         title: 'Quick Access',
-        unlockPrompt: 'Unlock Passless to search.',
+        unlockPrompt: 'Unlock Mimatory to search.',
       },
       security: {
         accountPasswordHelp:
-          'Passless does not reset passwords. For better protection, you can opt to re-enter your account password regularly.',
+          'Mimatory does not reset passwords. For better protection, you can opt to re-enter your account password regularly.',
         accountPasswordOptions: {
           '1d': 'After 1 day',
           '7d': 'After 7 days',
@@ -466,20 +466,15 @@ const resources = {
       },
       settings: {
         app: 'App',
-        appearance: 'Appearance',
-        appearanceDescription:
-          'System follows your Mac’s appearance. The choice is shared by the main window and all settings windows.',
-        autostart: 'Open Passless at Login',
+        autostart: 'Open Mimatory at Login',
         autostartDescription: 'Registers a macOS LaunchAgent. The vault stays locked until you unlock it.',
         configured: 'configured',
-        dark: 'Dark',
         database: 'Database',
         downloadSiteIcons: 'Download website icons',
         generatorDescription:
           'Generate a random password, a passphrase, or a numeric PIN, then copy it to the clipboard.',
         language: 'Language',
         languageDescription: 'Chinese is the default language. Changes sync across the main and settings windows.',
-        light: 'Light',
         locked: 'locked',
         lockedHint: 'Unlock the main vault window to manage protected settings.',
         masterPassword: 'Master password',
@@ -489,9 +484,8 @@ const resources = {
         session: 'Session',
         siteIcons: 'Website Icons',
         siteIconsDescription:
-          'Passless looks up each website’s icon through Google’s favicon service, then the website itself, and keeps it encrypted in your vault. Google sees the website addresses it is asked about. Turning this off stops all lookups and deletes the saved icons.',
-        subtitle: 'Passless preferences',
-        system: 'System',
+          'Mimatory looks up each website’s icon through Google’s favicon service, then the website itself, and keeps it encrypted in your vault. Google sees the website addresses it is asked about. Turning this off stops all lookups and deletes the saved icons.',
+        subtitle: 'Mimatory preferences',
         tabs: {
           appearance: 'Appearance',
           browser: 'Browser Extension',
@@ -703,7 +697,7 @@ const resources = {
           badgeNew: 'New',
           confirm: 'Import',
           heading: 'Import from 1Password',
-          importingDetail: 'Importing {{count}} items… Passless is unavailable until it finishes.',
+          importingDetail: 'Importing {{count}} items… Mimatory is unavailable until it finishes.',
           items: '{{count}} items',
           note: 'Archived items stay archived. Passkeys are not part of a .1pux export.',
           statAttachments: 'Attachments',
@@ -712,6 +706,7 @@ const resources = {
           vaultsHeading: 'Destination vaults',
         },
         itemActions: 'Item actions',
+        loadingItem: 'Opening item…',
         loginFallback: 'Login',
         loginItem: 'Login item',
         loginTitle: 'Login title',
@@ -1229,7 +1224,7 @@ const resources = {
         iconRefreshed: 'アイコンを更新しました。',
         imported1pux: '1Password から {{count}} 件の項目を読み込みました。',
         movedItem: '{{vault}} に移動しました',
-        openedToFill: '{{host}} を開きました。ペアリング済みの Passless 拡張機能がサインイン情報を入力します。',
+        openedToFill: '{{host}} を開きました。ペアリング済みの Mimatory 拡張機能がサインイン情報を入力します。',
         renamedTag: 'タグを {{name}} に名前変更しました',
         restoredVault: '保管庫 {{name}} を復元しました',
         settingsWindowFailed: '設定ウィンドウに失敗しました: {{error}}',
@@ -1256,11 +1251,11 @@ const resources = {
         empty: '一致する項目がありません。',
         searchPlaceholder: 'ログインを検索…',
         title: 'クイックアクセス',
-        unlockPrompt: '検索するには Passless のロックを解除してください。',
+        unlockPrompt: '検索するには Mimatory のロックを解除してください。',
       },
       security: {
         accountPasswordHelp:
-          'Passless はパスワードをリセットしません。保護を高めるため、定期的な再入力を選択できます。',
+          'Mimatory はパスワードをリセットしません。保護を高めるため、定期的な再入力を選択できます。',
         accountPasswordOptions: {
           '1d': '1 日後',
           '7d': '7 日後',
@@ -1309,19 +1304,14 @@ const resources = {
       },
       settings: {
         app: 'アプリ',
-        appearance: '外観',
-        appearanceDescription:
-          '「システム」は Mac の外観設定に従います。選択はメインウィンドウとすべての設定ウィンドウで共有されます。',
-        autostart: 'ログイン時に Passless を起動',
+        autostart: 'ログイン時に Mimatory を起動',
         autostartDescription: 'macOS LaunchAgent を登録します。ロック解除するまで保管庫はロックされたままです。',
         configured: '設定済み',
-        dark: 'ダーク',
         database: 'データベース',
         downloadSiteIcons: 'Webサイトのアイコンをダウンロード',
         generatorDescription: 'ランダムパスワード、パスフレーズ、数字 PIN を生成してクリップボードにコピーします。',
         language: '言語',
         languageDescription: '既定の言語は中国語です。変更はメインウィンドウと設定ウィンドウに同期されます。',
-        light: 'ライト',
         locked: 'ロック中',
         lockedHint: '保護された設定を管理するには、メイン保管庫ウィンドウを解除してください。',
         masterPassword: 'マスターパスワード',
@@ -1332,8 +1322,7 @@ const resources = {
         siteIcons: 'Webサイトのアイコン',
         siteIconsDescription:
           '各WebサイトのアイコンをGoogleのファビコンサービス、次にWebサイト自体から取得し、保管庫に暗号化して保存します。問い合わせたWebサイトのアドレスはGoogleに伝わります。オフにするとすべての取得を止め、保存済みのアイコンを削除します。',
-        subtitle: 'Passless の環境設定',
-        system: 'システム',
+        subtitle: 'Mimatory の環境設定',
         tabs: {
           appearance: '外観',
           browser: 'ブラウザ拡張',
@@ -1554,6 +1543,7 @@ const resources = {
           vaultsHeading: '読み込み先の保管庫',
         },
         itemActions: '項目の操作',
+        loadingItem: '項目を開いています…',
         loginFallback: 'ログイン',
         loginItem: 'ログイン項目',
         loginTitle: 'ログイン名',
@@ -2067,7 +2057,7 @@ const resources = {
         iconRefreshed: '图标已更新。',
         imported1pux: '已从 1Password 导入 {{count}} 个项目。',
         movedItem: '已移动到{{vault}}',
-        openedToFill: '已打开 {{host}}，已配对的 Passless 扩展会在页面上填充登录信息。',
+        openedToFill: '已打开 {{host}}，已配对的 Mimatory 扩展会在页面上填充登录信息。',
         renamedTag: '已将标签重命名为 {{name}}',
         restoredVault: '已恢复保险库 {{name}}',
         settingsWindowFailed: '设置窗口失败：{{error}}',
@@ -2094,10 +2084,10 @@ const resources = {
         empty: '没有匹配的项目。',
         searchPlaceholder: '搜索登录项…',
         title: '快速访问',
-        unlockPrompt: '解锁 Passless 后即可搜索。',
+        unlockPrompt: '解锁 Mimatory 后即可搜索。',
       },
       security: {
-        accountPasswordHelp: 'Passless 不会重置密码。为了更好地保护主密码，你可以选择定期重新输入账户密码。',
+        accountPasswordHelp: 'Mimatory 不会重置密码。为了更好地保护主密码，你可以选择定期重新输入账户密码。',
         accountPasswordOptions: {
           '1d': '1 天后',
           '7d': '7 天后',
@@ -2146,18 +2136,14 @@ const resources = {
       },
       settings: {
         app: '应用',
-        appearance: '外观',
-        appearanceDescription: '“跟随系统”会随 Mac 的外观设置切换。此选择在主窗口和所有设置窗口之间共享。',
-        autostart: '登录时启动 Passless',
+        autostart: '登录时启动 Mimatory',
         autostartDescription: '注册 macOS LaunchAgent。解锁前保险库始终保持锁定。',
         configured: '已配置',
-        dark: '深色',
         database: '数据库',
         downloadSiteIcons: '下载网站图标',
         generatorDescription: '生成随机密码、口令短语或数字 PIN，并复制到剪贴板。',
         language: '语言',
         languageDescription: '默认语言为中文。切换后会同步到主窗口和设置窗口。',
-        light: '浅色',
         locked: '已锁定',
         lockedHint: '请先在主窗口解锁保险库，才能管理受保护设置。',
         masterPassword: '主密码',
@@ -2168,8 +2154,7 @@ const resources = {
         siteIcons: '网站图标',
         siteIconsDescription:
           '先通过 Google 的网站图标服务、再向网站本身获取各网站的图标，并加密保存在保险库中。Google 会看到被查询的网站地址。关闭后将停止所有查询并删除已保存的图标。',
-        subtitle: 'Passless 偏好设置',
-        system: '跟随系统',
+        subtitle: 'Mimatory 偏好设置',
         tabs: {
           appearance: '外观',
           browser: '浏览器插件',
@@ -2389,6 +2374,7 @@ const resources = {
           vaultsHeading: '导入到的保险库',
         },
         itemActions: '条目操作',
+        loadingItem: '正在打开项目…',
         loginFallback: '登录项',
         loginItem: '登录项目',
         loginTitle: '登录标题',

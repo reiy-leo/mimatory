@@ -62,7 +62,7 @@ describe('field actions', () => {
   })
 
   it('carries the item id in the fragment for Open & Fill, never over an existing fragment', () => {
-    expect(openAndFillUrl('github.com/login', 'item 1')).toBe('https://github.com/login#passless-fill=item%201')
+    expect(openAndFillUrl('github.com/login', 'item 1')).toBe('https://github.com/login#mimatory-fill=item%201')
     expect(openAndFillUrl('https://app.example.com/#/login', 'id')).toBe('https://app.example.com/#/login')
     expect(openAndFillUrl('javascript:alert(1)', 'id')).toBeNull()
   })

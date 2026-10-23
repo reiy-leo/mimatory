@@ -1,8 +1,8 @@
 //! 1Password's `.1pux` export (File ▸ Import ▸ 1Password). A `.1pux` is a zip holding `export.data` (JSON:
 //! accounts → vaults → items) and `files/<documentId>__<name>` for attachments. Nothing in it is encrypted.
 //!
-//! Every 1Password vault lands in the Passless vault of the same name, created when there is none. Items keep
-//! their category where Passless has one (the rest become Secure Notes), their template fields where the two
+//! Every 1Password vault lands in the Mimatory vault of the same name, created when there is none. Items keep
+//! their category where Mimatory has one (the rest become Secure Notes), their template fields where the two
 //! line up (stored with the template `key`, so they read exactly like fields typed here), and everything else as
 //! labelled custom fields or sections. Archived items stay archived; items in 1Password's trash are skipped.
 //! Passkeys are not in a desktop `.1pux` at all (1Password exports them only through CXP on iOS/Android).
@@ -59,7 +59,7 @@ pub struct ImportPreview {
 pub struct PreviewVault {
     pub name: String,
     pub item_count: usize,
-    /// A Passless vault of this name exists already, so the items go there instead of a new vault.
+    /// A Mimatory vault of this name exists already, so the items go there instead of a new vault.
     pub exists: bool,
 }
 
@@ -87,7 +87,7 @@ struct ParsedItem {
     archived: bool,
     created_at: Option<i64>,
     updated_at: Option<i64>,
-    /// (zip entry name, file name shown in Passless).
+    /// (zip entry name, file name shown in Mimatory).
     attachments: Vec<(String, String)>,
 }
 
@@ -119,7 +119,7 @@ pub fn preview(path: &Path, service: &VaultService, session: &Session) -> Result
 pub fn import(path: &Path, service: &mut VaultService, session: &Session) -> Result<ImportSummary, Import1PuxError> {
     let (vaults, mut archive) = read_export(path)?;
     let mut summary = ImportSummary::default();
-    // 1Password uuid → (Passless vault, Passless item id), and the sign-in links to make once every
+    // 1Password uuid → (Mimatory vault, Mimatory item id), and the sign-in links to make once every
     // item exists: an account can come after the item that signs in with it.
     let mut imported: HashMap<String, (String, String)> = HashMap::new();
     let mut sign_in_links: Vec<(String, String, String)> = Vec::new();
@@ -171,7 +171,7 @@ pub fn import(path: &Path, service: &mut VaultService, session: &Session) -> Res
             }
         }
     }
-    // A Passless link stays inside one vault, so an account 1Password keeps in another vault leaves
+    // A Mimatory link stays inside one vault, so an account 1Password keeps in another vault leaves
     // the item with its provider only — the same as a hand-made "Sign in with" with no account.
     for (vault_id, item_id, reference) in sign_in_links {
         let Some((account_vault, account_id)) = imported.get(&reference) else { continue };
@@ -209,7 +209,7 @@ fn parse_export(data: &Value, zip_names: &[String]) -> Vec<ParsedVault> {
                 .iter()
                 .filter_map(|item| parse_item(item, zip_names))
                 .collect::<Vec<_>>();
-            // Two accounts with a "Personal" vault each end up in one Passless vault, as the import would anyway.
+            // Two accounts with a "Personal" vault each end up in one Mimatory vault, as the import would anyway.
             match vaults.iter_mut().find(|known| known.name.eq_ignore_ascii_case(&name)) {
                 Some(known) => known.items.extend(items),
                 None => vaults.push(ParsedVault { name, items }),
@@ -231,7 +231,7 @@ fn text(value: &Value, key: &str) -> String {
     }
 }
 
-/// 1Password's category UUIDs, mapped to the Passless item type. Categories Passless has no template for become
+/// 1Password's category UUIDs, mapped to the Mimatory item type. Categories Mimatory has no template for become
 /// Secure Notes, their fields kept as sections.
 fn item_type_for(category: &str) -> &'static str {
     match category {
@@ -256,11 +256,11 @@ fn item_type_for(category: &str) -> &'static str {
     }
 }
 
-/// Where a 1Password field goes on the Passless side.
+/// Where a 1Password field goes on the Mimatory side.
 enum Target {
     Username,
     Password,
-    /// (template section key, template field key, Passless field type)
+    /// (template section key, template field key, Mimatory field type)
     Template(&'static str, &'static str, &'static str),
 }
 
@@ -366,7 +366,7 @@ fn target_for(item_type: &str, field_id: &str) -> Option<Target> {
     })
 }
 
-/// A 1Password field value (`{"<kind>": …}`), as the Passless field type and the string Passless stores.
+/// A 1Password field value (`{"<kind>": …}`), as the Mimatory field type and the string Mimatory stores.
 fn field_value(value: &Value) -> Option<(&'static str, String)> {
     let (kind, inner) = value.as_object()?.iter().next()?;
     let plain = || match inner {

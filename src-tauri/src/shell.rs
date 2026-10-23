@@ -14,12 +14,12 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_positioner::{on_tray_event, Position, WindowExt};
 
 pub const QUICK_ACCESS_LABEL: &str = "quick-access";
-const TRAY_ID: &str = "passless-tray";
+const TRAY_ID: &str = "mimatory-tray";
 /// ⌘⇧Space on macOS, Ctrl+Shift+Space on Windows (Win+Shift+Space is the system's input-language switch).
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 const QUICK_ACCESS_SHORTCUT: &str = "CommandOrControl+Shift+Space";
 /// The command-line switch a compositor keybinding launches (Hyprland: `bind = SUPER SHIFT, SPACE, exec,
-/// passless --quick-access`). The single-instance plugin hands it to the running app, which toggles the panel.
+/// mimatory --quick-access`). The single-instance plugin hands it to the running app, which toggles the panel.
 pub const QUICK_ACCESS_ARG: &str = "--quick-access";
 const QUICK_ACCESS_WIDTH: f64 = 560.0;
 const QUICK_ACCESS_HEIGHT: f64 = 384.0;
@@ -70,7 +70,7 @@ fn build_app_menu(app: &AppHandle<Wry>) -> tauri::Result<()> {
     let import = SubmenuBuilder::new(app, "Import")
         .text(IMPORT_1PUX_MENU_ID, "1Password (.1pux)…")
         .build()?;
-    let app_menu = SubmenuBuilder::new(app, "Passless")
+    let app_menu = SubmenuBuilder::new(app, "Mimatory")
         .about(Some(AboutMetadata::default()))
         .separator()
         .services()
@@ -118,8 +118,8 @@ fn build_app_menu(app: &AppHandle<Wry>) -> tauri::Result<()> {
 
 fn build_tray(app: &AppHandle<Wry>) -> Result<(), Box<dyn Error>> {
     let quick_access = MenuItem::with_id(app, "quick-access", "Open Quick Access", true, None::<&str>)?;
-    let show_main = MenuItem::with_id(app, "main", "Show Passless", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Passless", true, None::<&str>)?;
+    let show_main = MenuItem::with_id(app, "main", "Show Mimatory", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Mimatory", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[
         &quick_access,
         &show_main,
@@ -136,7 +136,7 @@ fn build_tray(app: &AppHandle<Wry>) -> Result<(), Box<dyn Error>> {
         .icon_as_template(true)
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .tooltip("Passless")
+        .tooltip("Mimatory")
         .on_menu_event(|app, event| match event.id.as_ref() {
             "quick-access" => toggle_quick_access(app, Position::TrayBottomCenter),
             "main" => focus_main_window(app),
@@ -215,7 +215,7 @@ fn show_quick_access(app: &AppHandle<Wry>, position: Position) -> tauri::Result<
         .resizable(false)
         .shadow(true)
         .skip_taskbar(true)
-        .title("Passless Quick Access")
+        .title("Mimatory Quick Access")
         // Borderless + rounded CSS corners only read as one panel if the window
         // itself stops painting an opaque rectangle behind the page.
         .transparent(true)

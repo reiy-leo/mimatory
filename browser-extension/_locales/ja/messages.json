@@ -1,9 +1,9 @@
 {
 	"extensionDescription": {
-		"message": "ローカルの Passless デスクトップアプリでログインの自動入力と保存を行います。"
+		"message": "ローカルの Mimatory デスクトップアプリでログインの自動入力と保存を行います。"
 	},
 	"extensionName": {
-		"message": "Passless 自動入力"
+		"message": "Mimatory 自動入力"
 	},
 	"filledPage": {
 		"message": "このページのログインを入力しました。"
@@ -12,11 +12,11 @@
 		"message": "現在のページに入力"
 	},
 	"footerHint": {
-		"message": "自動入力と保存プロンプトを使うには、Passless デスクトップアプリのロックを解除したままにしてください。"
+		"message": "自動入力と保存プロンプトを使うには、Mimatory デスクトップアプリのロックを解除したままにしてください。"
 	},
 	"inlineMenuLabel": {
-		"description": "このサイトの Passless ログイン",
-		"message": "Passless"
+		"description": "このサイトの Mimatory ログイン",
+		"message": "Mimatory"
 	},
 	"noLoginForm": {
 		"message": "このページにログインフォームが見つかりません。"
@@ -49,7 +49,7 @@
 		"message": "新規アイテム"
 	},
 	"passkeyNote": {
-		"message": "Passless がパスキーを作成し、秘密鍵は保管庫に暗号化して保存します。"
+		"message": "Mimatory がパスキーを作成し、秘密鍵は保管庫に暗号化して保存します。"
 	},
 	"passkeyNotNow": {
 		"message": "今はしない"
@@ -71,13 +71,13 @@
 		}
 	},
 	"passkeySaved": {
-		"message": "Passless に保存しました。"
+		"message": "Mimatory に保存しました。"
 	},
 	"passkeySaveFailed": {
-		"message": "Passless に接続できません。アプリのロックを解除してもう一度お試しください。"
+		"message": "Mimatory に接続できません。アプリのロックを解除してもう一度お試しください。"
 	},
 	"passkeySaveTitle": {
-		"message": "パスキーを Passless に保存しますか？"
+		"message": "パスキーを Mimatory に保存しますか？"
 	},
 	"passkeySignInTitle": {
 		"message": "パスキーでサインイン"

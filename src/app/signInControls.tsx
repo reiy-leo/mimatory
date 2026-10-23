@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ItemIcon } from './itemIcon'
 import { ProviderMark } from './providerMarks'
-import { type SignInProvider, signInAccountCandidates, signInProviders } from './signInProviders'
-import type { LoginItem, RelatedItemRef } from './vaultApi'
+import { type SignInAccount, type SignInProvider, signInAccountCandidates, signInProviders } from './signInProviders'
+import type { RelatedItemRef } from './vaultApi'
 
 // The provider's mark, or the generic sign-in glyph for a provider the app has no mark for.
 export function SignInProviderGlyph({ className, provider }: { className?: string; provider: SignInProvider | null }) {
@@ -65,7 +65,7 @@ export function SignInRow({ account, accountDetail, onOpen, provider }: SignInRo
 type SignInPickerProps = {
   initialAccountId: string | null
   initialProvider: SignInProvider | null
-  items: LoginItem[]
+  items: SignInAccount[]
   onCancel: () => void
   onDone: (provider: SignInProvider, accountId: string | null) => void
   selfId: string | null

@@ -18,7 +18,7 @@ pub enum BreachCheckError {
 pub fn check_breached_passwords(
     items: &[LoginItem],
 ) -> Result<BreachCheckResult, BreachCheckError> {
-    let client = Client::builder().user_agent("Passless").build()?;
+    let client = Client::builder().user_agent("Mimatory").build()?;
     let mut breached_passwords = Vec::new();
 
     for item in items {

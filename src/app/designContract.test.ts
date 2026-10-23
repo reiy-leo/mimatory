@@ -2,9 +2,31 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const styles = readFileSync('src/styles.css', 'utf8')
-/* The field components carry class names too, so they are held to the same rules as App.tsx. */
-const app = [
+/* Every component that carries class names is held to the same rules (the window was split out of App.tsx
+   into src/app/* on 2026-10-23). */
+const windowSources = [
   'src/App.tsx',
+  'src/app/vaultWindow.tsx',
+  'src/app/useVaultWindow.tsx',
+  'src/app/vaultLockScreen.tsx',
+  'src/app/vaultSidebar.tsx',
+  'src/app/vaultToolbar.tsx',
+  'src/app/itemList.tsx',
+  'src/app/itemDetailPane.tsx',
+  'src/app/itemEditForm.tsx',
+  'src/app/itemDetailView.tsx',
+  'src/app/itemPickers.tsx',
+  'src/app/itemActionsMenu.tsx',
+  'src/app/sidebarMenus.tsx',
+  'src/app/vaultDialogs.tsx',
+  'src/app/mobileTabBar.tsx',
+  'src/app/styleEditorDialog.tsx',
+  'src/app/otpFieldView.tsx',
+  'src/app/settingsWindow.tsx',
+  'src/app/quickAccessWindow.tsx',
+]
+const app = [
+  ...windowSources,
   'src/app/fieldControls.tsx',
   'src/app/fieldActionControls.tsx',
   'src/app/relationControls.tsx',
@@ -161,19 +183,14 @@ describe('platform skin rules', () => {
    field is one `.field-row` in both modes — `FieldView` / `OtpFieldView` read-only, `EditFieldRow` editing — and the
    per-type row shapes that came before it stay deleted. */
 describe('one field row for every field, read-only and editing', () => {
-  const appSource = readFileSync('src/App.tsx', 'utf8')
+  const editSource = readFileSync('src/app/itemEditForm.tsx', 'utf8')
+  const viewSource = readFileSync('src/app/itemDetailView.tsx', 'utf8')
   const rows = readFileSync('src/app/fieldRows.tsx', 'utf8')
   const controls = readFileSync('src/app/fieldControls.tsx', 'utf8')
-  const formStart = appSource.indexOf('<form className="detail-form"')
-  const editForm = appSource.slice(formStart, appSource.indexOf('</form>', formStart))
-  const editHelpers = appSource.slice(
-    appSource.indexOf('function renderEditField('),
-    appSource.indexOf('function addOtpField('),
-  )
-  const viewPane = appSource.slice(
-    appSource.indexOf('<div className="detail-view">'),
-    appSource.indexOf('detail-empty'),
-  )
+  const formStart = editSource.indexOf('<form className="detail-form"')
+  const editForm = editSource.slice(formStart, editSource.indexOf('</form>', formStart))
+  const editHelpers = editSource.slice(editSource.indexOf('function renderEditField('), formStart)
+  const viewPane = viewSource.slice(viewSource.indexOf('<div className="detail-view">'))
   const retired = [
     'onepassword-field',
     'onepassword-group',

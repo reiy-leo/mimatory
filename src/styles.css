@@ -908,13 +908,6 @@
     @apply flex min-h-600 w-full items-center gap-150 rounded-medium border border-transparent bg-transparent px-100 py-100 text-left text-inherit transition-[background-color,border-color];
   }
 
-  /* Rows off screen skip layout and paint until scrolled near, so a list of thousands scrolls like a
-     short one. The intrinsic size keeps the scrollbar honest before a row has been measured. */
-  .item-list .rows > .item-row {
-    content-visibility: auto;
-    contain-intrinsic-size: auto var(--space-600);
-  }
-
   .item-row:hover {
     background: var(--color-background-neutral-subtle-hovered);
     border-color: var(--color-border);
@@ -1193,7 +1186,7 @@
   }
 
   .menu-option.separated::before {
-    content: '';
+    content: "";
     background: var(--color-border);
     @apply pointer-events-none absolute -inset-x-050 -top-100 h-px;
   }
@@ -1264,7 +1257,6 @@
   .error-banner {
     @apply rounded-large border border-border-danger bg-background-danger px-100 py-100 text-body text-text;
   }
-
 
   .integration-panel {
     @apply mt-600 grid max-w-content gap-300 border-t border-border pt-100;
@@ -1884,6 +1876,13 @@
     @apply m-auto flex max-w-modal flex-col items-center px-200 py-400 text-center;
   }
 
+  /* The selected row's detail is being decrypted (get_login_item). Quiet: the spinner only fades in when the read
+     takes long enough to notice, so a normal selection shows no flash at all. */
+  .detail-loading {
+    animation: detail-loading-in 0.2s ease-out 0.25s both;
+    @apply m-auto flex items-center justify-center;
+  }
+
   .detail-empty-icon {
     color: var(--color-text-subtlest);
     @apply mb-200;
@@ -2141,38 +2140,37 @@
   /* A confirmation toast (owner 2026-10-18): floats over the window on the menu material, tinted in the success
      hue, and clears itself after 3s. Settings ▸ Appearance picks the corner or edge it sits at. */
   .toast {
+    max-width: min(calc(100vw - var(--space-400)), var(--measure-modal));
     color: var(--color-text);
     background:
-      linear-gradient(var(--color-background-success), var(--color-background-success)),
-      var(--color-surface-overlay);
+      linear-gradient(var(--color-background-success), var(--color-background-success)), var(--color-surface-overlay);
     border-color: var(--color-border);
     box-shadow: var(--shadow-overlay);
-    max-width: min(calc(100vw - var(--space-400)), var(--measure-modal));
     animation: toast-in 160ms ease-out;
     @apply pointer-events-none fixed z-30 rounded-large border px-150 py-100 text-body;
   }
 
-  .toast[data-position='top-right'] {
+  .toast[data-position="top-right"] {
     top: var(--space-600);
     right: var(--space-200);
   }
 
-  .toast[data-position='bottom-right'] {
+  .toast[data-position="bottom-right"] {
     right: var(--space-200);
     bottom: var(--space-200);
   }
 
-  .toast[data-position='top-center'],
-  .toast[data-position='bottom-center'] {
+  .toast[data-position="top-center"],
+  .toast[data-position="bottom-center"] {
     left: 50%;
     translate: -50% 0;
   }
 
-  .toast[data-position='top-center'] {
+  .toast[data-position="top-center"] {
     top: var(--space-600);
   }
 
-  .toast[data-position='bottom-center'] {
+  .toast[data-position="bottom-center"] {
     bottom: var(--space-200);
   }
 
@@ -2938,10 +2936,8 @@
   .field-row-input,
   .field-row.is-edit .field-editor-row > input,
   .field-row.is-edit .field-editor-row > textarea {
-    color: var(--color-text);
-    /* Exactly the read-only value's line box (Title 3, 20pt), so a row is the same height in both modes and
-       nothing shifts when Edit is pressed (owner 2026-10-18). */
     line-height: 1.25rem;
+    color: var(--color-text);
     @apply h-auto min-h-0 w-full min-w-0 border-0 bg-transparent p-0 text-title-3 shadow-none;
   }
 
@@ -3684,8 +3680,8 @@
 .app-shell.is-edit-locked > .top-search-bar,
 .app-shell.is-edit-locked > .item-list,
 .app-shell.is-edit-locked > .column-resize-handle {
-  opacity: 0.5;
   cursor: not-allowed;
+  opacity: 0.5;
 }
 
 /* The edit banner (owner 2026-10-18): the top bar bleeds to the pane's edges, tinted with the category's accent
@@ -3693,24 +3689,24 @@
    strip it. */
 .detail-topbar.is-editing {
   position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  margin-inline: calc(var(--measure-detail-inline, 0px) * -1);
-  padding-inline: var(--measure-detail-inline, var(--space-200));
   max-width: none;
+  padding-inline: var(--measure-detail-inline, var(--space-200));
+  margin-inline: calc(var(--measure-detail-inline, 0px) * -1);
+  overflow: hidden;
   color: var(--edit-hue);
   background: color-mix(in srgb, var(--edit-hue) 16%, var(--color-surface));
+  isolation: isolate;
 }
 
 /* An overlaid hairline, not a border: the banner must stay exactly the view top bar's height so nothing below it
    moves when the mode changes. */
 .detail-topbar.is-editing::after {
-  content: "";
   position: absolute;
   inset: auto 0 0;
   height: 1px;
-  background: color-mix(in srgb, var(--edit-hue) 30%, transparent);
   pointer-events: none;
+  content: "";
+  background: color-mix(in srgb, var(--edit-hue) 30%, transparent);
 }
 
 .edit-banner-pattern {
@@ -3719,13 +3715,13 @@
   z-index: -1;
   width: 100%;
   height: 100%;
-  opacity: 0.14;
   pointer-events: none;
+  opacity: 0.14;
 }
 
 .edit-banner-label {
-  color: color-mix(in srgb, var(--edit-hue) 80%, var(--color-text));
   font-weight: 600;
+  color: color-mix(in srgb, var(--edit-hue) 80%, var(--color-text));
   @apply text-title-3;
 }
 
@@ -3759,8 +3755,8 @@
   position: absolute;
   top: 100%;
   right: var(--space-050);
-  width: min(16rem, calc(100% - var(--space-100)));
   z-index: 30;
+  width: min(16rem, calc(100% - var(--space-100)));
 }
 
 .list-sort-heading {
@@ -3862,8 +3858,8 @@
   }
 
   .import-stats dd {
-    color: var(--color-text);
     font-variant-numeric: tabular-nums;
+    color: var(--color-text);
     @apply m-0 text-title-2 font-semibold;
   }
 
@@ -3873,8 +3869,8 @@
   }
 
   .import-vault-list {
-    border-color: var(--color-border);
     max-height: 40vh;
+    border-color: var(--color-border);
     @apply m-0 list-none overflow-y-auto rounded-large border p-0;
   }
 
@@ -3892,8 +3888,8 @@
   }
 
   .import-vault-count {
-    color: var(--color-text-subtle);
     font-variant-numeric: tabular-nums;
+    color: var(--color-text-subtle);
     @apply shrink-0 text-callout;
   }
 
@@ -3920,8 +3916,8 @@
 
   .import-spinner,
   .unlock-spinner {
-    animation: import-spin 0.9s linear infinite;
     color: var(--color-icon-brand);
+    animation: import-spin 0.9s linear infinite;
   }
 
   .primary-button .unlock-spinner {
@@ -3935,6 +3931,12 @@
   .import-dialog.is-busy .import-stats,
   .import-dialog.is-busy .import-vault-list {
     @apply opacity-60;
+  }
+}
+
+@keyframes detail-loading-in {
+  from {
+    opacity: 0;
   }
 }
 

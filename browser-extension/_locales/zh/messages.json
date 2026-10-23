@@ -1,9 +1,9 @@
 {
 	"extensionDescription": {
-		"message": "通过本地 Passless 桌面应用自动填充并保存登录信息。"
+		"message": "通过本地 Mimatory 桌面应用自动填充并保存登录信息。"
 	},
 	"extensionName": {
-		"message": "Passless 自动填充"
+		"message": "Mimatory 自动填充"
 	},
 	"filledPage": {
 		"message": "已填充此页面的登录信息。"
@@ -12,11 +12,11 @@
 		"message": "填充当前页面"
 	},
 	"footerHint": {
-		"message": "请保持 Passless 桌面应用处于解锁状态，才能使用自动填充和保存提示。"
+		"message": "请保持 Mimatory 桌面应用处于解锁状态，才能使用自动填充和保存提示。"
 	},
 	"inlineMenuLabel": {
-		"description": "Passless 中保存的此网站登录项",
-		"message": "Passless"
+		"description": "Mimatory 中保存的此网站登录项",
+		"message": "Mimatory"
 	},
 	"noLoginForm": {
 		"message": "此页面上未找到登录表单。"
@@ -49,7 +49,7 @@
 		"message": "新建项目"
 	},
 	"passkeyNote": {
-		"message": "Passless 会创建这个通行密钥，私钥加密保存在你的保险库中。"
+		"message": "Mimatory 会创建这个通行密钥，私钥加密保存在你的保险库中。"
 	},
 	"passkeyNotNow": {
 		"message": "以后再说"
@@ -71,13 +71,13 @@
 		}
 	},
 	"passkeySaved": {
-		"message": "已保存到 Passless。"
+		"message": "已保存到 Mimatory。"
 	},
 	"passkeySaveFailed": {
-		"message": "无法连接 Passless。请解锁应用后重试。"
+		"message": "无法连接 Mimatory。请解锁应用后重试。"
 	},
 	"passkeySaveTitle": {
-		"message": "保存通行密钥到 Passless？"
+		"message": "保存通行密钥到 Mimatory？"
 	},
 	"passkeySignInTitle": {
 		"message": "使用通行密钥登录"

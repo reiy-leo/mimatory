@@ -39,7 +39,7 @@ describe('platform features', () => {
 
   it('names how Quick Access is summoned', () => {
     expect(quickAccessKeys('windows')).toBe('Ctrl+Shift+Space')
-    expect(quickAccessKeys('linux')).toBe('passless --quick-access')
+    expect(quickAccessKeys('linux')).toBe('mimatory --quick-access')
     expect(quickAccessKeys('android')).toBeNull()
   })
 })

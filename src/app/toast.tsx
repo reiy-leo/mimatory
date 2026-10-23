@@ -7,7 +7,7 @@ import { useEffect, useRef, useSyncExternalStore } from 'react'
 export const toastPositions = ['top-right', 'bottom-right', 'top-center', 'bottom-center'] as const
 export type ToastPosition = (typeof toastPositions)[number]
 
-export const toastPositionPreferenceKey = 'passless-toast-position'
+export const toastPositionPreferenceKey = 'mimatory-toast-position'
 export const defaultToastPosition: ToastPosition = 'bottom-right'
 /** How long a confirmation stays on screen. */
 export const toastDurationMs = 3000

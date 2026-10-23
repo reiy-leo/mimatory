@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
-import { itemIconDomain, useSiteIcon, useSiteIconsEnabled } from './siteIcons'
-import type { LoginItem } from './vaultApi'
+import { type IconSource, itemIconDomain, useSiteIcon, useSiteIconsEnabled } from './siteIcons'
 
 type ItemIconProps = {
   // `item-icon` (list rows, search results, Quick Access), `large-icon` (the detail header) or
@@ -8,7 +7,7 @@ type ItemIconProps = {
   className?: string
   // Drawn instead of the letter when there is no website icon (a picker row keeps its type glyph).
   fallback?: ReactNode
-  item: Pick<LoginItem, 'icon_mode' | 'title' | 'urls' | 'website'>
+  item: IconSource & { title: string }
   // The letter for an untitled item: `+` while composing a new one.
   placeholder?: string
 }

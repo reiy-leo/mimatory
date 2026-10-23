@@ -33,11 +33,11 @@ describe('sidebar highlights', () => {
   })
 
   it('drops a stored value it cannot read as sidebar rows', () => {
-    store.set('passless-sidebar-highlights', '{"pinned":true}')
+    store.set('mimatory-sidebar-highlights', '{"pinned":true}')
     expect(readHighlightKeys()).toEqual([])
-    store.set('passless-sidebar-highlights', '[3, "vault:personal", "tag:work"]')
+    store.set('mimatory-sidebar-highlights', '[3, "vault:personal", "tag:work"]')
     expect(readHighlightKeys()).toEqual(['tag:work'])
-    store.set('passless-sidebar-highlights', 'not json')
+    store.set('mimatory-sidebar-highlights', 'not json')
     expect(readHighlightKeys()).toEqual([])
   })
 

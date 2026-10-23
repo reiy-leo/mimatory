@@ -1,3 +1,3 @@
 fn main() {
-    passless_lib::run()
+    mimatory_lib::run()
 }

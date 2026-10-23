@@ -1,6 +1,6 @@
 # Design rules and constraints
 
-On the Mac, Passless looks and behaves like a Mac app: the design system there is **Apple's Human Interface
+On the Mac, Mimatory looks and behaves like a Mac app: the design system there is **Apple's Human Interface
 Guidelines for macOS**, and most of this file is the project's binding translation of them into tokens and
 component rules. Since 2026-10-17 the other platforms wear their own skins (WinUI 3 on Windows, Material 3 on
 Android and Linux, Apple iOS on iPhone) — see "Per-platform skins" at the end; the macOS rules below are unchanged. Build
@@ -66,9 +66,9 @@ caption, icon tile and star, the way a focused macOS list draws it. Everything a
   control whose wrapper carries the `:focus-within` ring (`.compact-password-control`, `.top-search-box`).
   Never write `outline: none`.
 - **Motion is brief and optional.** 150ms colour/transform transitions; `prefers-reduced-motion` collapses them.
-- **Appearance follows the system by default** (`dark-mode.md` › "Avoid offering an app-specific appearance
-  setting"). `theme.ts` resolves `system` from `prefers-color-scheme` and keeps following it; `light`/`dark`
-  remain as overrides in Settings ▸ Appearance (see the open item in `.agent/todo.md`).
+- **Appearance follows the system, always** (`dark-mode.md` › "Avoid offering an app-specific appearance
+  setting"; owner 2026-10-23: "深浅主题只保留跟随系统，设置中不能设置"). `theme.ts` resolves light/dark from
+  `prefers-color-scheme` and keeps following it; there is no Light/Dark control anywhere — do not re-add one.
 - **One colour means one thing** (`color.md`). The accent is interaction; red/orange/green/blue/purple are
   status; the system hues on tag and item-type glyphs are decoration and never stand in for a status.
 - **Prose uses the label colour**; `text-subtle` (secondary label) and `text-subtlest` are for captions,
@@ -172,8 +172,8 @@ dark values), `--material-filter: saturate(180%) blur(20px)`. Radius `xsmall` 2,
   capsule password field with its reveal/Touch ID buttons inside; the setup variant is the same content on a
   sheet-material card.
 - **Settings window** — `settings.md`: source-list sidebar of panes, the pane title in title 2, each group in
-  an inset group, Security as label-left/control-right rows with switches and pop-up buttons, Appearance as a
-  System / Light / Dark segmented control.
+  an inset group, Security as label-left/control-right rows with switches and pop-up buttons, Appearance holding the
+  notification-position segmented control (no theme control — the system decides).
 
 ## Token mechanics
 
@@ -188,8 +188,7 @@ dark values), `--material-filter: saturate(180%) blur(20px)`. Radius `xsmall` 2,
   `grid-cols-settings`, `grid-rows-titlebar`, `pt-titlebar`, `w-popup`). Never `w-[244px]`; the one sanctioned
   composite is `.app-shell`'s five-track template, which reads the vars directly.
 - **Dark mode** is `data-theme="dark"` on `<html>` (Tailwind `darkMode: ["selector", '[data-theme="dark"]']`),
-  written by `applyTheme()` in `src/app/theme.ts`, which also follows `prefers-color-scheme` while the theme is
-  `system`.
+  written by `followSystemAppearance()` in `src/app/theme.ts`, which keeps it in step with `prefers-color-scheme`.
 - **The extension popup is a second document.** `browser-extension/popup.tailwind.css` mirrors the subset of
   `:root` it needs (light, plus dark under `@media (prefers-color-scheme: dark)` — the popup follows the
   browser) and compiles via `npm run build:extension-css` into `popup.css` (generated, excluded from Biome).
@@ -208,7 +207,8 @@ dark values), `--material-filter: saturate(180%) blur(20px)`. Radius `xsmall` 2,
 
 ## The rules are tested
 
-`src/app/designContract.test.ts` (`npm run test:design`) reads the stylesheets, `App.tsx`, the popup and
+`src/app/designContract.test.ts` (`npm run test:design`) reads the stylesheets, every component that carries class names (`App.tsx` and the windows, panes and
+dialogs split out of it into `src/app/`, listed in its `windowSources`), the popup and
 `tailwind.config.js` and fails on: a hex or `rgb()` in a component rule; the default Tailwind palette; an
 arbitrary `px`/`rem`/hex bracket; a webfont or a font stack that is not the system font; a focus ring not
 drawn with `--focus-ring-width` + `--color-focus-ring` + `--focus-ring-offset`, or a ring colour that is not
@@ -293,8 +293,8 @@ baseline scheme, Apple's iOS HIG.
 
 **Rules shared by every skin.** One set of components and class names; a skin changes token *values*
 (`src/skin/tokens.css`) and shapes (`src/skin/skins.css`, `src/skin/mobile.css`), never markup. No colour literal
-in a shape rule, every colour a skin sets in light also set in dark, system fonts only, Light/Dark/System stays on
-every platform, `prefers-reduced-transparency`/`-motion` still apply. All guarded by `designContract.test.ts`
+in a shape rule, every colour a skin sets in light also set in dark, system fonts only, light and dark both exist
+(following the system) on every platform, `prefers-reduced-transparency`/`-motion` still apply. All guarded by `designContract.test.ts`
 ("platform skin rules"). The Apple desktop skin is `styles.css` alone.
 
 ### WinUI 3 / Windows 11 (Windows)

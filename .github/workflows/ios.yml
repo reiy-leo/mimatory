@@ -66,11 +66,11 @@ jobs:
           fi
           mkdir -p "$RUNNER_TEMP/ipa/Payload"
           cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
-          cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/Passless-unsigned.ipa" Payload
-          ls -la "$GITHUB_WORKSPACE/Passless-unsigned.ipa"
+          cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/Mimatory-unsigned.ipa" Payload
+          ls -la "$GITHUB_WORKSPACE/Mimatory-unsigned.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: passless-ios-unsigned
+          name: mimatory-ios-unsigned
           if-no-files-found: error
-          path: Passless-unsigned.ipa
+          path: Mimatory-unsigned.ipa

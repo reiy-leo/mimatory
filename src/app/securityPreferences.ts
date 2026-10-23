@@ -24,7 +24,7 @@ export const defaultSecurityPreferences: SecurityPreferences = {
   useUniversalClipboard: true,
 }
 
-const storageKey = 'passless-security-preferences'
+const storageKey = 'mimatory-security-preferences'
 
 export const deviceUnlockOptions: DeviceUnlockDuration[] = [
   'off',

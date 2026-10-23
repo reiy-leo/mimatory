@@ -39,7 +39,12 @@ describe('Add More entries', () => {
     expect(ids('section', true)).not.toContain('file')
   })
   it('leaves no other way to add a passkey by hand in the editor', () => {
-    for (const file of ['src/App.tsx', 'src/app/addMoreOptions.ts', 'src/app/addMoreMenu.tsx']) {
+    for (const file of [
+      'src/app/useVaultWindow.tsx',
+      'src/app/itemEditForm.tsx',
+      'src/app/addMoreOptions.ts',
+      'src/app/addMoreMenu.tsx',
+    ]) {
       const source = readFileSync(file, 'utf8')
       expect(source).not.toContain('addMoreOptions.passkey')
       expect(source).not.toMatch(/add(CustomField|SectionChild)\([^)]*'passkey'/)

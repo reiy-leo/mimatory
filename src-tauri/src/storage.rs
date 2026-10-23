@@ -24,12 +24,34 @@ pub fn set_app_data_directory(path: PathBuf) {
     let _ = APP_DATA_DIRECTORY.set(path);
 }
 
-pub fn default_database_path() -> Result<PathBuf, StorageError> {
+const DATABASE_FILE: &str = "mimatory.sqlite3";
+const DESKTOP_DIRECTORY: &str = "Mimatory";
+/// Where builds before the 2026-10-23 rename kept the vault (see `rename_migration`).
+const LEGACY_DATABASE_FILE: &str = "passless.sqlite3";
+const LEGACY_DESKTOP_DIRECTORY: &str = "Passless";
+
+/// (current path, legacy path) of the vault on this platform.
+fn database_paths() -> Result<(PathBuf, PathBuf), StorageError> {
     if let Some(base_dir) = APP_DATA_DIRECTORY.get() {
-        return Ok(base_dir.join("passless.sqlite3"));
+        return Ok((base_dir.join(DATABASE_FILE), base_dir.join(LEGACY_DATABASE_FILE)));
     }
     let base_dir = dirs::data_dir().ok_or(StorageError::MissingDataDirectory)?;
-    Ok(base_dir.join("Passless").join("passless.sqlite3"))
+    Ok((
+        base_dir.join(DESKTOP_DIRECTORY).join(DATABASE_FILE),
+        base_dir.join(LEGACY_DESKTOP_DIRECTORY).join(LEGACY_DATABASE_FILE),
+    ))
+}
+
+/// The new vault path, or the pre-rename one while only that exists (a migration that failed or has not run).
+pub fn default_database_path() -> Result<PathBuf, StorageError> {
+    let (current, legacy) = database_paths()?;
+    Ok(crate::rename_migration::resolve_database_path(current, legacy))
+}
+
+/// Copies a pre-rename vault to the new path once; on phones call it after `set_app_data_directory`.
+pub fn migrate_legacy_database() -> Result<crate::rename_migration::DatabaseMigration, String> {
+    let (current, legacy) = database_paths().map_err(|error| error.to_string())?;
+    crate::rename_migration::migrate_database(&legacy, &current)
 }
 
 /// Where decrypted attachment copies go. `std::env::temp_dir()` on Android is `/data/local/tmp`, which an app
@@ -363,7 +385,7 @@ mod tests {
 
     fn temp_database(name: &str) -> (PathBuf, PathBuf) {
         let temp_dir = std::env::temp_dir().join(format!(
-            "passless-storage-{}-{}",
+            "mimatory-storage-{}-{}",
             name,
             std::process::id()
         ));

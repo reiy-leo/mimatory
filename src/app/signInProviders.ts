@@ -1,6 +1,6 @@
 import type { ProviderMarkId } from './providerMarks'
-import { siteIconDomain } from './siteIcons'
-import type { CustomField, LoginItem } from './vaultApi'
+import { type IconSource, siteIconDomain } from './siteIcons'
+import type { CustomField, LoginItem, LoginItemSummary } from './vaultApi'
 
 // "Sign in with…" (like 1Password): a login that is reached through another account instead of a
 // password. The provider lives in a `sign_in_with` custom field whose value is a provider id below
@@ -48,6 +48,11 @@ export function itemSignInProvider(item: Pick<LoginItem, 'custom_fields'>): Sign
   return index < 0 ? null : parseSignInProvider(item.custom_fields[index].value)
 }
 
+// The same answer from a list summary, which carries the field's raw value as `sign_in_with`.
+export function summarySignInProvider(item: Pick<LoginItemSummary, 'sign_in_with'>): SignInProvider | null {
+  return item.sign_in_with === undefined ? null : parseSignInProvider(item.sign_in_with)
+}
+
 // Sets the item's one "Sign in with" field, adding it when there is none yet.
 export function withSignInField(fields: CustomField[], provider: SignInProvider): CustomField[] {
   const value = signInProviderValue(provider)
@@ -66,7 +71,7 @@ function hostMatches(host: string, domains: readonly string[]) {
 
 // Which known provider an account item belongs to — its address first, then its title. Mirrors
 // `sign_in_provider_for` in vault.rs, which the migration uses.
-export function providerOfAccount(item: Pick<LoginItem, 'title' | 'urls' | 'website'>): ProviderMarkId | null {
+export function providerOfAccount(item: IconSource & { title: string }): ProviderMarkId | null {
   const host = siteIconDomain(item)
   if (host) {
     const byHost = signInProviders.find((provider) => hostMatches(host, provider.domains))
@@ -78,14 +83,17 @@ export function providerOfAccount(item: Pick<LoginItem, 'title' | 'urls' | 'webs
 
 // The items the account picker offers: anything but the item itself, the ones that belong to the
 // chosen provider first, then by title; narrowed by the search text.
-export function signInAccountCandidates(
-  items: LoginItem[],
+// What the account picker reads of an item: a summary or a full item.
+export type SignInAccount = IconSource & { id: string; title: string; username: string }
+
+export function signInAccountCandidates<T extends SignInAccount>(
+  items: T[],
   selfId: string | null,
   provider: SignInProvider | null,
   query: string,
-): LoginItem[] {
+): T[] {
   const needle = query.trim().toLowerCase()
-  const matchesProvider = (item: LoginItem) =>
+  const matchesProvider = (item: T) =>
     provider !== null && provider.id !== 'other' && providerOfAccount(item) === provider.id
   return items
     .filter((item) => item.id !== selfId)
