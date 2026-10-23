@@ -466,6 +466,7 @@ const resources = {
       },
       settings: {
         app: 'App',
+        appName: 'Mimatory',
         autostart: 'Open Mimatory at Login',
         autostartDescription: 'Registers a macOS LaunchAgent. The vault stays locked until you unlock it.',
         configured: 'configured',
@@ -507,6 +508,7 @@ const resources = {
         unlocked: 'unlocked',
         unlockedHint: 'Manage local vault behavior and integrations.',
         vaultStatus: 'Vault Status',
+        windowTitle: 'Mimatory Settings',
       },
       shortcuts: {
         copyOtp: 'Copy One-Time Password',
@@ -1304,6 +1306,7 @@ const resources = {
       },
       settings: {
         app: 'アプリ',
+        appName: 'Mimatory',
         autostart: 'ログイン時に Mimatory を起動',
         autostartDescription: 'macOS LaunchAgent を登録します。ロック解除するまで保管庫はロックされたままです。',
         configured: '設定済み',
@@ -1344,6 +1347,7 @@ const resources = {
         unlocked: '解除済み',
         unlockedHint: 'ローカル保管庫の動作と連携を管理します。',
         vaultStatus: '保管庫の状態',
+        windowTitle: 'Mimatory 設定',
       },
       shortcuts: {
         copyOtp: 'ワンタイムパスワードをコピー',
@@ -2024,7 +2028,7 @@ const resources = {
         vaults: '个人',
       },
       lock: {
-        appName: '密码通',
+        appName: '密码库存',
         createDescription: '此密码会加密你的本地 SQLite 保险库。它不会被存储。',
         createTitle: '创建主密码',
         createVault: '创建保险库',
@@ -2057,7 +2061,7 @@ const resources = {
         iconRefreshed: '图标已更新。',
         imported1pux: '已从 1Password 导入 {{count}} 个项目。',
         movedItem: '已移动到{{vault}}',
-        openedToFill: '已打开 {{host}}，已配对的 Mimatory 扩展会在页面上填充登录信息。',
+        openedToFill: '已打开 {{host}}，已配对的密码库存扩展会在页面上填充登录信息。',
         renamedTag: '已将标签重命名为 {{name}}',
         restoredVault: '已恢复保险库 {{name}}',
         settingsWindowFailed: '设置窗口失败：{{error}}',
@@ -2084,10 +2088,10 @@ const resources = {
         empty: '没有匹配的项目。',
         searchPlaceholder: '搜索登录项…',
         title: '快速访问',
-        unlockPrompt: '解锁 Mimatory 后即可搜索。',
+        unlockPrompt: '解锁密码库存后即可搜索。',
       },
       security: {
-        accountPasswordHelp: 'Mimatory 不会重置密码。为了更好地保护主密码，你可以选择定期重新输入账户密码。',
+        accountPasswordHelp: '密码库存不会重置密码。为了更好地保护主密码，你可以选择定期重新输入账户密码。',
         accountPasswordOptions: {
           '1d': '1 天后',
           '7d': '7 天后',
@@ -2136,7 +2140,8 @@ const resources = {
       },
       settings: {
         app: '应用',
-        autostart: '登录时启动 Mimatory',
+        appName: '密码库存',
+        autostart: '登录时启动密码库存',
         autostartDescription: '注册 macOS LaunchAgent。解锁前保险库始终保持锁定。',
         configured: '已配置',
         database: '数据库',
@@ -2154,7 +2159,7 @@ const resources = {
         siteIcons: '网站图标',
         siteIconsDescription:
           '先通过 Google 的网站图标服务、再向网站本身获取各网站的图标，并加密保存在保险库中。Google 会看到被查询的网站地址。关闭后将停止所有查询并删除已保存的图标。',
-        subtitle: 'Mimatory 偏好设置',
+        subtitle: '密码库存偏好设置',
         tabs: {
           appearance: '外观',
           browser: '浏览器插件',
@@ -2176,6 +2181,7 @@ const resources = {
         unlocked: '已解锁',
         unlockedHint: '管理本地保险库行为和集成。',
         vaultStatus: '保险库状态',
+        windowTitle: '密码库存设置',
       },
       shortcuts: {
         copyOtp: '复制一次性密码',

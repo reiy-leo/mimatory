@@ -7,6 +7,10 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 
 ## Open
 
+- **密码库存 not yet native everywhere (2026-10-24).** Still English: the Rust tray menu / tooltip and the macOS
+  menu items (no Rust locale mechanism), the iOS home-screen name (inject `zh-Hans.lproj/InfoPlist.strings` into
+  `gen/apple` after `tauri ios init` in `ios.yml`), the Android launcher label (`values-zh/strings.xml` `app_name`
+  after `tauri android init` in `build.yml`), the Windows Start menu / installer (`productName`). See AGENTS.md.
 - **Native vibrancy — needs a look on a real Mac (2026-10-14).** Owner asked for it; wired as described in AGENTS.md "Native vibrancy (macOS)". Never seen in a running app yet: check the sidebar material under the traffic lights, settings sidebar, Quick Access corners, and that the material follows the system appearance in both light and dark (the in-app Light/Dark override was removed 2026-10-23).
 - **HIG notes not acted on (owner layout).** `sidebars.md` › Desktop: "Avoid putting critical information or
   actions at the bottom of a sidebar" — Archive and Trash are pinned to the foot by design. `settings.md`:
@@ -159,6 +163,8 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 
 ## Never yet seen in a running app
 
+- **The localized app name (2026-10-24)**: 密码库存 in Finder/Dock/menu bar on a zh-Hans Mac (packaged build only),
+  the zh `.desktop` name in a Hyprland launcher, and the main/settings windows retitling on a language switch.
 - **The Passless → Mimatory data migration (2026-10-23)** has only run in `cargo test` (temp dirs). Never seen:
   a real macOS/Windows/Linux install with a Passless vault launching the renamed app (vault copied, unlocks with
   the same master password, preferences carried over through the WebKit / WebView2 / WebKitGTK profile copy),

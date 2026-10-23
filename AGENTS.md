@@ -10,6 +10,25 @@ Rust backend with encrypted SQLite vault. Each OS wears its own skin, the same m
 see "Platforms" below.
 Also ships a Manifest V3 browser extension (autofill via a local HTTP bridge on `127.0.0.1:17891`).
 
+**Chinese name: 密码库存** (owner, 2026-10-24: "软件的名称是“Mimatory”，中文“密码库存”"). Every zh string that names the
+app says 密码库存 — the app bundle (`lock.appName`, `settings.appName`, `settings.windowTitle`, …) and the extension's
+`_locales/zh` — while en and ja say Mimatory (the lock screen / sidebar wordmark `lock.appName` is lowercase
+`mimatory` there, on purpose since 2026-10-08). `i18n.test.ts` fails on a zh string containing "Mimatory". Identifiers,
+the binary, paths, `productName` and the bundle id stay `mimatory`/`Mimatory`. Where the name reaches the OS:
+- The main and settings windows retitle themselves from i18n (`windowTitle.ts`, needs `core:window:allow-set-title`)
+  and follow a language change. **Quick Access keeps the fixed English title `Mimatory Quick Access`** (shell.rs)
+  because Hyprland float rules match it; a Hyprland rule for the main window should match its class (as
+  `hyprctl clients` reports it), not its title, which reads 密码库存 in zh.
+- macOS bundle: `src-tauri/macos/Info.plist` (merged via `bundle.macOS.infoPlist`: development region en,
+  `CFBundleLocalizations`, `LSHasLocalizedDisplayName`) + `macos/zh-Hans.lproj/InfoPlist.strings` copied in by
+  `bundle.macOS.files` — Finder, Dock, Launchpad and the menu-bar app title read 密码库存 on a zh-Hans system. Only in
+  a packaged build, never in `tauri dev`.
+- Linux: `linux/mimatory.desktop` (the bundler's default template + `Name[zh_CN]=密码库存`), used by deb and AppImage.
+- Still English everywhere: the Rust-built tray menu (Show/Quit Mimatory, Open Quick Access), the macOS menu items
+  (About/Quit…, File/Edit/View/Window) and the tray tooltip — Rust has no locale mechanism yet. Windows Start menu /
+  installer name = `productName`. iOS/Android home-screen name: `src-tauri/gen/` is generated in CI, so an
+  `InfoPlist.strings` / `values-zh/strings.xml` has to be injected after `tauri ios|android init` — not done yet.
+
 ## Where the rules live
 
 | File | Carries | Read it when |

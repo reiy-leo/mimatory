@@ -13,6 +13,11 @@
 		]
 	},
 	"bundle": {
+		"linux": {
+			"deb": {
+				"desktopTemplate": "linux/mimatory.desktop"
+			}
+		},
 		"targets": ["deb", "appimage"]
 	}
 }

@@ -1,4 +1,8 @@
 {
+	"appName": {
+		"description": "The app name shown as the popup heading",
+		"message": "Mimatory"
+	},
 	"extensionDescription": {
 		"message": "Autofill and save logins through the local Mimatory desktop app."
 	},

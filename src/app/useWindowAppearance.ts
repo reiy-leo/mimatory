@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import i18n, { getInitialLanguage, type SupportedLanguage } from './i18n'
 import { loadSecurityPreferences, type SecurityPreferences, saveSecurityPreferences } from './securityPreferences'
 import { clearLegacyThemeOverride, followSystemAppearance } from './theme'
+import { followLanguageInTitle } from './windowTitle'
 
 /**
  * What the window follows: the system appearance, and from Settings the language and the security preferences, applied
@@ -19,6 +20,9 @@ export function useWindowAppearance() {
     clearLegacyThemeOverride()
     return followSystemAppearance()
   }, [])
+
+  // The main window's title is the app's name in the UI language (密码库存 in zh).
+  useEffect(() => followLanguageInTitle('settings.appName'), [])
 
   useEffect(() => {
     let unlisten: (() => void) | undefined

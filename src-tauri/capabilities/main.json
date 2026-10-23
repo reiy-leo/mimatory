@@ -14,7 +14,8 @@
 		"core:window:allow-start-dragging",
 		"opener:allow-default-urls",
 		"opener:allow-open-url",
-		"core:window:allow-set-theme"
+		"core:window:allow-set-theme",
+		"core:window:allow-set-title"
 	],
 	"windows": ["main", "settings", "quick-access"]
 }

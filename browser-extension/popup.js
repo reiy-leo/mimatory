@@ -7,6 +7,7 @@ const text = (key, substitutions) => chrome.i18n.getMessage(key, substitutions)
 /* The popup has no in-app language switch: it follows the browser UI language, which is what
    chrome.i18n resolves messages against. Assistive tech reads this value for the whole document. */
 document.documentElement.lang = chrome.i18n.getUILanguage()
+document.title = text('appName') || document.title
 for (const element of document.querySelectorAll('[data-i18n]')) {
   element.textContent = text(element.dataset.i18n) || element.textContent
 }

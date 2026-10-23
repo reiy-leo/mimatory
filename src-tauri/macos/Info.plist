@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Merged into the bundle's Info.plist (tauri.macos.conf.json bundle.macOS.infoPlist). The app is Mimatory,
+	     密码库存 in Chinese (owner, 2026-10-24): Finder, the Dock, Launchpad and the menu bar read the localized
+	     name from Resources/zh-Hans.lproj/InfoPlist.strings. -->
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Mimatory</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>zh-Hans</string>
+		<string>ja</string>
+	</array>
+	<key>CFBundleAllowMixedLocalizations</key>
+	<true/>
+	<key>LSHasLocalizedDisplayName</key>
+	<true/>
+</dict>
+</plist>

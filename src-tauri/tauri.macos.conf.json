@@ -18,5 +18,13 @@
 				}
 			}
 		]
+	},
+	"bundle": {
+		"macOS": {
+			"files": {
+				"Resources/zh-Hans.lproj/InfoPlist.strings": "macos/zh-Hans.lproj/InfoPlist.strings"
+			},
+			"infoPlist": "macos/Info.plist"
+		}
 	}
 }

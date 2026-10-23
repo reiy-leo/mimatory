@@ -1,4 +1,8 @@
 {
+	"appName": {
+		"description": "The app name shown as the popup heading",
+		"message": "Mimatory"
+	},
 	"extensionDescription": {
 		"message": "ローカルの Mimatory デスクトップアプリでログインの自動入力と保存を行います。"
 	},

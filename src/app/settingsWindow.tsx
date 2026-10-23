@@ -23,6 +23,7 @@ import { forgetSiteIcons, readSiteIconsEnabled, writeSiteIconsEnabled } from './
 import { followSystemAppearance } from './theme'
 import { Toast, toastPositions, useToastPosition, writeToastPosition } from './toast'
 import { type AppStatus, type BreachCheckResult, vaultApi, type WatchtowerReport } from './vaultApi'
+import { followLanguageInTitle } from './windowTitle'
 
 /**
  * Settings: its own window on desktop, a tab of the one window on phones (`embedded`). What a pane offers
@@ -204,6 +205,9 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
   // button and Escape.
   const ownCloseButton = features.undecoratedWindows && !embedded
 
+  // Its own window (not the pane embedded on phones) is titled in the UI language: 密码库存设置 in zh.
+  useEffect(() => (embedded ? undefined : followLanguageInTitle('settings.windowTitle')), [embedded])
+
   useEffect(() => {
     if (!ownCloseButton) return
     const onKeyDown = (event: KeyboardEvent) => {
@@ -319,7 +323,7 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
                   {t('settings.session')}: {status?.unlocked ? t('settings.unlocked') : t('settings.locked')}
                 </span>
                 <span>
-                  {t('settings.app')}: {status?.name ?? 'Mimatory'}
+                  {t('settings.app')}: {t('settings.appName')}
                 </span>
               </div>
             </div>
