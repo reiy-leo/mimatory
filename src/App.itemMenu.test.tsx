@@ -17,7 +17,7 @@ const item = (id: string, title: string) => ({
   item_type: 'login',
   notes: '',
   password: 'correct-horse',
-  tags: [],
+  tags: [] as string[],
   title,
   updated_at: '2026-10-18T00:00:00Z',
   urls: [],
