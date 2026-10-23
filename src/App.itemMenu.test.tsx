@@ -125,6 +125,15 @@ beforeAll(() => {
     removeListener() {},
   })) as unknown as typeof window.matchMedia
   Element.prototype.scrollIntoView ??= () => {}
+  // The item list is virtualized and renders the rows that fit its scroll box. jsdom lays nothing out, so the
+  // list reports a tall box and every row measures 0px: the whole (short) test list is rendered.
+  const clientHeight = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight')
+  Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.classList.contains('item-list') ? 800 : (clientHeight?.get?.call(this) ?? 0)
+    },
+  })
   localStorage.setItem('passless-language', 'en')
   void i18n.changeLanguage('en')
 })

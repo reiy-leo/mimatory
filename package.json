@@ -1,5 +1,6 @@
 {
 	"dependencies": {
+		"@tanstack/react-virtual": "^3.14.22",
 		"@tauri-apps/api": "2.12.1",
 		"@tauri-apps/plugin-opener": "2.7.2",
 		"i18next": "26.3.2",

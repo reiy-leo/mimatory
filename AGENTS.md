@@ -503,6 +503,17 @@ Wayland; X11 is not supported.
   (`list_live_items`, `export_login_items`) and are unchanged. The full-item list methods in vault.rs are
   `#[cfg(test)]` now.
 
+- **The item list is virtualized** (`@tanstack/react-virtual`, `itemList.tsx`, 2026-10-23): only the rows near the
+  viewport exist. The rows stay in the normal flow of `.rows` and the off-screen ones are stood in for by the
+  container's inline `paddingTop`/`paddingBottom` (a grid adds no gap to padding), so every skin's row rules, the
+  grid gap and `.item-row + .item-row` apply unchanged; the gap and the rows' offset in the scroller are read off the
+  DOM each commit. Rows are measured with `getBoundingClientRect().height` (fractional — the default rounding
+  drifted a pixel within a few rows) and the last measured height is the estimate for unrendered rows, so the scroll
+  height equals the full list's. **A row off screen is not in the DOM**: anything that scrolls to an item goes
+  through `listScrollToItemRef` (⌘↑/⌘↓ and the toolbar arrows do), never `querySelector('[data-item-row]')`. jsdom
+  lays nothing out, so `App.itemMenu.test.tsx` gives `.item-list` an 800px `clientHeight`; a new DOM test that
+  renders the list needs the same. `content-visibility` on rows went with this.
+
 - **Website icons** (2026-10-17; sources changed 2026-10-18, owner: icons were blurry). An item's tile shows its
   first address's site icon, else the letter (`ItemIcon`: list rows, search results, detail header, Quick Access,
   picker rows). **Sources** (`favicon.rs`): Google's favicon service first (`t1.gstatic.com/faviconV2`, size 128,

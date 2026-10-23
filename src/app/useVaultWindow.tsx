@@ -1093,6 +1093,7 @@ export function useVaultWindow() {
   }
 
   // The toolbar's previous / next buttons and ⌘↑ / ⌘↓: one step through the list on screen, never wrapping.
+  const listScrollToItemRef = useRef<((id: string) => void) | null>(null)
   const visibleItemIds = useMemo(() => visibleItems.map((item) => item.id), [visibleItems])
   const previousItemId = adjacentItemId(visibleItemIds, selectedId, -1)
   const nextItemId = adjacentItemId(visibleItemIds, selectedId, 1)
@@ -1102,10 +1103,8 @@ export function useVaultWindow() {
     if (!target) return false
     closeFieldMenus()
     setSelectedId(target)
-    const row = Array.from(document.querySelectorAll<HTMLElement>('[data-item-row]')).find(
-      (element) => element.dataset.itemRow === target,
-    )
-    row?.scrollIntoView?.({ block: 'nearest' })
+    // The list is virtualized: the target row may not exist yet, so the list scrolls to it by index.
+    listScrollToItemRef.current?.(target)
     return true
   }
 
@@ -2050,6 +2049,7 @@ export function useVaultWindow() {
     jumpToSearchResult,
     lastActivityRef,
     layout,
+    listScrollToItemRef,
     listTitle,
     loadArchivedItems,
     loadTrashedItems,
