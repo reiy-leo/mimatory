@@ -2505,11 +2505,13 @@ dependencies = [
  "base64 0.22.1",
  "block2",
  "chrono",
+ "core-foundation-sys",
  "data-encoding",
  "dirs 6.0.0",
  "hmac",
  "idna",
  "image",
+ "libc",
  "objc2",
  "objc2-foundation",
  "objc2-local-authentication",
@@ -2536,6 +2538,8 @@ dependencies = [
  "tiny_http",
  "url",
  "uuid",
+ "windows-sys 0.59.0",
+ "winreg",
  "zip",
 ]
 

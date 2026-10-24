@@ -5,6 +5,10 @@ mod crypto;
 mod favicon;
 mod import_1pux;
 mod native_i18n;
+#[cfg(desktop)]
+mod native_ipc;
+#[cfg(desktop)]
+mod native_messaging;
 mod passkey;
 mod rename_migration;
 #[cfg(desktop)]
@@ -713,6 +717,40 @@ fn generate_browser_pairing_token(state: State<AppState>) -> Result<String, Stri
     Ok(token)
 }
 
+/// The browsers the native-messaging host is registered with (filled shortly after startup).
+#[cfg(desktop)]
+static NATIVE_HOST_BROWSERS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// Settings ▸ Browser Extension: whether the extension is connected through native messaging.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BrowserConnectionStatus {
+    /// Browsers whose host manifest names this app.
+    registered_browsers: Vec<String>,
+    /// Native hosts connected right now (one per browser profile with the extension running).
+    connected: usize,
+    /// The last browser whose signature was verified (macOS only).
+    last_browser: Option<String>,
+    extension_id: String,
+}
+
+#[tauri::command]
+fn browser_connection_status() -> Result<BrowserConnectionStatus, String> {
+    #[cfg(desktop)]
+    {
+        let registered_browsers = NATIVE_HOST_BROWSERS.lock().map(|list| list.clone()).unwrap_or_default();
+        let (connected, last_browser) = native_ipc::connection_status();
+        Ok(BrowserConnectionStatus {
+            registered_browsers,
+            connected,
+            last_browser,
+            extension_id: native_messaging::CHROME_EXTENSION_ID.to_string(),
+        })
+    }
+    #[cfg(mobile)]
+    Err("the browser extension bridge is desktop-only".to_string())
+}
+
 #[tauri::command]
 fn can_use_biometrics(app: tauri::AppHandle) -> Result<bool, String> {
     Ok(biometric::can_authenticate(&app).is_ok())
@@ -832,6 +870,15 @@ fn require_wayland() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Started by a browser as the extension's native-messaging host (`mimatory chrome-extension://<id>/`):
+    // relay and exit, before anything of the app — Wayland check, migration, single instance, windows.
+    #[cfg(desktop)]
+    {
+        let args: Vec<String> = std::env::args().collect();
+        if native_messaging::is_native_host_invocation(&args) {
+            std::process::exit(native_messaging::run_host(&args));
+        }
+    }
     #[cfg(target_os = "linux")]
     require_wayland();
     // Before the builder: the main window's webview must open on the copied profile, not a fresh one.
@@ -871,6 +918,18 @@ pub fn run() {
                 bridge_session.1.clone(),
                 app.handle().clone(),
             );
+            // Native messaging (the extension's primary transport since 2026-10-24): the IPC listener, and
+            // the host manifests in every installed browser, rewritten only when they differ.
+            #[cfg(desktop)]
+            {
+                browser_bridge::start_native_bridge(bridge_session.0.clone(), app.handle().clone());
+                std::thread::spawn(|| {
+                    let registered = native_messaging::register_hosts();
+                    if let Ok(mut list) = NATIVE_HOST_BROWSERS.lock() {
+                        *list = registered;
+                    }
+                });
+            }
             #[cfg(desktop)]
             shell::setup(app)?;
             #[cfg(mobile)]
@@ -933,6 +992,7 @@ pub fn run() {
             export_attachment_to_temp,
             read_attachment_text,
             generate_browser_pairing_token,
+            browser_connection_status,
             can_use_biometrics,
             unlock_with_biometrics,
             watchtower_report,
