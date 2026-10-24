@@ -55,6 +55,9 @@
 	"noMatch": {
 		"message": "No saved login for this site."
 	},
+	"pairingFallbackHint": {
+		"message": "Only needed when the native connection is unavailable: paste the pairing code from Mimatory Settings ▸ Browser Extension."
+	},
 	"pairingTokenLabel": {
 		"message": "Pairing token"
 	},
@@ -158,11 +161,26 @@
 			}
 		}
 	},
+	"statusAppNotRunning": {
+		"message": "Mimatory isn’t running. Open the app to autofill."
+	},
 	"statusChecking": {
 		"message": "Checking app…"
 	},
 	"statusConnected": {
 		"message": "Desktop app connected"
+	},
+	"statusNativeConnected": {
+		"message": "Connected to Mimatory"
+	},
+	"statusNativeLocked": {
+		"message": "Connected to Mimatory — unlock it to autofill"
+	},
+	"statusNotVerified": {
+		"message": "Mimatory refused this browser: its signature could not be verified."
+	},
+	"statusPairingNeeded": {
+		"message": "Pairing needed: the native connection is unavailable."
 	},
 	"statusUnavailable": {
 		"message": "Desktop app unavailable"

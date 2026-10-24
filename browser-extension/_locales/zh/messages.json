@@ -55,6 +55,9 @@
 	"noMatch": {
 		"message": "此网站没有已保存的登录信息。"
 	},
+	"pairingFallbackHint": {
+		"message": "仅在原生连接不可用时需要：粘贴密码库存“设置 ▸ 浏览器插件”中的配对码。"
+	},
 	"pairingTokenLabel": {
 		"message": "配对令牌"
 	},
@@ -158,11 +161,26 @@
 			}
 		}
 	},
+	"statusAppNotRunning": {
+		"message": "密码库存未运行。请打开应用以使用自动填充。"
+	},
 	"statusChecking": {
 		"message": "正在检查应用…"
 	},
 	"statusConnected": {
 		"message": "桌面应用已连接"
+	},
+	"statusNativeConnected": {
+		"message": "已连接密码库存"
+	},
+	"statusNativeLocked": {
+		"message": "已连接密码库存——解锁后即可自动填充"
+	},
+	"statusNotVerified": {
+		"message": "密码库存拒绝了此浏览器：无法验证其签名。"
+	},
+	"statusPairingNeeded": {
+		"message": "需要配对：原生连接不可用。"
 	},
 	"statusUnavailable": {
 		"message": "桌面应用不可用"

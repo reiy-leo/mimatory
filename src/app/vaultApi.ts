@@ -8,6 +8,14 @@ export type AppStatus = {
   unlocked: boolean
 }
 
+/** Settings ▸ Browser Extension: native-messaging registration and live host connections (Rust `browser_connection_status`). */
+export type BrowserConnectionStatus = {
+  connected: number
+  extensionId: string
+  lastBrowser: string | null
+  registeredBrowsers: string[]
+}
+
 export type OnePuxPreview = {
   path: string
   vaults: Array<{ name: string; item_count: number; exists: boolean }>
@@ -266,6 +274,8 @@ export const vaultApi = {
   archive: (id: string) => invoke<void>('archive_login_item', { id }),
   archived: () => invoke<LoginItemSummary[]>('list_archived_login_items'),
   attachFileToItem: (id: string, path: string) => invoke<CustomField>('attach_file_to_item', { id, path }),
+  // Native messaging (primary since 2026-10-24): which browsers have the host manifest, and live connections.
+  browserConnectionStatus: () => invoke<BrowserConnectionStatus>('browser_connection_status'),
   // Website icons the vault already holds, for these sites. Never touches the network.
   cachedSiteIcons: (domains: string[]) => invoke<Record<string, CachedSiteIcon>>('cached_site_icons', { domains }),
   canUseBiometrics: () => invoke<boolean>('can_use_biometrics'),

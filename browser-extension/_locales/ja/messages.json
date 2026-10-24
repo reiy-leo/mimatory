@@ -55,6 +55,9 @@
 	"noMatch": {
 		"message": "このサイトに保存されたログインはありません。"
 	},
+	"pairingFallbackHint": {
+		"message": "ネイティブ接続を利用できない場合のみ必要です：Mimatory の「設定 ▸ ブラウザ拡張」のペアリングコードを貼り付けてください。"
+	},
 	"pairingTokenLabel": {
 		"message": "ペアリングトークン"
 	},
@@ -158,11 +161,26 @@
 			}
 		}
 	},
+	"statusAppNotRunning": {
+		"message": "Mimatory が起動していません。自動入力するにはアプリを開いてください。"
+	},
 	"statusChecking": {
 		"message": "アプリを確認中…"
 	},
 	"statusConnected": {
 		"message": "デスクトップアプリに接続済み"
+	},
+	"statusNativeConnected": {
+		"message": "Mimatory に接続済み"
+	},
+	"statusNativeLocked": {
+		"message": "Mimatory に接続済み — ロックを解除すると自動入力できます"
+	},
+	"statusNotVerified": {
+		"message": "Mimatory がこのブラウザを拒否しました：署名を確認できません。"
+	},
+	"statusPairingNeeded": {
+		"message": "ペアリングが必要です：ネイティブ接続を利用できません。"
 	},
 	"statusUnavailable": {
 		"message": "デスクトップアプリを利用できません"
