@@ -15,6 +15,33 @@
 	"fillPage": {
 		"message": "現在のページに入力"
 	},
+	"floatClose": {
+		"message": "閉じる"
+	},
+	"floatLabel": {
+		"message": "ワンクリックサインイン"
+	},
+	"floatLockedTitle": {
+		"message": "Mimatory はロックされています"
+	},
+	"floatMore": {
+		"message": "その他のオプション"
+	},
+	"floatNever": {
+		"message": "このサイトでは表示しない"
+	},
+	"floatOtherAccounts": {
+		"message": "ほかのアカウント"
+	},
+	"floatSignIn": {
+		"message": "サインイン"
+	},
+	"floatUnlock": {
+		"message": "Mimatory のロックを解除"
+	},
+	"floatWaitingUnlock": {
+		"message": "Mimatory アプリでロックを解除してください…"
+	},
 	"footerHint": {
 		"message": "自動入力と保存プロンプトを使うには、Mimatory デスクトップアプリのロックを解除したままにしてください。"
 	},
@@ -91,6 +118,15 @@
 	},
 	"passkeyUseOther": {
 		"message": "別のデバイスを使用"
+	},
+	"popupFloatClearNever": {
+		"message": "非表示にしたサイトで再表示"
+	},
+	"popupFloatNeverCleared": {
+		"message": "すべてのサイトでワンクリックサインインが再び表示されます。"
+	},
+	"popupFloatToggle": {
+		"message": "ログインページにワンクリックサインインを表示"
 	},
 	"providerButtonFound": {
 		"message": "このページの $PROVIDER$ ボタンを強調表示しました。",

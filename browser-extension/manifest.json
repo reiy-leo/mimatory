@@ -14,6 +14,7 @@
 			"world": "MAIN"
 		},
 		{
+			"all_frames": true,
 			"js": ["content.js"],
 			"matches": ["<all_urls>"],
 			"run_at": "document_idle"

@@ -145,6 +145,20 @@
     background: var(--color-background-neutral-subtle-pressed);
   }
 
+  .push-button:disabled {
+    @apply cursor-default opacity-50;
+  }
+
+  /* A checkbox with its label beside it (the system control, tinted with the accent). */
+  .checkbox-row {
+    @apply flex items-center gap-100 text-body;
+  }
+
+  .checkbox-row input {
+    accent-color: var(--color-accent);
+    @apply m-0 h-auto w-auto p-0;
+  }
+
   /* Keyboard focus ring: 3pt in the accent, on the control's own edge. */
   input:focus-visible,
   button:focus-visible {

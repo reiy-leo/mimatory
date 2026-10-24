@@ -71,3 +71,20 @@ document.getElementById('save-token').addEventListener('click', async () => {
   await chrome.storage.local.set({ mimatoryToken: tokenInput.value.trim() })
   statusEl.textContent = text('tokenSaved')
 })
+
+/* The one-click sign-in float (content.js): on by default; "never on this site" choices are kept by origin and
+   cleared here all at once. */
+const floatToggle = document.getElementById('float-enabled')
+const clearNever = document.getElementById('float-clear-never')
+chrome.storage.local.get(['mimatoryFloatEnabled', 'mimatoryFloatNever']).then((stored) => {
+  floatToggle.checked = stored.mimatoryFloatEnabled !== false
+  clearNever.disabled = !(Array.isArray(stored.mimatoryFloatNever) && stored.mimatoryFloatNever.length)
+})
+floatToggle.addEventListener('change', async () => {
+  await chrome.storage.local.set({ mimatoryFloatEnabled: floatToggle.checked })
+})
+clearNever.addEventListener('click', async () => {
+  await chrome.storage.local.remove('mimatoryFloatNever')
+  clearNever.disabled = true
+  statusEl.textContent = text('popupFloatNeverCleared')
+})

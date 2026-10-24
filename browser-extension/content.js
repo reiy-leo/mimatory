@@ -6,6 +6,10 @@ async function bridge(path, body = {}) {
   return answer
 }
 
+// Loaded in every frame (all_frames) so an embedded sign-in form is found; only the top frame shows the
+// one-click float, the popup's Fill and Open & Fill.
+const IS_TOP = window.top === window
+
 const visible = (element) => Boolean(element) && element.getClientRects().length > 0 && !element.disabled
 
 const USERNAME_SELECTOR = [
@@ -91,6 +95,21 @@ async function fetchMatches() {
   return answer.ok && Array.isArray(answer.data) ? answer.data : []
 }
 
+/* The page's logins without anything secret (/match: id, title, username, sign_in_with, has_password, last use,
+   cached icon), most recently used first. The password is asked for with `fetchItem` only once the user picked an
+   item. */
+async function fetchSummaries() {
+  const answer = await bridge('/match')
+  return { items: answer.ok && Array.isArray(answer.data) ? answer.data : [], status: answer.status }
+}
+
+// The one item the user picked, password included. /fill still applies the page's origin rules.
+async function fetchItem(itemId) {
+  const answer = await bridge('/fill', { item_id: itemId })
+  matchesCache = null
+  return answer.ok && Array.isArray(answer.data) ? answer.data.find((item) => item.id === itemId) || null : null
+}
+
 /* The words a provider's button carries on most sites ("Sign in with Google", "Continue with Apple",
    "Log in with GitHub", or just the provider's name inside a social-login row). Known ids map to the
    names sites print; anything else is the name the user typed in the app. */
@@ -143,9 +162,8 @@ function highlightProviderButton(button) {
 }
 
 async function fillFromMimatory(itemId) {
-  const items = await fetchMatches()
   // Open & Fill names its item; the popup's Fill takes the best match for the page.
-  const item = itemId ? items.find((match) => match.id === itemId) : items[0]
+  const item = itemId ? await fetchItem(itemId) : (await fetchMatches())[0]
   if (!item) return { kind: 'noMatch' }
   // A "Sign in with…" item has no password to fill; point at the provider's button instead.
   if (item.sign_in_with) {
@@ -233,11 +251,12 @@ async function openAndFill(itemId, attemptsLeft = 10) {
   }
 }
 
-const openAndFillItemId = pendingFillItemId()
+const openAndFillItemId = IS_TOP ? pendingFillItemId() : null
 if (openAndFillItemId) openAndFill(openAndFillItemId)
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === 'MIMATORY_FILL') {
+  // The popup's Fill reaches every frame of the tab; the top one answers, as before frames had the script.
+  if (message?.type === 'MIMATORY_FILL' && IS_TOP) {
     fillFromMimatory()
       .then(sendResponse)
       .catch(() => sendResponse({ kind: 'error' }))
@@ -339,22 +358,27 @@ function pendingStepItemId() {
   return null
 }
 
-const MENU_STYLE = `
-  :host { all: initial; }
-  .menu {
+/* The inline menu's tokens, shared by the one-click float so both read as one surface. */
+const MENU_TOKENS = `
     --text: #000000d9; --text-subtle: #00000099; --surface: #f6f6f6; --border: #0000001a;
     --accent: #007aff; --hover: #0000000d; --selected: #007aff; --on-selected: #ffffff;
+    --shadow: 0 8px 24px #00000026, 0 0 0 0.5px #0000001f;`
+const MENU_TOKENS_DARK = `
+      --text: #ffffffd9; --text-subtle: #ffffff8c; --surface: #323234; --border: #ffffff1a;
+      --accent: #0a84ff; --hover: #ffffff14; --selected: #0a84ff;
+      --shadow: 0 8px 24px #00000066, 0 0 0 0.5px #ffffff1a;`
+
+const MENU_STYLE = `
+  :host { all: initial; }
+  .menu {${MENU_TOKENS}
     position: fixed; z-index: 2147483647; box-sizing: border-box; min-width: 240px; max-width: 360px;
     max-height: 280px; overflow: auto; margin: 0; padding: 4px; list-style: none;
     font: 13px/16px -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", sans-serif;
     color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-    box-shadow: 0 8px 24px #00000026, 0 0 0 0.5px #0000001f; -webkit-font-smoothing: antialiased;
+    box-shadow: var(--shadow); -webkit-font-smoothing: antialiased;
   }
   @media (prefers-color-scheme: dark) {
-    .menu {
-      --text: #ffffffd9; --text-subtle: #ffffff8c; --surface: #323234; --border: #ffffff1a;
-      --accent: #0a84ff; --hover: #ffffff14; --selected: #0a84ff;
-      box-shadow: 0 8px 24px #00000066, 0 0 0 0.5px #ffffff1a;
+    .menu {${MENU_TOKENS_DARK}
     }
   }
   .heading { padding: 4px 8px 6px; color: var(--text-subtle); font-size: 11px; line-height: 14px; font-weight: 600; }
@@ -364,7 +388,8 @@ const MENU_STYLE = `
   .option[aria-selected="true"] { background: var(--selected); color: var(--on-selected); }
   .option[aria-selected="true"] .sub { color: inherit; opacity: 0.85; }
   .badge { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center;
-    background: var(--accent); color: #ffffff; font-weight: 600; font-size: 12px; }
+    background: var(--accent); color: #ffffff; font-weight: 600; font-size: 12px; overflow: hidden; }
+  .badge img { width: 100%; height: 100%; object-fit: contain; }
   .title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
   .sub { display: block; color: var(--text-subtle); font-size: 12px; line-height: 15px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -374,11 +399,12 @@ let menuHost = null
 let menuState = null
 let matchesCache = null
 
-/* One /fill per page view while the menu is used; a failure (app locked, not paired) shows no menu. */
+/* One /match per 30 seconds while the menu is used — summaries only; a failure (app locked, not paired) shows no
+   menu. */
 async function cachedMatches() {
   if (!matchesCache) {
-    matchesCache = fetchMatches()
-      .then((items) => (Array.isArray(items) ? items : []))
+    matchesCache = fetchSummaries()
+      .then(({ items }) => items)
       .catch(() => [])
     window.setTimeout(() => {
       matchesCache = null
@@ -428,7 +454,7 @@ function selectOption(index) {
   options[menuState.selected]?.scrollIntoView({ block: 'nearest' })
 }
 
-function pickItem(item) {
+async function pickItem(item) {
   closeMenu()
   if (item.passkeyChoice) {
     answerConditional(item)
@@ -439,12 +465,14 @@ function pickItem(item) {
     if (button) highlightProviderButton(button)
     return
   }
-  fillLogin(item, { submit: true })
+  // The password crosses only now, for the one login picked.
+  const full = await fetchItem(item.id).catch(() => null)
+  if (full) fillLogin(full, { submit: true })
 }
 
 async function openMenu(field) {
   if (menuState?.field === field || Date.now() < suppressMenuUntil) return
-  const logins = (await cachedMatches()).filter((item) => item.sign_in_with || item.password || item.username)
+  const logins = (await cachedMatches()).filter((item) => item.sign_in_with || item.has_password || item.username)
   // A site waiting on passkey autofill (mediation "conditional") gets Mimatory's passkeys first.
   const passkeys = conditionalRequest
     ? conditionalRequest.choices.map((choice) => ({ ...choice, passkeyChoice: true }))
@@ -467,9 +495,7 @@ async function openMenu(field) {
         ? msg('signInWithProvider', [PROVIDER_NAMES[item.sign_in_with]?.[0] || item.sign_in_with])
         : item.username || ''
     const option = el('li', { 'aria-selected': 'false', class: 'option', role: 'option' }, [
-      item.passkeyChoice
-        ? passkeyBadge()
-        : el('span', { 'aria-hidden': 'true', class: 'badge', text: title.trim().charAt(0).toUpperCase() || '•' }),
+      item.passkeyChoice ? passkeyBadge() : siteBadge(item, title),
       el('span', {}, [el('span', { class: 'title', text: title }), el('span', { class: 'sub', text: sub })]),
     ])
     // mousedown, not click: the field keeps focus, so the page never sees a blur between focus and fill.
@@ -490,9 +516,13 @@ async function openMenu(field) {
 document.addEventListener(
   'focusin',
   (event) => {
-    if (event.target === menuHost) return
-    if (isLoginField(event.target)) openMenu(event.target)
-    else closeMenu()
+    if (event.target === menuHost || event.target === floatHost) return
+    if (isLoginField(event.target)) {
+      // The user is signing in by hand: the float steps aside for the field menu.
+      hideFloat()
+      reportFrameLogin(false)
+      openMenu(event.target)
+    } else closeMenu()
   },
   true,
 )
@@ -500,7 +530,7 @@ document.addEventListener(
 document.addEventListener(
   'mousedown',
   (event) => {
-    if (event.target === menuHost) return
+    if (event.target === menuHost || event.target === floatHost) return
     if (isLoginField(event.target)) {
       // Clicking a field that already has focus reopens a menu Escape closed.
       if (!menuState) openMenu(event.target)
@@ -553,7 +583,7 @@ async function continuePendingStep() {
   if (!login?.password) return
   continuing = true
   try {
-    const item = (await cachedMatches()).find((match) => match.id === itemId)
+    const item = await fetchItem(itemId).catch(() => null)
     clearPendingStep()
     pendingObserver?.disconnect()
     if (item) fillLogin(item, { submit: true })
@@ -805,6 +835,8 @@ async function handleGet(id, request) {
 }
 
 window.addEventListener('message', (event) => {
+  // passkey-provider.js runs in the top frame only.
+  if (!IS_TOP) return
   if (event.source !== window || event.origin !== location.origin) return
   const data = event.data
   if (data?.__mimatory === 'webauthn-abort') {
@@ -818,3 +850,545 @@ window.addEventListener('message', (event) => {
   if (!run) return
   run(data.id, request).catch(() => respondToPage(data.id, { fallback: true }))
 })
+
+/* ── One-click sign-in float (owner 2026-10-24, 1Password's "sign in" pill) ───────────────────────────────
+   On a page with a visible sign-in form and at least one login for the site, a pill at the top centre of the
+   viewport offers the most recently used login: 登录 fills it and presses the page's own Sign in (an
+   identifier-first page continues on its password step), a "Sign in with…" login clicks the provider's button.
+   A chevron lists the other logins below the pill. While the app is locked it offers 解锁密码库存, which brings
+   the app's lock screen forward and waits for the unlock. × (or Escape) hides it for this tab and site; the
+   ellipsis offers "never on this site"; the popup turns it off everywhere. Only summaries are fetched to show
+   it (/match): a password crosses only for the login the user picked, with a trusted click, in a closed shadow
+   root the page can neither read nor click. Sign-in forms inside iframes report to the top frame through the
+   background worker, so a page shows one float. */
+
+const FLOAT_DISMISSED_KEY = 'mimatory-float-dismissed'
+const FLOAT_ENABLED_KEY = 'mimatoryFloatEnabled'
+const FLOAT_NEVER_KEY = 'mimatoryFloatNever'
+const FLOAT_SCAN_WINDOW_MS = 5000
+const UNLOCK_POLL_MS = 2000
+const UNLOCK_POLL_LIMIT_MS = 2 * 60 * 1000
+
+const lucide = (paths) =>
+  `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`
+const ICON_X = lucide('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>')
+const ICON_CHEVRON = lucide('<path d="m6 9 6 6 6-6"/>')
+const ICON_ELLIPSIS = lucide(
+  '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+)
+const ICON_LOCK = lucide(
+  '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+)
+const ICON_EYE_OFF = lucide(
+  '<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>',
+)
+
+/* The site's icon from the app's encrypted cache when /match sent one, else the letter tile the menu always drew.
+   A page whose CSP refuses data: images gets the letter too. */
+function siteBadge(item, title) {
+  const letter = (title || '').trim().charAt(0).toUpperCase() || '•'
+  const badge = el('span', { 'aria-hidden': 'true', class: 'badge' })
+  if (typeof item.icon === 'string' && item.icon.startsWith('data:image/')) {
+    const image = el('img', { alt: '', src: item.icon })
+    image.addEventListener('error', () => {
+      badge.classList.remove('has-icon')
+      badge.textContent = letter
+    })
+    badge.classList.add('has-icon')
+    badge.append(image)
+  } else {
+    badge.textContent = letter
+  }
+  return badge
+}
+
+const FLOAT_STYLE = `
+  :host { all: initial; }
+  .float {${MENU_TOKENS}
+    --pill-height: 52px;
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 2147483647;
+    box-sizing: border-box; width: max-content; min-width: 300px; max-width: min(420px, calc(100vw - 24px));
+    display: grid; padding: 6px; margin: 0;
+    font: 13px/16px -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", sans-serif;
+    color: var(--text); background: var(--surface); border: 1px solid var(--border);
+    border-radius: calc(var(--pill-height) / 2); box-shadow: var(--shadow); -webkit-font-smoothing: antialiased;
+    animation: mimatory-float-in 200ms cubic-bezier(0.25, 0.1, 0.25, 1); color-scheme: light;
+  }
+  .float.is-open { border-radius: 18px; }
+  @media (prefers-color-scheme: dark) {
+    .float {${MENU_TOKENS_DARK}
+      color-scheme: dark;
+    }
+  }
+  @keyframes mimatory-float-in { from { opacity: 0; translate: 0 -8px; } }
+  @media (prefers-reduced-motion: reduce) { .float { animation: none; } }
+  .pill { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+    min-height: calc(var(--pill-height) - 14px); padding: 0 0 0 4px; }
+  .badge { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; overflow: hidden;
+    background: var(--accent); color: #ffffff; font-weight: 600; font-size: 14px; }
+  .badge.has-icon { background: transparent; }
+  .badge img { width: 100%; height: 100%; object-fit: contain; }
+  .badge svg { width: 18px; height: 18px; }
+  .text { display: grid; min-width: 0; }
+  .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-subtle); font-size: 12px;
+    line-height: 15px; }
+  .tools { display: flex; align-items: center; gap: 2px; }
+  button { font: inherit; color: inherit; margin: 0; border: 0; background: transparent; cursor: default;
+    -webkit-tap-highlight-color: transparent; }
+  button:hover { background: var(--hover); }
+  button:disabled { opacity: 0.5; }
+  button:disabled:hover { background: transparent; }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 0; }
+  .action { min-height: 32px; padding: 0 12px; border-radius: 16px; color: var(--accent); font-weight: 600;
+    white-space: nowrap; }
+  .icon-button { width: 28px; height: 28px; border-radius: 14px; display: grid; place-items: center;
+    color: var(--text-subtle); padding: 0; }
+  .icon-button.chevron svg { transition: transform 150ms cubic-bezier(0.25, 0.1, 0.25, 1); }
+  .icon-button.chevron[aria-expanded="true"] svg { transform: rotate(180deg); }
+  @media (prefers-reduced-motion: reduce) { .icon-button.chevron svg { transition: none; } }
+  .panel { display: grid; gap: 2px; margin: 6px 0 0; padding: 6px 0 0; border-top: 1px solid var(--border);
+    max-height: calc(5 * 40px + 4 * 2px + 6px); overflow: auto; scrollbar-width: thin; }
+  .panel[hidden] { display: none; }
+  .row { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 40px;
+    padding: 4px 8px; border-radius: 10px; text-align: left; }
+  .row .badge { width: 24px; height: 24px; border-radius: 6px; font-size: 12px; }
+  .row .badge svg { width: 16px; height: 16px; }
+  .row.option .badge { background: transparent; color: var(--text-subtle); }
+`
+
+let floatHost = null
+let floatView = null
+let floatScanTimer = 0
+let floatScanUntil = 0
+let floatPoll = null
+let floatLastHref = location.href
+// The page asked for this item by URL (Open & Fill): no float competes with it.
+const floatSuppressed = Boolean(openAndFillItemId)
+// Frames with a sign-in form, by frameId (top frame only).
+const frameLogins = new Map()
+
+function sessionList(key) {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(key) || '[]')
+    return Array.isArray(value) ? value : []
+  } catch {
+    return []
+  }
+}
+
+function floatDismissed(origin) {
+  return sessionList(FLOAT_DISMISSED_KEY).includes(origin)
+}
+
+function dismissFloatFor(origin) {
+  try {
+    const list = sessionList(FLOAT_DISMISSED_KEY)
+    if (!list.includes(origin)) sessionStorage.setItem(FLOAT_DISMISSED_KEY, JSON.stringify([...list, origin]))
+  } catch {}
+}
+
+async function floatAllowed(origin) {
+  const stored = await chrome.storage.local.get([FLOAT_ENABLED_KEY, FLOAT_NEVER_KEY]).catch(() => ({}))
+  if (stored[FLOAT_ENABLED_KEY] === false) return false
+  const never = Array.isArray(stored[FLOAT_NEVER_KEY]) ? stored[FLOAT_NEVER_KEY] : []
+  return !never.includes(origin) && !floatDismissed(origin)
+}
+
+async function neverOnSite(origin) {
+  const stored = await chrome.storage.local.get([FLOAT_NEVER_KEY]).catch(() => ({}))
+  const never = Array.isArray(stored[FLOAT_NEVER_KEY]) ? stored[FLOAT_NEVER_KEY] : []
+  if (!never.includes(origin)) await chrome.storage.local.set({ [FLOAT_NEVER_KEY]: [...never, origin] })
+}
+
+/* Whether the user is busy with the sign-in already: typing in one of its fields or using the field menu, or an
+   identifier-first step Mimatory itself is in the middle of. */
+function signInBusy() {
+  return Boolean(menuState) || pendingStepItemId() !== null || isLoginField(document.activeElement)
+}
+
+function hideFloat() {
+  stopUnlockPoll()
+  floatHost?.remove()
+  floatHost = null
+  floatView = null
+}
+
+function stopUnlockPoll() {
+  if (floatPoll) window.clearTimeout(floatPoll.timer)
+  floatPoll = null
+}
+
+/* Where the float's login lives: this page, or a frame (asked through the background worker, which forwards to
+   that frame's content script and adds nothing the frame could forge). */
+function pageSource() {
+  return {
+    match: () => fetchSummaries(),
+    origin: location.origin,
+    pick: (item) => signInWith(item),
+  }
+}
+
+function frameSource(frameId, origin) {
+  const call = (body) => chrome.runtime.sendMessage({ ...body, frameId, type: 'MIMATORY_FRAME_CALL' })
+  return {
+    frameId,
+    match: async () => (await call({ call: 'match' })) || { items: [], status: 0 },
+    origin,
+    pick: async (item) => Boolean(await call({ call: 'pick', itemId: item.id })),
+  }
+}
+
+/* Picking a login, wherever its form is: the password is fetched for this one item now, then filled and the page's
+   own button pressed. A "Sign in with…" login clicks the provider's button — here the user pressed a button that
+   says "使用 Google 登录", unlike the field menu, which only points at it. */
+async function signInWith(item) {
+  if (item.sign_in_with) {
+    const button = findProviderButton(item.sign_in_with)
+    if (!button) return false
+    highlightProviderButton(button)
+    button.click()
+    return true
+  }
+  const full = await fetchItem(item.id).catch(() => null)
+  return full ? fillLogin(full, { submit: true }) : false
+}
+
+function providerLabel(provider) {
+  return PROVIDER_NAMES[provider]?.[0] || provider
+}
+
+function floatButton(className, label, html, onClick) {
+  const button = trustedButton('', className, onClick)
+  if (html) {
+    button.innerHTML = html
+    button.setAttribute('aria-label', label)
+    button.title = label
+  } else button.textContent = label
+  return button
+}
+
+function floatShell(source) {
+  hideFloat()
+  const host = el('div', { 'data-mimatory-float': '' })
+  const root = host.attachShadow({ mode: 'closed' })
+  root.append(el('style', { text: FLOAT_STYLE }))
+  const card = el('div', { 'aria-label': msg('floatLabel'), class: 'float', role: 'region' })
+  card.addEventListener('keydown', (event) => {
+    if (!event.isTrusted) return
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      dismissFloat()
+      return
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    const rows = [...card.querySelectorAll('.panel:not([hidden]) .row')]
+    if (!rows.length) return
+    event.preventDefault()
+    const at = rows.indexOf(root.activeElement)
+    const next = event.key === 'ArrowDown' ? at + 1 : at <= 0 ? rows.length - 1 : at - 1
+    rows[next % rows.length].focus()
+  })
+  root.append(card)
+  document.documentElement.append(host)
+  floatHost = host
+  floatView = { card, kind: 'accounts', root, source }
+  return card
+}
+
+function pillRow(badge, title, sub, tools) {
+  return el('div', { class: 'pill' }, [
+    badge,
+    el('div', { class: 'text' }, [
+      el('span', { class: 'title', text: title, title }),
+      el('span', { class: 'sub', text: sub, title: sub }),
+    ]),
+    el('div', { class: 'tools' }, tools),
+  ])
+}
+
+function closeButton() {
+  return floatButton('icon-button', msg('floatClose'), ICON_X, () => dismissFloat())
+}
+
+// × and Escape: not again in this tab for this site.
+function dismissFloat() {
+  if (floatView) dismissFloatFor(floatView.source.origin)
+  hideFloat()
+}
+
+function itemSub(item) {
+  return item.sign_in_with ? msg('signInWithProvider', [providerLabel(item.sign_in_with)]) : item.username || ''
+}
+
+function actionLabel(item) {
+  return item.sign_in_with ? msg('signInWithProvider', [providerLabel(item.sign_in_with)]) : msg('floatSignIn')
+}
+
+async function pickFromFloat(source, item) {
+  // Picked: the float is done on this site for this tab, whether or not the page lets the sign-in through.
+  dismissFloatFor(source.origin)
+  hideFloat()
+  await source.pick(item)
+}
+
+function showAccounts(source, items) {
+  const [first, ...others] = items
+  const card = floatShell(source)
+  const panel = el('div', { class: 'panel', hidden: '', role: 'group' })
+  const tools = []
+  const toggle = (kind) => {
+    const open = panel.hidden || panel.dataset.kind !== kind
+    // The pill keeps its width; a long title in the list truncates instead of widening the card.
+    if (open && !card.style.width) card.style.width = `${card.getBoundingClientRect().width}px`
+    panel.replaceChildren(...(open ? (kind === 'accounts' ? accountRows() : optionRows()) : []))
+    panel.dataset.kind = kind
+    panel.hidden = !open
+    panel.setAttribute('aria-label', kind === 'accounts' ? msg('floatOtherAccounts') : msg('floatMore'))
+    card.classList.toggle('is-open', open)
+    chevron?.setAttribute('aria-expanded', String(open && kind === 'accounts'))
+    more.setAttribute('aria-expanded', String(open && kind === 'options'))
+    if (open) panel.querySelector('button')?.focus({ preventScroll: true })
+  }
+  const accountRows = () =>
+    others.map((item) => {
+      const title = item.title || location.hostname
+      const row = floatButton('row', '', '', () => pickFromFloat(source, item))
+      row.title = `${actionLabel(item)} · ${title}`
+      row.append(
+        siteBadge(item, title),
+        el('span', { class: 'text' }, [
+          el('span', { class: 'title', text: title }),
+          el('span', { class: 'sub', text: itemSub(item) }),
+        ]),
+      )
+      return row
+    })
+  const optionRows = () => {
+    const row = floatButton('row option', '', '', async () => {
+      hideFloat()
+      await neverOnSite(source.origin)
+    })
+    const badge = el('span', { 'aria-hidden': 'true', class: 'badge' })
+    badge.innerHTML = ICON_EYE_OFF
+    row.append(badge, el('span', { class: 'text' }, [el('span', { class: 'title', text: msg('floatNever') })]))
+    return [row]
+  }
+  const chevron = others.length
+    ? floatButton('icon-button chevron', msg('floatOtherAccounts'), ICON_CHEVRON, () => toggle('accounts'))
+    : null
+  chevron?.setAttribute('aria-expanded', 'false')
+  if (chevron) tools.push(chevron)
+  tools.push(floatButton('action', actionLabel(first), '', () => pickFromFloat(source, first)))
+  const more = floatButton('icon-button', msg('floatMore'), ICON_ELLIPSIS, () => toggle('options'))
+  more.setAttribute('aria-expanded', 'false')
+  tools.push(more, closeButton())
+  const title = first.title || location.hostname
+  card.append(pillRow(siteBadge(first, title), title, itemSub(first), tools), panel)
+}
+
+function showLocked(source) {
+  const card = floatShell(source)
+  floatView.kind = 'locked'
+  const badge = el('span', { 'aria-hidden': 'true', class: 'badge' })
+  badge.innerHTML = ICON_LOCK
+  const sub = el('span', { class: 'sub', text: source.origin.replace(/^https?:\/\//, '') })
+  const unlock = floatButton('action', msg('floatUnlock'), '', async (button) => {
+    button.disabled = true
+    const answer = await bridge('/unlock').catch(() => null)
+    if (!answer?.ok) {
+      hideFloat()
+      return
+    }
+    sub.textContent = msg('floatWaitingUnlock')
+    pollUntilUnlocked(source)
+  })
+  const row = el('div', { class: 'pill' }, [
+    badge,
+    el('div', { class: 'text' }, [el('span', { class: 'title', text: msg('floatLockedTitle') }), sub]),
+    el('div', { class: 'tools' }, [unlock, closeButton()]),
+  ])
+  card.append(row)
+}
+
+/* After 解锁密码库存: ask again every two seconds for up to two minutes while this tab is visible, and turn into
+   the accounts as soon as the app answers. */
+function pollUntilUnlocked(source) {
+  stopUnlockPoll()
+  const view = floatView
+  const until = Date.now() + UNLOCK_POLL_LIMIT_MS
+  const tick = async () => {
+    if (floatView !== view) return
+    if (Date.now() > until) {
+      stopUnlockPoll()
+      return
+    }
+    if (document.visibilityState === 'visible') {
+      const answer = await source.match().catch(() => null)
+      if (floatView !== view) return
+      if (answer?.status === 200) {
+        stopUnlockPoll()
+        const items = usable(answer.items)
+        if (items.length && !signInBusy()) showAccounts(source, items)
+        else hideFloat()
+        return
+      }
+      if (answer && answer.status !== 423) {
+        hideFloat()
+        return
+      }
+    }
+    floatPoll = { timer: window.setTimeout(tick, UNLOCK_POLL_MS) }
+  }
+  floatPoll = { timer: window.setTimeout(tick, UNLOCK_POLL_MS) }
+}
+
+// A login the float can act on: a provider button to press, or a password to fill.
+function usable(items) {
+  return (items || []).filter((item) => item.sign_in_with || item.has_password)
+}
+
+async function offerFloat(source) {
+  if (!(await floatAllowed(source.origin))) return
+  const answer = await source.match().catch(() => null)
+  // Not paired (401 未授权), app not running (0) or any other failure: no float at all.
+  if (!answer || signInBusy() || !(await floatAllowed(source.origin))) return
+  if (answer.status === 423) {
+    if (floatView?.kind !== 'locked' || floatView.source.origin !== source.origin) showLocked(source)
+    return
+  }
+  if (answer.status !== 200) return
+  const items = usable(answer.items)
+  if (!items.length) {
+    hideFloat()
+    return
+  }
+  showAccounts(source, items)
+}
+
+/* Same site, roughly: a frame on the page's own host or a sibling under the same registrable name. Without the
+   Public Suffix List here, a two-letter country code under a common second level (co.uk, com.cn…) needs three
+   labels to match. A frame from another site never puts its logins in this page's float. */
+function sameSite(frameOrigin) {
+  let frame
+  try {
+    frame = new URL(frameOrigin)
+  } catch {
+    return false
+  }
+  if (frame.origin === location.origin) return true
+  if (frame.protocol !== location.protocol) return false
+  const tail = (host) => {
+    const labels = host.split('.')
+    const count =
+      labels.length > 2 && /^(co|com|net|org|gov|edu|ac|ne|or)$/.test(labels.at(-2)) && labels.at(-1).length === 2
+        ? 3
+        : 2
+    return labels.slice(-count).join('.')
+  }
+  if (/^[\d.]+$/.test(frame.hostname) || /^[\d.]+$/.test(location.hostname)) return false
+  return tail(frame.hostname) === tail(location.hostname)
+}
+
+async function scanForFloat() {
+  floatScanTimer = 0
+  if (floatSuppressed) return
+  const login = findLoginForm()
+  if (!IS_TOP) {
+    reportFrameLogin(Boolean(login) && !signInBusy())
+    return
+  }
+  if (login) {
+    if (signInBusy()) return
+    if (floatView && floatView.source.frameId === undefined) return
+    await offerFloat(pageSource())
+    return
+  }
+  if (floatView && floatView.source.frameId === undefined) hideFloat()
+  for (const [frameId, origin] of frameLogins) {
+    if (floatView?.source.frameId === frameId) return
+    await offerFloat(frameSource(frameId, origin))
+    if (floatView) return
+  }
+}
+
+function scheduleFloatScan(delay = 300) {
+  if (floatScanTimer) window.clearTimeout(floatScanTimer)
+  floatScanTimer = window.setTimeout(() => scanForFloat().catch(() => {}), delay)
+}
+
+// A load or a route change opens a short window in which late-rendered forms are looked for.
+function openScanWindow() {
+  floatScanUntil = Date.now() + FLOAT_SCAN_WINDOW_MS
+  scheduleFloatScan()
+}
+
+let frameReported = null
+function reportFrameLogin(present) {
+  if (IS_TOP || frameReported === present) return
+  frameReported = present
+  chrome.runtime.sendMessage({ present, type: 'MIMATORY_FRAME_LOGIN' }).catch(() => {})
+}
+
+function checkRouteChange() {
+  if (location.href === floatLastHref) return false
+  floatLastHref = location.href
+  // A new route is a new page for the float; a dismissal stays (it is per site).
+  if (IS_TOP && floatView?.source.frameId === undefined) hideFloat()
+  openScanWindow()
+  return true
+}
+
+new MutationObserver(() => {
+  if (checkRouteChange()) return
+  if (Date.now() < floatScanUntil) scheduleFloatScan()
+}).observe(document.documentElement, { childList: true, subtree: true })
+window.addEventListener('popstate', checkRouteChange)
+window.addEventListener('hashchange', checkRouteChange)
+
+document.addEventListener(
+  'keydown',
+  (event) => {
+    // Escape with nothing focused (or the float itself) closes the float; inside a page field it is the page's.
+    if (!event.isTrusted || event.key !== 'Escape' || !floatView) return
+    const active = document.activeElement
+    if (active && active !== document.body && active !== document.documentElement && active !== floatHost) return
+    dismissFloat()
+  },
+  true,
+)
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !floatView) return
+  if (changes[FLOAT_ENABLED_KEY]?.newValue === false) hideFloat()
+  const never = changes[FLOAT_NEVER_KEY]?.newValue
+  if (Array.isArray(never) && never.includes(floatView.source.origin)) hideFloat()
+})
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (IS_TOP && message?.type === 'MIMATORY_FRAME_LOGIN' && Number.isInteger(message.frameId)) {
+    if (message.present && sameSite(message.origin)) frameLogins.set(message.frameId, message.origin)
+    else {
+      frameLogins.delete(message.frameId)
+      if (floatView?.source.frameId === message.frameId) hideFloat()
+    }
+    if (message.present) scheduleFloatScan(0)
+    return false
+  }
+  if (!IS_TOP && message?.type === 'MIMATORY_FRAME_CALL') {
+    const work =
+      message.call === 'match'
+        ? fetchSummaries()
+        : message.call === 'pick' && typeof message.itemId === 'string'
+          ? cachedMatches().then((items) => {
+              const item = items.find((match) => match.id === message.itemId)
+              return item ? signInWith(item) : false
+            })
+          : Promise.resolve(null)
+    work.then(sendResponse, () => sendResponse(null))
+    return true
+  }
+  return false
+})
+
+openScanWindow()

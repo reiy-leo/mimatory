@@ -67,14 +67,20 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 - **Linux autostart** writes an XDG autostart entry, which Hyprland ignores unless the user runs something like
   `dex`/uwsm; `exec-once = mimatory` is the Hyprland way. Not changed.
 
+- **One-click sign-in float (2026-10-24) — never run in a real browser against the real app.** Seen only in apt
+  Chromium (headless) with a mock bridge: check on a real Mac in Chrome with the app running — the pill over real
+  sites (z-index fights, sites whose CSP blocks `data:` icons → letter tile), `/unlock` bringing the lock screen
+  forward and the float turning into the account, the most-recently-used order after a few picks, real
+  identifier-first flows (Google, Microsoft), cross-origin iframe logins (ignored by design unless same site), and the
+  popup switch / never-list. Rust `/match` / `/unlock` compiled only (`cargo check --tests`, Linux).
 - **Website icons / Sign in with… (2026-10-17) — unverified parts.** Never fetched a real site from the app:
   the network path is proven only against a local HTTP server (TLS, real redirects, proxies, rustls on Android,
   WKWebView rendering of the data URLs and the packaged CSP `img-src data:` are unseen). `cargo test` of the whole
   crate was not run here (scratch crate with crypto/storage/vault/favicon/bridge: 68 tests green; full crate
   `cargo check --tests` on Linux only). The extension's provider-button highlight was never run in a browser.
 - **needs-owner-decision — Sign in with: one per item.** 1Password allows several sign-in methods on one login;
-  this allows one provider + one account. Also: auto-click the provider button in the extension (deliberately
-  not done), and whether the Quick Access row of a sign-in item should do something other than copy an empty
+  this allows one provider + one account. Also: auto-click the provider button in the extension (not done from
+  the field menu or popup; the one-click float's "使用 Google 登录" button does click it — owner 2026-10-24), and whether the Quick Access row of a sign-in item should do something other than copy an empty
   password.
 - **Owner decision (2026-10-18): website icons are looked up through Google first.** `favicon.rs` asks
   `t1.gstatic.com/faviconV2` (128px, `fallback_opts` so a miss is a 404, never the globe), then the site itself
@@ -212,6 +218,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-24 | One-click sign-in float in the extension (top-centre pill, most recently used login, list below the pill, 解锁密码库存 while locked, × / Escape per tab, never-on-this-site, popup switch) + bridge `POST /match` (summaries, cached icon, no secrets) and `POST /unlock`; the field menu reads `/match` and fetches `/fill` with `item_id` only on a pick; `content.js` runs in all frames (iframe forms report to the top frame). **Unverified**: never run against the real app or in an everyday browser profile — proven only in apt Chromium 156 (headless=new, unpacked extension) against a mock bridge and local test pages (39 checks; screenshots light/dark); `cargo check --tests` on Linux only, the Rust tests were not run (link OOMs); `/unlock` raising the window on macOS/Windows never seen | `AGENTS.md` One-click sign-in float |
 | 2026-10-24 | Rust-built UI localized en/zh/ja (`native_i18n.rs`): tray menu + tooltip, macOS menu bar, `.1pux` picker, Touch ID reason; follows the in-app language via `set_native_locale`, OS locale until the first report. Never seen in a running app (Linux `cargo check --tests` only) | `AGENTS.md` Chinese name |
 | 2026-10-23 | Renamed Passless → Mimatory everywhere (owner: "名称以后都统一成mimatory，不再使用passless"); identifier `app.mimatory.desktop`; one-time copy of the old vault + webview profile, localStorage key rename, extension token move | `AGENTS.md` The Passless → Mimatory rename |
 | 2026-10-23 | Theme follows the system only (owner decision 2026-10-23: drop the override, System only; closes the needs-owner-decision item). Settings ▸ Appearance lost its Light/Dark/System control; a stored `passless-theme` is deleted on launch so existing installs return to System | `.agent/design.md` Appearance follows the system |

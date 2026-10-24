@@ -15,6 +15,33 @@
 	"fillPage": {
 		"message": "Fill Current Page"
 	},
+	"floatClose": {
+		"message": "Close"
+	},
+	"floatLabel": {
+		"message": "One-click sign-in"
+	},
+	"floatLockedTitle": {
+		"message": "Mimatory is locked"
+	},
+	"floatMore": {
+		"message": "More Options"
+	},
+	"floatNever": {
+		"message": "Never Show on This Site"
+	},
+	"floatOtherAccounts": {
+		"message": "Other Accounts"
+	},
+	"floatSignIn": {
+		"message": "Sign In"
+	},
+	"floatUnlock": {
+		"message": "Unlock Mimatory"
+	},
+	"floatWaitingUnlock": {
+		"message": "Unlock in the Mimatory app…"
+	},
 	"footerHint": {
 		"message": "Keep the Mimatory desktop app unlocked for autofill and save prompts."
 	},
@@ -91,6 +118,15 @@
 	},
 	"passkeyUseOther": {
 		"message": "Use Another Device"
+	},
+	"popupFloatClearNever": {
+		"message": "Show Again on Hidden Sites"
+	},
+	"popupFloatNeverCleared": {
+		"message": "One-click sign-in shows on every site again."
+	},
+	"popupFloatToggle": {
+		"message": "Show one-click sign-in on login pages"
 	},
 	"providerButtonFound": {
 		"message": "The $PROVIDER$ button on this page is highlighted.",

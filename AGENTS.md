@@ -357,7 +357,11 @@ Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, id
   `http://localhost:1430` with no CSP). Verify with `npm run tauri build`.
 - **Browser bridge**: the pairing token is compared in constant time (`tokens_match`). The server is
   `Access-Control-Allow-Origin: *` on `127.0.0.1:17891` and returns plaintext credentials to a paired client —
-  do not widen its reach or add an endpoint that exposes more.
+  do not widen its reach or add an endpoint that exposes more. **Showing is summaries, filling is one item**
+  (2026-10-24): `/match` answers id, title, username, `sign_in_with`, `has_password`, last use and a cached icon —
+  never a password, OTP seed, note or custom field (`a_match_summary_carries_nothing_secret`); the extension asks
+  `/fill` with `item_id` only after the user picked that login with a trusted click. Keep it that way: anything that
+  merely *displays* logins reads `/match`.
 - **The TOTP seed rests masked**: `fieldValueInputProps` gives an `otp` input `type="password"` unless it is
   the focused field (`focusedOtpField` in `useVaultWindow.tsx`), so a saved key is legible only while being typed. Import
   runs the other way: the QR button in `OtpFieldActions` reads an image **off the clipboard**
@@ -601,8 +605,8 @@ Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, id
   key; a NULL icon is a remembered miss; fresh 30 days (a miss 3). **Schema 5 deletes every cached row once** (the
   64px ones) — bump the schema the same way if the stored format changes again. `cached_site_icons` never touches
   the network; `fetch_site_icon` (async, at most 2 in flight from `siteIcons.ts`) does. Per item `items.icon_mode`
-  (`auto`/`letter`) and the item menu's Refresh Icon / Use Letter Icon. The bridge exposes no icon endpoint; Quick
-  Access only reads the cache. Tests: `favicon.rs` runs against a local tiny_http server standing in for both
+  (`auto`/`letter`) and the item menu's Refresh Icon / Use Letter Icon. The bridge has no icon endpoint; `/match`
+  attaches an item's cached icon (cache only, never a fetch; none for `letter`). Quick Access only reads the cache. Tests: `favicon.rs` runs against a local tiny_http server standing in for both
   Google (`FetchPolicy.icon_service`) and the site, through the same code path with a relaxed policy.
 
 - **Attachments** (2026-10-18, owner): an attachment is never replaced once added — a stored row offers Export
@@ -635,7 +639,8 @@ Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, id
   (CC0, bundled, `currentColor`), Microsoft drawn as four squares. **Extension**: `/fill` matches carry
   `sign_in_with` (provider only — never the account item); the popup says "Sign in with Google" and the content
   script outlines and focuses the page's provider button **without clicking it** (a provider sign-in can create an
-  account or share profile data).
+  account or share profile data). The one exception is the one-click float's own button, labelled "使用 Google 登录"
+  (owner 2026-10-24): pressing it is the user asking for exactly that click, so it highlights **and** clicks.
 
 - **Item templates and typed fields** (2026-10-14). Every category's default fields are data in
   `src/app/itemTemplates.ts` (key, `field_type`, label key, options, rules); the editor and the read-only view
@@ -732,6 +737,28 @@ Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, id
   `/passkey-event` with `item_id` / `new_item` (`VaultService::save_passkey`, `PasskeyTarget`). A content script's
   isolated world cannot see the page's `navigator.credentials` calls — the old observer there never fired. Mimatory
   stores metadata only; the private key stays with the platform authenticator.
+
+- **One-click sign-in float** (owner 2026-10-24, 1Password's sign-in pill; `content.js`, last section). A pill at the
+  **top centre** of the viewport (closed shadow root, `z-index` max, `position: fixed` on a zero-size host so the
+  page never reflows) offers the **most recently used** login (`/match` order; a pick through `/fill` with
+  `item_id` records a use) for a page that shows a sign-in form (password, or an identifier-first username).
+  登录 = `/fill` with `item_id` → `fillLogin(item, { submit: true })`, so an identifier-first page continues on its
+  password step through the existing pending-step machinery; a chevron opens the other logins **downward inside the
+  same card** (5 rows, then scroll) and a row signs in with that login; "Sign in with…" logins click the provider
+  (see above). Locked (`423 已锁定`) → 解锁密码库存 → `POST /unlock` (the bridge brings the main window, i.e. its
+  lock screen, forward; the master password is never typed in a page) → `/match` every 2s for up to 2 min while the
+  tab is visible. `401 未授权` / app not running → nothing. Never shown while the user is in a login field or the
+  field menu, during a pending identifier-first step, after Open & Fill, after a pick or × / Escape (dismissed per
+  tab + origin in `sessionStorage`), on a "never on this site" origin (`chrome.storage.local` `mimatoryFloatNever`)
+  or with the popup switch off (`mimatoryFloatEnabled`, default on; the popup also clears the never-list). Scans
+  run debounced on load and for 5s after load / a URL change (MutationObserver + popstate/hashchange), so
+  late-rendered SPA forms are caught without watching forever.
+  **Frames**: `content.js` is `all_frames` since this (the field menu now works inside iframes too); a frame only
+  *reports* its form through `background.js`, which adds the frame's real origin and forwards to frame 0, and the
+  top frame's float asks that frame (`MIMATORY_FRAME_CALL` match / pick) — never another. A frame from another site
+  is ignored (`sameSite`, a PSL-less heuristic: same host, or same last two labels, three under `co.uk`-style
+  suffixes). The popup's Fill, Open & Fill and the passkey handler answer in the top frame only, as before.
+  Tokens are the field menu's (`MENU_TOKENS` / `MENU_TOKENS_DARK`), following `prefers-color-scheme`.
 
 ## Testing and verification
 

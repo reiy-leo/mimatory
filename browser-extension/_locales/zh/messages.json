@@ -15,6 +15,33 @@
 	"fillPage": {
 		"message": "填充当前页面"
 	},
+	"floatClose": {
+		"message": "关闭"
+	},
+	"floatLabel": {
+		"message": "一键登录"
+	},
+	"floatLockedTitle": {
+		"message": "密码库存已锁定"
+	},
+	"floatMore": {
+		"message": "更多选项"
+	},
+	"floatNever": {
+		"message": "在此网站不再显示"
+	},
+	"floatOtherAccounts": {
+		"message": "其他账户"
+	},
+	"floatSignIn": {
+		"message": "登录"
+	},
+	"floatUnlock": {
+		"message": "解锁密码库存"
+	},
+	"floatWaitingUnlock": {
+		"message": "请在密码库存中解锁…"
+	},
 	"footerHint": {
 		"message": "请保持密码库存桌面应用处于解锁状态，才能使用自动填充和保存提示。"
 	},
@@ -91,6 +118,15 @@
 	},
 	"passkeyUseOther": {
 		"message": "使用其他设备"
+	},
+	"popupFloatClearNever": {
+		"message": "在已隐藏的网站上恢复显示"
+	},
+	"popupFloatNeverCleared": {
+		"message": "一键登录已在所有网站上恢复显示。"
+	},
+	"popupFloatToggle": {
+		"message": "在登录页面显示一键登录"
 	},
 	"providerButtonFound": {
 		"message": "已在此页面上突出显示 $PROVIDER$ 按钮。",
