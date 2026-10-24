@@ -4,6 +4,7 @@ mod browser_bridge;
 mod crypto;
 mod favicon;
 mod import_1pux;
+mod native_i18n;
 mod passkey;
 mod rename_migration;
 #[cfg(desktop)]
@@ -608,8 +609,8 @@ fn pick_attachment_file() -> Result<Option<String>, String> {
 fn preview_1pux_import(state: State<AppState>) -> Result<Option<import_1pux::ImportPreview>, String> {
     let session = current_session(&state)?;
     let Some(path) = rfd::FileDialog::new()
-        .set_title("Import from 1Password")
-        .add_filter("1Password export", &["1pux"])
+        .set_title(native_i18n::tr(native_i18n::Text::Import1PuxDialogTitle))
+        .add_filter(native_i18n::tr(native_i18n::Text::Import1PuxFilter), &["1pux"])
         .pick_file()
     else {
         return Ok(None);
@@ -724,7 +725,7 @@ async fn unlock_with_biometrics(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<LoginItemSummary>, String> {
-    biometric::authenticate(&app, "unlock your Mimatory vault").map_err(|error| error.to_string())?;
+    biometric::authenticate(&app, native_i18n::tr(native_i18n::Text::BiometricReason)).map_err(|error| error.to_string())?;
     let session = state
         .biometric_session
         .lock()
@@ -789,6 +790,19 @@ fn is_autostart_enabled(app: tauri::AppHandle) -> Result<bool, String> {
         let _ = app;
         Ok(false)
     }
+}
+
+/// The in-app language (`zh` / `en` / `ja`), reported by every window at startup and on each change, so the
+/// Rust-built UI — tray, macOS menu bar, native picker titles, the Touch ID prompt — speaks it too.
+#[tauri::command]
+fn set_native_locale(language: String, app: tauri::AppHandle) {
+    let changed = native_i18n::set_current(native_i18n::Locale::from_tag(&language));
+    #[cfg(desktop)]
+    if changed {
+        shell::refresh_native_labels(&app);
+    }
+    #[cfg(mobile)]
+    let _ = (changed, app);
 }
 
 #[tauri::command]
@@ -925,6 +939,7 @@ pub fn run() {
             check_breached_passwords,
             set_autostart,
             is_autostart_enabled,
+            set_native_locale,
             hide_quick_access
         ])
         .run(tauri::generate_context!())

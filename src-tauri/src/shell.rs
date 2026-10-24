@@ -13,6 +13,8 @@ use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_positioner::{on_tray_event, Position, WindowExt};
 
+use crate::native_i18n::{tr, Text};
+
 pub const QUICK_ACCESS_LABEL: &str = "quick-access";
 const TRAY_ID: &str = "mimatory-tray";
 /// ⌘⇧Space on macOS, Ctrl+Shift+Space on Windows (Win+Shift+Space is the system's input-language switch).
@@ -47,7 +49,17 @@ pub fn plugins(builder: Builder<Wry>) -> Builder<Wry> {
 pub fn setup(app: &mut App) -> Result<(), Box<dyn Error>> {
     build_tray(app.handle())?;
     #[cfg(target_os = "macos")]
-    build_app_menu(app.handle())?;
+    {
+        build_app_menu(app.handle())?;
+        // Registered once, not per build: the menu is rebuilt on every language change and each
+        // `on_menu_event` call adds a listener.
+        app.on_menu_event(|app, event| {
+            if event.id().as_ref() == IMPORT_1PUX_MENU_ID {
+                focus_main_window(app);
+                let _ = app.emit_to("main", IMPORT_1PUX_EVENT, ());
+            }
+        });
+    }
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     register_shortcuts(app.handle())?;
     // First launch straight from the keybinding: open the panel as well as the app.
@@ -58,74 +70,102 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn Error>> {
 }
 
 /// The event the main window listens for to start File ▸ Import ▸ 1Password.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const IMPORT_1PUX_EVENT: &str = "menu:import-1pux";
 const IMPORT_1PUX_MENU_ID: &str = "import-1pux";
 
-/// The macOS menu bar: Tauri's default menu (app, File, Edit, View, Window) plus File ▸ Import ▸ 1Password.
-/// Windows and Linux keep no menu bar — the WinUI/Material skins have none — so it is built for macOS only.
+/// Rebuilds every Rust-built label in the current native language (`native_i18n`): the tray menu and
+/// tooltip, and the macOS menu bar. Called by `set_native_locale` when the in-app language changes. Menu
+/// item ids stay the same, so the global menu listeners keep working on the new menus.
+pub fn refresh_native_labels(app: &AppHandle<Wry>) {
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        match tray_menu(app) {
+            Ok(menu) => {
+                let _ = tray.set_menu(Some(menu));
+            }
+            Err(error) => eprintln!("could not rebuild the tray menu: {error}"),
+        }
+        let _ = tray.set_tooltip(Some(tr(Text::AppName)));
+    }
+    #[cfg(target_os = "macos")]
+    if let Err(error) = build_app_menu(app) {
+        eprintln!("could not rebuild the menu bar: {error}");
+    }
+}
+
+/// The macOS menu bar: Tauri's default menu (app, File, Edit, View, Window) plus File ▸ Import ▸ 1Password,
+/// every item labelled in the native language (the predefined items take custom text; their actions —
+/// AppKit selectors — are unchanged). Windows and Linux keep no menu bar — the WinUI/Material skins have
+/// none — so it is built for macOS only.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn build_app_menu(app: &AppHandle<Wry>) -> tauri::Result<()> {
     use tauri::menu::{AboutMetadata, MenuBuilder, SubmenuBuilder};
 
-    let import = SubmenuBuilder::new(app, "Import")
-        .text(IMPORT_1PUX_MENU_ID, "1Password (.1pux)…")
+    let import = SubmenuBuilder::new(app, tr(Text::Import))
+        .text(IMPORT_1PUX_MENU_ID, tr(Text::Import1Pux))
         .build()?;
-    let app_menu = SubmenuBuilder::new(app, "Mimatory")
-        .about(Some(AboutMetadata::default()))
+    // The About panel takes the localized name; version and icon still come from the bundle.
+    let about = AboutMetadata {
+        name: Some(tr(Text::AppName).to_string()),
+        ..AboutMetadata::default()
+    };
+    let app_menu = SubmenuBuilder::new(app, tr(Text::AppName))
+        .about_with_text(tr(Text::About), Some(about))
         .separator()
-        .services()
+        .services_with_text(tr(Text::Services))
         .separator()
-        .hide()
-        .hide_others()
-        .show_all()
+        .hide_with_text(tr(Text::Hide))
+        .hide_others_with_text(tr(Text::HideOthers))
+        .show_all_with_text(tr(Text::ShowAll))
         .separator()
-        .quit()
+        .quit_with_text(tr(Text::Quit))
         .build()?;
-    let file = SubmenuBuilder::new(app, "File")
+    let file = SubmenuBuilder::new(app, tr(Text::File))
         .item(&import)
         .separator()
-        .close_window()
+        .close_window_with_text(tr(Text::CloseWindow))
         .build()?;
     // Without an Edit menu the webview loses ⌘C / ⌘V / ⌘A on macOS.
-    let edit = SubmenuBuilder::new(app, "Edit")
-        .undo()
-        .redo()
+    let edit = SubmenuBuilder::new(app, tr(Text::Edit))
+        .undo_with_text(tr(Text::Undo))
+        .redo_with_text(tr(Text::Redo))
         .separator()
-        .cut()
-        .copy()
-        .paste()
-        .select_all()
+        .cut_with_text(tr(Text::Cut))
+        .copy_with_text(tr(Text::Copy))
+        .paste_with_text(tr(Text::Paste))
+        .select_all_with_text(tr(Text::SelectAll))
         .build()?;
-    let view = SubmenuBuilder::new(app, "View").fullscreen().build()?;
-    let window = SubmenuBuilder::new(app, "Window")
-        .minimize()
-        .maximize()
+    let view = SubmenuBuilder::new(app, tr(Text::View))
+        .fullscreen_with_text(tr(Text::EnterFullScreen))
+        .build()?;
+    let window = SubmenuBuilder::new(app, tr(Text::Window))
+        .minimize_with_text(tr(Text::Minimize))
+        .maximize_with_text(tr(Text::Zoom))
         .separator()
-        .close_window()
+        .close_window_with_text(tr(Text::CloseWindow))
         .build()?;
     let menu = MenuBuilder::new(app)
         .items(&[&app_menu, &file, &edit, &view, &window])
         .build()?;
     app.set_menu(menu)?;
-    app.on_menu_event(|app, event| {
-        if event.id().as_ref() == IMPORT_1PUX_MENU_ID {
-            focus_main_window(app);
-            let _ = app.emit_to("main", IMPORT_1PUX_EVENT, ());
-        }
-    });
     Ok(())
 }
 
-fn build_tray(app: &AppHandle<Wry>) -> Result<(), Box<dyn Error>> {
-    let quick_access = MenuItem::with_id(app, "quick-access", "Open Quick Access", true, None::<&str>)?;
-    let show_main = MenuItem::with_id(app, "main", "Show Mimatory", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Mimatory", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[
+fn tray_menu(app: &AppHandle<Wry>) -> tauri::Result<Menu<Wry>> {
+    let quick_access =
+        MenuItem::with_id(app, "quick-access", tr(Text::TrayOpenQuickAccess), true, None::<&str>)?;
+    let show_main = MenuItem::with_id(app, "main", tr(Text::TrayShowMain), true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", tr(Text::Quit), true, None::<&str>)?;
+    Menu::with_items(app, &[
         &quick_access,
         &show_main,
         &PredefinedMenuItem::separator(app)?,
         &quit,
-    ])?;
+    ])
+}
+
+fn build_tray(app: &AppHandle<Wry>) -> Result<(), Box<dyn Error>> {
+    let menu = tray_menu(app)?;
 
     // A template image, not the app icon: the bar tints it for light and dark chrome, and a
     // 18pt colour tile is unreadable there. Drawn to the shipped icon's proportions.
@@ -136,7 +176,7 @@ fn build_tray(app: &AppHandle<Wry>) -> Result<(), Box<dyn Error>> {
         .icon_as_template(true)
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .tooltip("Mimatory")
+        .tooltip(tr(Text::AppName))
         .on_menu_event(|app, event| match event.id.as_ref() {
             "quick-access" => toggle_quick_access(app, Position::TrayBottomCenter),
             "main" => focus_main_window(app),

@@ -1,6 +1,7 @@
 import { listen } from '@tauri-apps/api/event'
 import { useEffect, useState } from 'react'
 import i18n, { getInitialLanguage, type SupportedLanguage } from './i18n'
+import { followLanguageInNativeUi } from './nativeLocale'
 import { loadSecurityPreferences, type SecurityPreferences, saveSecurityPreferences } from './securityPreferences'
 import { clearLegacyThemeOverride, followSystemAppearance } from './theme'
 import { followLanguageInTitle } from './windowTitle'
@@ -23,6 +24,8 @@ export function useWindowAppearance() {
 
   // The main window's title is the app's name in the UI language (密码库存 in zh).
   useEffect(() => followLanguageInTitle('settings.appName'), [])
+  // …and so are the tray, the macOS menu bar and the other Rust-built labels.
+  useEffect(() => followLanguageInNativeUi(), [])
 
   useEffect(() => {
     let unlisten: (() => void) | undefined

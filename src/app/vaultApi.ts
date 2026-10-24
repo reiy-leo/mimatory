@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import type { SupportedLanguage } from './i18n'
 
 export type AppStatus = {
   name: string
@@ -314,6 +315,7 @@ export const vaultApi = {
   setAutostart: (enabled: boolean) => invoke<void>('set_autostart', { enabled }),
   // `parentId: null` clears the parent. Rust refuses itself, a cycle, and an item in the trash.
   setIconMode: (id: string, mode: ItemIconMode) => invoke<void>('set_item_icon_mode', { id, mode }),
+  setNativeLocale: (language: SupportedLanguage) => invoke<void>('set_native_locale', { language }),
   setParent: (id: string, parentId: string | null) => invoke<void>('set_item_parent', { id, parentId }),
   // `accountId: null` clears it. Rust refuses itself and an item outside this vault or in the trash.
   setSignIn: (id: string, accountId: string | null) => invoke<void>('set_item_sign_in', { accountId, id }),

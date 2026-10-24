@@ -54,6 +54,8 @@ tiny_http = "0.12"
 uuid = { version = "1", features = ["v4"] }
 # File ▸ Import ▸ 1Password (import_1pux.rs): a .1pux is a zip of export.data + files/.
 zip = { version = "2", default-features = false, features = ["deflate"] }
+# Native menus / tray before the window reports its language (native_i18n.rs): the OS locale. Tiny, libc only.
+sys-locale = "0.3"
 
 # Desktop shell: tray, Quick Access window, autostart, single instance, the native file picker.
 # iOS and Android have none of these (and rfd does not build there), so they are desktop-only.

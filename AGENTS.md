@@ -24,9 +24,20 @@ the binary, paths, `productName` and the bundle id stay `mimatory`/`Mimatory`. W
   `bundle.macOS.files` — Finder, Dock, Launchpad and the menu-bar app title read 密码库存 on a zh-Hans system. Only in
   a packaged build, never in `tauri dev`.
 - Linux: `linux/mimatory.desktop` (the bundler's default template + `Name[zh_CN]=密码库存`), used by deb and AppImage.
-- Still English everywhere: the Rust-built tray menu (Show/Quit Mimatory, Open Quick Access), the macOS menu items
-  (About/Quit…, File/Edit/View/Window) and the tray tooltip — Rust has no locale mechanism yet. Windows Start menu /
-  installer name = `productName`. iOS/Android home-screen name: `src-tauri/gen/` is generated in CI, so an
+- Rust-built UI (since 2026-10-24): `src-tauri/src/native_i18n.rs` holds every string Rust shows itself — the tray
+  menu (Open Quick Access / Show / Quit) and tooltip, the macOS menu bar (app menu About/Services/Hide/Hide
+  Others/Show All/Quit, File ▸ Import, Edit, View, Window; the predefined items get custom text, their AppKit
+  actions are unchanged), the `.1pux` picker title + filter, the Touch ID reason and the phone biometric title —
+  as one `(en, zh, ja)` row each. **It follows the in-app language, not the OS**: the main window calls
+  `set_native_locale` (`nativeLocale.ts`, via `vaultApi.setNativeLocale`) at startup and on every
+  `languageChanged` (a Settings change reaches main through `mimatory-language-changed`), and Rust rebuilds the
+  tray menu and the menu bar (same item ids, so the global menu listeners stay valid — which is why
+  `app.on_menu_event` is registered once in `shell::setup`, never inside `build_app_menu`). Before that first
+  report it uses the OS locale (`sys-locale`: zh* → zh, ja* → ja, else en). A new Rust-shown string goes in that
+  table, never as a literal. Left English on purpose: terminal/stderr messages (the Wayland refusal, migration
+  logs), the breach-check user agent, the `Mimatory Quick Access` title. AppKit itself may retitle the
+  full-screen item ("Exit Full Screen") in the system language. Windows Start menu / installer name =
+  `productName`. iOS/Android home-screen name: `src-tauri/gen/` is generated in CI, so an
   `InfoPlist.strings` / `values-zh/strings.xml` has to be injected after `tauri ios|android init` — not done yet.
 
 ## Where the rules live
@@ -157,6 +168,7 @@ src/                  # React frontend
   app/signInProviders.ts signInControls.tsx providerMarks.tsx  # "Sign in with…": field rules, sheet + row, bundled marks
   app/designContract.test.ts  # executable guard for the .agent/design.md rules (incl. the skin stylesheets)
   app/platformFeatures.ts  # what exists on which platform (bridge, Quick Access, biometrics, shortcuts…)
+  app/windowTitle.ts nativeLocale.ts  # window titles and the Rust-built UI (set_native_locale) follow the UI language
   app/windowChrome.ts vibrancy.ts  # settings-window chrome per platform, window theme sync, native material flag
   skin/platform.ts runtime.ts  # platform/skin/layout detection (+ ?platform= overrides) → <html data-*>
   skin/tokens.css skins.css mobile.css  # WinUI 3 / Material 3 token values, skin shapes, the phone layout
@@ -173,6 +185,7 @@ src-tauri/src/        # Rust backend
   biometric.rs        # Touch ID (objc2) on macOS, tauri-plugin-biometric on iOS/Android, none elsewhere
   browser_bridge.rs   # HTTP server on 127.0.0.1:17891 for the extension
   site_match.rs       # Autofill behaviour: registrable-domain / exact-host / never matching (psl crate), describe_website
+  native_i18n.rs      # en/zh/ja table for every string Rust shows (menus, tray, pickers, Touch ID) + the native locale
   shell.rs            # Desktop only: tray, Quick Access (hotkey on macOS/Windows, `--quick-access` on Linux), autostart, single instance
   totp.rs             # TOTP code generation
   breach_check.rs     # Have I Been Pwned k-anonymity check

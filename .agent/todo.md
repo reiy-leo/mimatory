@@ -7,8 +7,7 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 
 ## Open
 
-- **密码库存 not yet native everywhere (2026-10-24).** Still English: the Rust tray menu / tooltip and the macOS
-  menu items (no Rust locale mechanism), the iOS home-screen name (inject `zh-Hans.lproj/InfoPlist.strings` into
+- **密码库存 not yet native everywhere (2026-10-24).** Still English: the iOS home-screen name (inject `zh-Hans.lproj/InfoPlist.strings` into
   `gen/apple` after `tauri ios init` in `ios.yml`), the Android launcher label (`values-zh/strings.xml` `app_name`
   after `tauri android init` in `build.yml`), the Windows Start menu / installer (`productName`). See AGENTS.md.
 - **Native vibrancy — needs a look on a real Mac (2026-10-14).** Owner asked for it; wired as described in AGENTS.md "Native vibrancy (macOS)". Never seen in a running app yet: check the sidebar material under the traffic lights, settings sidebar, Quick Access corners, and that the material follows the system appearance in both light and dark (the in-app Light/Dark override was removed 2026-10-23).
@@ -213,6 +212,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-24 | Rust-built UI localized en/zh/ja (`native_i18n.rs`): tray menu + tooltip, macOS menu bar, `.1pux` picker, Touch ID reason; follows the in-app language via `set_native_locale`, OS locale until the first report. Never seen in a running app (Linux `cargo check --tests` only) | `AGENTS.md` Chinese name |
 | 2026-10-23 | Renamed Passless → Mimatory everywhere (owner: "名称以后都统一成mimatory，不再使用passless"); identifier `app.mimatory.desktop`; one-time copy of the old vault + webview profile, localStorage key rename, extension token move | `AGENTS.md` The Passless → Mimatory rename |
 | 2026-10-23 | Theme follows the system only (owner decision 2026-10-23: drop the override, System only; closes the needs-owner-decision item). Settings ▸ Appearance lost its Light/Dark/System control; a stored `passless-theme` is deleted on launch so existing installs return to System | `.agent/design.md` Appearance follows the system |
 | 2026-10-23 | Item list virtualized with `@tanstack/react-virtual` (rows near the viewport only; screenshots pixel-identical to the full list on macOS light/dark, Windows, iOS, Android at top, mid-scroll and bottom) | `AGENTS.md` The item list is virtualized |

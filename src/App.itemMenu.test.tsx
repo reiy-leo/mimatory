@@ -104,6 +104,8 @@ function stubBridge() {
           return []
         case 'password_strength':
           return { bits: 60, level: 'strong' }
+        case 'set_native_locale':
+          return null
         default:
           return null
       }
