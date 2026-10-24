@@ -1086,18 +1086,58 @@ const FLOAT_STYLE = `
     box-sizing: border-box; width: max-content; min-width: 300px; max-width: min(420px, calc(100vw - 24px));
     display: grid; padding: 6px; margin: 0;
     font: 13px/16px -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", sans-serif;
-    color: var(--text); background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); background: var(--material); border: 1px solid var(--border);
     border-radius: calc(var(--pill-height) / 2); box-shadow: var(--shadow); -webkit-font-smoothing: antialiased;
     animation: mimatory-float-in 200ms cubic-bezier(0.25, 0.1, 0.25, 1); color-scheme: light;
+    --material: color-mix(in srgb, var(--surface) 86%, transparent);
+    --glow: color-mix(in srgb, var(--accent) 16%, transparent);
+    --glow-2: color-mix(in srgb, #af52de 9%, transparent);
+    --sheen: #ffffff8c;
+    -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
+    overflow: hidden; isolation: isolate;
+  }
+  /* The background (owner 2026-10-24: "背景最好有一点动画效果"): a macOS material — translucent, blurred and
+     saturated behind — with a soft accent glow drifting across it on a 9s loop and one light sweep as it appears.
+     Both live on pseudo-elements behind the content and move by transform/opacity only (composited, no layout);
+     paused while the tab is hidden, gone under reduced motion (the material stays, still). */
+  .float::before, .float::after { content: ""; position: absolute; z-index: -1; pointer-events: none; }
+  .float::before { inset: -60% -30%;
+    background: radial-gradient(closest-side at 35% 50%, var(--glow), transparent),
+      radial-gradient(closest-side at 70% 55%, var(--glow-2), transparent);
+    animation: mimatory-drift 9s ease-in-out infinite alternate; will-change: transform; }
+  .float::after { inset: 0; width: 45%;
+    background: linear-gradient(100deg, transparent, var(--sheen) 50%, transparent);
+    opacity: 0; transform: translateX(-110%);
+    animation: mimatory-sweep 1100ms cubic-bezier(0.4, 0, 0.2, 1) 180ms 1 both; }
+  .float.is-paused::before, .float.is-paused::after { animation-play-state: paused; }
+  @keyframes mimatory-drift {
+    from { transform: translate3d(-14%, -4%, 0) scale(1); }
+    to { transform: translate3d(14%, 5%, 0) scale(1.08); }
+  }
+  @keyframes mimatory-sweep {
+    0% { opacity: 0; transform: translateX(-110%); }
+    25% { opacity: 1; }
+    100% { opacity: 0; transform: translateX(330%); }
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .float { --material: var(--surface); }
   }
   .float.is-open { border-radius: 18px; }
   @media (prefers-color-scheme: dark) {
     .float {${MENU_TOKENS_DARK}
       color-scheme: dark;
+      --material: color-mix(in srgb, var(--surface) 86%, transparent);
+      --glow: color-mix(in srgb, var(--accent) 20%, transparent);
+      --glow-2: color-mix(in srgb, #bf5af2 10%, transparent);
+      --sheen: #ffffff1f;
     }
   }
   @keyframes mimatory-float-in { from { opacity: 0; translate: 0 -8px; } }
-  @media (prefers-reduced-motion: reduce) { .float { animation: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .float { animation: none; }
+    .float::before { animation: none; transform: none; }
+    .float::after { display: none; }
+  }
   .pill { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 10px; align-items: center;
     min-height: calc(var(--pill-height) - 14px); padding: 0 0 0 4px; }
   .badge { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; overflow: hidden;
@@ -1284,6 +1324,7 @@ function floatShell(source) {
     rows[next % rows.length].focus()
   })
   root.append(card)
+  card.classList.toggle('is-paused', document.hidden)
   document.documentElement.append(host)
   floatHost = host
   floatView = { card, kind: 'accounts', root, source }
@@ -1557,6 +1598,10 @@ new MutationObserver(() => {
   if (checkRouteChange()) return
   if (Date.now() < floatScanUntil) scheduleFloatScan()
 }).observe(document.documentElement, { childList: true, subtree: true })
+// The float's background stops moving while nobody can see it.
+document.addEventListener('visibilitychange', () => {
+  floatView?.card.classList.toggle('is-paused', document.hidden)
+})
 window.addEventListener('popstate', checkRouteChange)
 window.addEventListener('hashchange', checkRouteChange)
 

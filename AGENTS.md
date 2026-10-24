@@ -854,6 +854,12 @@ as `{ id, status, data }` with the HTTP bridge's status codes (content.js reads 
   control disabled) until the page is filled and submitted, then the float leaves; a failure shows the same note as
   the field menu under where the float was. `floatPicking` keeps the float's own username fill (a focus in a login
   field, or the frame's "no form now" report) from hiding it mid-sign-in. A frame's pick answers `{ ok, status }`.
+  **Background** (owner 2026-10-24: "背景最好有一点动画效果"): a macOS material — `--material` = surface at 86% +
+  `backdrop-filter: blur(30px) saturate(180%)` (opaque where unsupported) — with an accent/purple radial glow drifting
+  on `::before` (9s alternate) and one light sweep on `::after` as it appears; transform/opacity only on
+  pseudo-elements behind the content (`overflow: hidden; isolation: isolate` on `.float`), paused (`.is-paused`) while
+  `document.hidden`, and none of it under `prefers-reduced-motion` (static material). 78%/74% material was tried and
+  read muddy on black / low-contrast for the blue action in dark on white — keep ≥ 86%.
 
 ## Testing and verification
 
