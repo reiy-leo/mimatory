@@ -8,7 +8,8 @@ reintroduce the old name; see "The Passless → Mimatory rename" below for the f
 "和mindough项目一样支持macOS、Windows、iOS、Android、Linux（hyprland，不支持X11）"). React 18 + TypeScript frontend,
 Rust backend with encrypted SQLite vault. Each OS wears its own skin, the same mapping as the Mindough project —
 see "Platforms" below.
-Also ships a Manifest V3 browser extension (autofill via a local HTTP bridge on `127.0.0.1:17891`).
+Also ships a Manifest V3 browser extension (autofill through browser native messaging since 2026-10-24, the local
+HTTP bridge on `127.0.0.1:17891` + pairing token only as a fallback — see "Extension connection").
 
 **Chinese name: 密码库存** (owner, 2026-10-24: "软件的名称是“Mimatory”，中文“密码库存”"). Every zh string that names the
 app says 密码库存 — the app bundle (`lock.appName`, `settings.appName`, `settings.windowTitle`, …) and the extension's
@@ -183,7 +184,9 @@ src-tauri/src/        # Rust backend
   crypto.rs           # AES-GCM + argon2 KDF
   favicon.rs          # Website icon fetch: https-only, SSRF guard, caps, decode + re-encode as a 64px PNG
   biometric.rs        # Touch ID (objc2) on macOS, tauri-plugin-biometric on iOS/Android, none elsewhere
-  browser_bridge.rs   # HTTP server on 127.0.0.1:17891 for the extension
+  browser_bridge.rs   # The extension's request → response handler (`handle_request`), shared by the native IPC and the fallback HTTP server on 127.0.0.1:17891
+  native_messaging.rs # Native-messaging host mode (`mimatory chrome-extension://…`), stdio framing, host manifests + registration
+  native_ipc.rs       # Host ↔ app channel: 0600 Unix socket / per-user named pipe, peer checks, macOS browser code-signature check
   site_match.rs       # Autofill behaviour: registrable-domain / exact-host / never matching (psl crate), describe_website
   native_i18n.rs      # en/zh/ja table for every string Rust shows (menus, tray, pickers, Touch ID) + the native locale
   shell.rs            # Desktop only: tray, Quick Access (hotkey on macOS/Windows, `--quick-access` on Linux), autostart, single instance
@@ -328,7 +331,7 @@ Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, id
   there is no export. An install of the old identifier keeps its vault in the old app.
 - **No Keychain / Touch ID entries exist** (no `keyring` since 2026-10-09; Touch ID only gates `biometric_session`
   in memory), so nothing there needed moving.
-- **Extension pairing**: the token is in app memory only (re-paired after every app restart anyway); the
+- **Extension pairing** (now the fallback transport only): the token is in app memory only (re-paired after every app restart anyway); the
   extension moves a saved `passlessToken` to `mimatoryToken`, and the bridge still accepts `X-Passless-Token`
   from an un-updated extension.
 - **Not migrated, by design**: an autostart entry registered by the old app (re-enable Open at Login), Hyprland
@@ -355,7 +358,8 @@ Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, id
   those two must be listed by hand because Tauri's `set_csp` only injects script/style hashes. It applies
   **only to packaged builds** (`PROXY_DEV_SERVER = cfg!(all(dev, mobile))`, so on macOS `tauri dev` loads
   `http://localhost:1430` with no CSP). Verify with `npm run tauri build`.
-- **Browser bridge**: the pairing token is compared in constant time (`tokens_match`). The server is
+- **Browser bridge**: both transports (native messaging, HTTP fallback) end in the one `handle_request`; see
+  "Extension connection" for who may reach it. The pairing token is compared in constant time (`tokens_match`). The server is
   `Access-Control-Allow-Origin: *` on `127.0.0.1:17891` and returns plaintext credentials to a paired client —
   do not widen its reach or add an endpoint that exposes more. **Showing is summaries, filling is one item**
   (2026-10-24): `/match` answers id, title, username, `sign_in_with`, `has_password`, last use and a cached icon —
@@ -368,6 +372,63 @@ Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, id
   (`src/app/otpQrImport.ts`, decoded with `jsqr`) and stores the `secret` of an `otpauth://` link or a bare
   base32 key, and nothing else. The app never renders a seed as a QR image and there is no screen-region
   capture.
+
+## Extension connection (native messaging, 2026-10-24)
+
+Owner-approved 2026-10-24 (incl. the macOS browser code-signature check): the extension reaches the app the way
+1Password's does — no pairing code. Chain: content script → `background.js` (adds the page's `origin` from
+`sender.origin`, never from the page) → `chrome.runtime.connectNative('app.mimatory.native')` (one persistent port,
+request ids, 20s timeout, reconnect on the next call) → the browser starts **the app's own binary** as the host →
+the host relays each `{ id, path, body }` over local IPC to the running app → `browser_bridge::handle_request` → back
+as `{ id, status, data }` with the HTTP bridge's status codes (content.js reads both transports alike).
+
+- **Fixed extension ID `pjcffbogeilnkbmnlegjdciggbfbekfb`**, from the public `key` in `browser-extension/manifest.json`
+  (SHA-256 of the DER key, first 16 bytes, 0–f → a–p). **The private key is `/workspace/.keys/mimatory_extension.pem`,
+  outside the repo** (2048-bit RSA, 0600) — it is what a Chrome Web Store / CRX package must be signed with to
+  keep this ID. Never commit it; a new key means a new ID, new host manifests and every user re-adding the
+  extension. `CHROME_EXTENSION_ID` in `native_messaging.rs` must match the key (a test checks the shape only).
+  Firefox: `browser_specific_settings.gecko.id = extension@mimatory.app` (Chrome warns about the unknown key and
+  loads; the extension still has a Chrome-only `background.service_worker`, so Firefox is not actually supported yet).
+- **Host mode** is detected first thing in `run()` (before the Wayland check, the rename migration, single
+  instance or any window): an argument `chrome-extension://…` (Chrome passes the caller origin as argv[1], plus
+  `--parent-window=` on Windows), `extension@mimatory.app` (Firefox passes the manifest path + the id) or
+  `--native-host`. `validate_caller` then accepts only our own origin / gecko id. Framing: 4-byte native-endian
+  length + JSON; the host refuses to hand Chrome more than 1 MB (`413 response_too_large`). **The app is never
+  launched by the host**: no running app → `503 app_not_running`, and the popup says 密码库存未运行.
+- **IPC endpoint**: macOS `~/Library/Application Support/Mimatory/native-messaging.sock` (the vault folder, 0700);
+  Linux `$XDG_RUNTIME_DIR/mimatory/native-messaging.sock` (folder 0700; vault folder if unset); socket 0600, a stale
+  one replaced at startup. Windows `\\.\pipe\mimatory-native-messaging-<USERNAME>` with the default ACL,
+  `FILE_FLAG_FIRST_PIPE_INSTANCE` + `PIPE_REJECT_REMOTE_CLIENTS`.
+- **Who may connect** (`native_ipc`): the peer (SO_PEERCRED / LOCAL_PEERPID + getpeereid /
+  GetNamedPipeClientProcessId) must be the same user and run **our own executable** — same canonical path, or a
+  byte-identical file (SHA-256; an AppImage remounts on every launch, so its manifests name `$APPIMAGE`). The host
+  checks the server the same way before sending anything. **macOS only**: the host's parent process (the browser)
+  must pass `SecCodeCheckValidity` against `anchor apple generic and certificate leaf[subject.OU] = "<team>"` for one
+  of `BROWSER_TEAMS`: Chrome `EQHXZ8M8AV`, Edge `UBF8T346G9`, Brave `KL8N8XSYF4`, Arc `S6N382Y83G`, Vivaldi
+  `4XF3XNRN6Y`, Firefox `43AQ936H96`, Opera `A2P9LX4JPN` (verified 2026-10-24 against Installomator labels and vendor
+  pages; sources in the const's comment). Unsigned Chromium / Playwright builds are refused in a release build; a
+  **debug build logs and accepts** them. A refused caller gets `403 caller_not_verified` for every request.
+  Linux and Windows check only the executable (no browser signature; on Windows Chrome starts hosts via `cmd.exe`).
+  Residual risk, accepted: a same-user process can start a signed browser with its own unpacked extension carrying
+  our public key (same ID) — branded Chrome ≥137 ignores `--load-extension`, but Chromium forks may not.
+- **Registration** (`register_hosts`, a thread at desktop startup): the manifest (`path` = `current_exe()`, inside the
+  `.app` on macOS, the dev binary under `tauri dev`) is written into `<browser>/NativeMessagingHosts/` only where the
+  browser's own folder already exists (never creates a profile), and only when the content differs. macOS: Google
+  Chrome (+ Beta, Canary), Chromium, Microsoft Edge, BraveSoftware/Brave-Browser, `Arc/User Data`, Vivaldi,
+  com.operasoftware.Opera, Mozilla; Linux: google-chrome, chromium, microsoft-edge, BraveSoftware/Brave-Browser,
+  vivaldi, `~/.mozilla/native-messaging-hosts`; Windows: manifests in `%APPDATA%\Mimatory\NativeMessagingHosts\`
+  and `HKCU\Software\{Google\Chrome, Microsoft\Edge, BraveSoftware\Brave-Browser, Chromium, Mozilla}\NativeMessagingHosts\app.mimatory.native`.
+  Settings ▸ Browser Extension shows the registered browsers, whether a host is connected and the ID
+  (`browser_connection_status`); the pairing code moved under "Pairing Code (Fallback)".
+- **Fallback, this release only**: when `connectNative` cannot start a host at all (an older app, an unregistered
+  browser) `background.js` uses the HTTP bridge + token as before, and only then does the popup show the pairing
+  field. A native `403`/`503` does not fall back. Removing 17891 is a `needs-owner-decision` in `.agent/todo.md`.
+- **Tests**: `native_messaging.rs` / `native_ipc.rs` depend only on serde_json, sha2, dirs, libc,
+  core-foundation-sys, windows-sys and winreg, so `work/nmcheck` (project scratch, outside the repo) includes them by
+  `#[path]` to run their unit tests (incl. a real 0600 socket round trip) and `cargo check` them for
+  `aarch64-apple-darwin` and `x86_64-pc-windows-msvc`; its `nmhost` binary + `e2e.mjs` drive apt Chromium with the
+  unpacked extension through the real host code (fixed ID, popup states, content script → `/match` with the page
+  origin, app restart, HTTP fallback).
 
 ## UI structure and its traps
 

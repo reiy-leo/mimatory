@@ -7,6 +7,25 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 
 ## Open
 
+- **Native messaging (2026-10-24) — never run on a real Mac or Windows.** Proven on Linux only: the host/IPC unit
+  tests and a real 0600-socket round trip (`work/nmcheck`), and apt Chromium driving the unpacked extension through
+  the real host code against a stand-in app (fixed ID, popup states, `/match` with the page origin, app restart,
+  HTTP fallback). The full app binary was not built here (link OOM), so the app's own registration at startup and
+  `handle_native_message` ran only as `cargo check --tests`. On Rei's Mac check: the manifests land in each installed
+  browser's `NativeMessagingHosts/` (Chrome, Edge, Brave, Arc, Vivaldi, Opera, Firefox), the `.app` path in them, the
+  socket in `~/Library/Application Support/Mimatory/` (0600), and above all the **code-signature check** — that the
+  host's parent really is the browser's main process for Chrome/Arc/Edge/Brave (a helper or launcher in between
+  would fail `SecCodeCheckValidity` against the team requirement), and that a release build refuses an unsigned
+  Chromium while `tauri dev` logs and accepts it. The macOS and Windows code compiled only as a standalone crate
+  (`cargo check --target aarch64-apple-darwin / x86_64-pc-windows-msvc`), never linked or run. Windows unknowns:
+  a GUI-subsystem exe as a host started through `cmd.exe` (stdio inheritance), the pipe's default ACL, the
+  registry keys being read by Brave/Vivaldi/Opera. Firefox is untested anywhere (the extension still has a
+  Chrome-only `background.service_worker`).
+- **needs-owner-decision — Remove the HTTP bridge on 127.0.0.1:17891 (2026-10-24).** Kept for this release as the
+  fallback when no native host can be started (pairing code in the popup and Settings). Once native messaging is
+  confirmed on Rei's machines, deleting `start_browser_bridge`, the token, `tiny_http` and the pairing UI removes
+  the `Access-Control-Allow-Origin: *` listener entirely. Not to be done without the owner.
+
 - **密码库存 not yet native everywhere (2026-10-24).** Still English: the iOS home-screen name (inject `zh-Hans.lproj/InfoPlist.strings` into
   `gen/apple` after `tauri ios init` in `ios.yml`), the Android launcher label (`values-zh/strings.xml` `app_name`
   after `tauri android init` in `build.yml`), the Windows Start menu / installer (`productName`). See AGENTS.md.
@@ -218,6 +237,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-24 | Native messaging between the extension and the app (owner-approved incl. the macOS browser code-signature check): fixed extension ID from a manifest `key` (private key outside the repo), `mimatory` as its own native host relaying over a 0600 Unix socket / per-user pipe, peer = our executable (+ signed browser parent on macOS), host manifests registered at startup, popup/Settings show the native state, HTTP + pairing only as fallback | AGENTS.md "Extension connection" |
 | 2026-10-24 | One-click sign-in float in the extension (top-centre pill, most recently used login, list below the pill, 解锁密码库存 while locked, × / Escape per tab, never-on-this-site, popup switch) + bridge `POST /match` (summaries, cached icon, no secrets) and `POST /unlock`; the field menu reads `/match` and fetches `/fill` with `item_id` only on a pick; `content.js` runs in all frames (iframe forms report to the top frame). **Unverified**: never run against the real app or in an everyday browser profile — proven only in apt Chromium 156 (headless=new, unpacked extension) against a mock bridge and local test pages (39 checks; screenshots light/dark); `cargo check --tests` on Linux only, the Rust tests were not run (link OOMs); `/unlock` raising the window on macOS/Windows never seen | `AGENTS.md` One-click sign-in float |
 | 2026-10-24 | Rust-built UI localized en/zh/ja (`native_i18n.rs`): tray menu + tooltip, macOS menu bar, `.1pux` picker, Touch ID reason; follows the in-app language via `set_native_locale`, OS locale until the first report. Never seen in a running app (Linux `cargo check --tests` only) | `AGENTS.md` Chinese name |
 | 2026-10-23 | Renamed Passless → Mimatory everywhere (owner: "名称以后都统一成mimatory，不再使用passless"); identifier `app.mimatory.desktop`; one-time copy of the old vault + webview profile, localStorage key rename, extension token move | `AGENTS.md` The Passless → Mimatory rename |
