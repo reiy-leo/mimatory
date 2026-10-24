@@ -228,17 +228,19 @@ pub const BRIDGE_PATHS: &[&str] = &[
 /// (`native_ipc`) after the peer check. `body` is the extension's JSON, the page's `origin` in it
 /// put there by the extension's background from `sender.origin` — never by the page.
 pub fn handle_request(session: &SharedSession, app: &AppHandle, path: &str, body: &str) -> BridgeReply {
-    let mut writes = matches!(path, "/save" | "/passkey-event" | "/passkey/create" | "/passkey/get");
+    let writes = matches!(path, "/save" | "/passkey-event" | "/passkey/create" | "/passkey/get");
     let reply = match path {
         "/fill" => match serde_json::from_str::<FillRequest>(body) {
-            Ok(input) => {
-                // A pick counts as a use (it orders the next float), so the window re-lists.
-                writes = input.item_id.is_some();
-                match list_matches(session, &input.origin, input.item_id.as_deref()) {
+            Ok(input) => match input.item_id.as_deref() {
+                Some(item_id) => match picked_match(session, app, &input.origin, item_id) {
                     Ok(items) => BridgeReply::ok(&items),
                     Err(error) => BridgeReply::error(423, error),
-                }
-            }
+                },
+                None => match list_matches(session, &input.origin) {
+                    Ok(items) => BridgeReply::ok(&items),
+                    Err(error) => BridgeReply::error(423, error),
+                },
+            },
             Err(error) => BridgeReply::error(400, error.to_string()),
         },
         "/match" => match serde_json::from_str::<MatchRequest>(body) {
@@ -516,25 +518,48 @@ fn tokens_match(provided: &str, expected: &str) -> bool {
         == 0
 }
 
-fn list_matches(
+fn list_matches(session: &SharedSession, origin: &str) -> Result<Vec<BridgeMatch>, String> {
+    let session = current_session(session)?;
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let service = VaultService::new(connection);
+    let items = service
+        .list_login_items_for_origin_everywhere(&session, origin)
+        .map_err(|error| error.to_string())?;
+    Ok(items.into_iter().map(BridgeMatch::from).collect())
+}
+
+/// `/fill` with `item_id` (2026-10-24, the pick path the field menu and the float wait on): reads and
+/// decrypts that one item only, still under the page's origin rules (an id from another site finds
+/// nothing). The pick counts as a use — it orders the next float — but recording it is a write that
+/// can wait on the window's own connection (busy timeout 5s), so it runs on its own thread after the
+/// answer is on its way; the window re-lists once it is written.
+fn picked_match(
     session: &SharedSession,
+    app: &AppHandle,
     origin: &str,
-    item_id: Option<&str>,
+    item_id: &str,
 ) -> Result<Vec<BridgeMatch>, String> {
     let session = current_session(session)?;
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
-    let mut service = VaultService::new(connection);
-    let mut items = service
-        .list_login_items_for_origin_everywhere(&session, origin)
-        .map_err(|error| error.to_string())?;
-    if let Some(item_id) = item_id {
-        // Still the origin's own matches: an id from another site finds nothing.
-        items.retain(|item| item.id == item_id);
-        for item in &items {
-            let _ = service.record_item_use(&session.for_vault(&item.vault_id), &item.id);
+    let service = VaultService::new(connection);
+    let Some(item) = service
+        .login_item_for_origin_everywhere(&session, origin, item_id)
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(Vec::new());
+    };
+    let vault = session.for_vault(&item.vault_id);
+    let used = item.id.clone();
+    let app = app.clone();
+    thread::spawn(move || {
+        let Ok(connection) = storage::open_default_database() else {
+            return;
+        };
+        if VaultService::new(connection).record_item_use(&vault, &used).is_ok() {
+            let _ = app.emit("vault:changed", ());
         }
-    }
-    Ok(items.into_iter().map(BridgeMatch::from).collect())
+    });
+    Ok(vec![BridgeMatch::from(item)])
 }
 
 /// The same matches as `/fill` (same origin rules, "never" addresses excluded), as summaries.

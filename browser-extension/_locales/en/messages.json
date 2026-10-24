@@ -9,8 +9,20 @@
 	"extensionName": {
 		"message": "Mimatory Autofill"
 	},
+	"fillErrorFailed": {
+		"message": "Couldn’t fill this login."
+	},
+	"fillErrorLocked": {
+		"message": "Mimatory is locked. Unlock it, then try again."
+	},
+	"fillErrorTimeout": {
+		"message": "Mimatory didn’t answer in time. Try again."
+	},
 	"filledPage": {
 		"message": "Filled the login on this page."
+	},
+	"fillLoading": {
+		"message": "Filling password…"
 	},
 	"fillPage": {
 		"message": "Fill Current Page"
@@ -35,6 +47,9 @@
 	},
 	"floatSignIn": {
 		"message": "Sign In"
+	},
+	"floatSigningIn": {
+		"message": "Signing In…"
 	},
 	"floatUnlock": {
 		"message": "Unlock Mimatory"

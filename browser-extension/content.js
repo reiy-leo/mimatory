@@ -105,9 +105,34 @@ async function fetchSummaries() {
 
 // The one item the user picked, password included. /fill still applies the page's origin rules.
 async function fetchItem(itemId) {
-  const answer = await bridge('/fill', { item_id: itemId })
+  return (await fetchPicked(itemId)).item
+}
+
+/* The same, with why it failed: `{ item, status }` — 423 locked, 503 app not running, 0 no answer within
+   PICK_TIMEOUT_MS (the worker's own native timeout is longer). Never throws. */
+const PICK_TIMEOUT_MS = 10000
+async function fetchPicked(itemId) {
+  let timer = 0
+  const timeout = new Promise((resolve) => {
+    timer = window.setTimeout(() => resolve({ data: null, ok: false, status: 0 }), PICK_TIMEOUT_MS)
+  })
+  const answer = await Promise.race([
+    bridge('/fill', { item_id: itemId }).catch(() => ({ data: null, ok: false, status: 0 })),
+    timeout,
+  ])
+  window.clearTimeout(timer)
   matchesCache = null
-  return answer.ok && Array.isArray(answer.data) ? answer.data.find((item) => item.id === itemId) || null : null
+  const item = answer.ok && Array.isArray(answer.data) ? answer.data.find((match) => match.id === itemId) || null : null
+  return { item, status: item ? 200 : answer.ok ? 404 : answer.status }
+}
+
+/* Asks the worker to have the native host running and connected to the app before the user picks — starting
+   the host (the app's own binary) and the app's caller checks happen once per connection, not on the pick. */
+let warmedAt = 0
+function warmBridge() {
+  if (Date.now() - warmedAt < 20000) return
+  warmedAt = Date.now()
+  chrome.runtime.sendMessage({ type: 'MIMATORY_WARM' }).catch(() => {})
 }
 
 /* The words a provider's button carries on most sites ("Sign in with Google", "Continue with Apple",
@@ -329,18 +354,31 @@ function el(tag, attributes = {}, children = []) {
 
 /* ── Inline fill menu (owner, 2026-10-18: "like 1Password") ──────────────────────────────────────────────
    Focusing or clicking a sign-in field on a site Mimatory has logins for opens a small menu under the field
-   with those logins. Picking one fills the username and password and presses the page's own Next / Sign in.
-   On an identifier-first page the item stays pending for a minute, so the password step that follows is
-   filled and submitted as well. A "Sign in with…" login only points at the provider's button, as before.
+   with those logins. Picking one fills — and, like 1Password's field menu, never submits (2026-10-24; submitting
+   is the one-click float's job). The username is known from the summary and filled at once; the password field
+   shows a spinner while the password crosses, and an inline note says why if it cannot (locked, no answer).
+   On an identifier-first page the username is filled and the item stays pending for a minute: when the password
+   step's field gets focus it is filled, still without submitting. A "Sign in with…" login only points at the
+   provider's button, as before.
    The menu lives in a closed shadow root: the site's CSS cannot restyle it and its scripts cannot read it. */
 
 const PENDING_KEY = 'mimatory-pending-step'
 const PENDING_TTL_MS = 60 * 1000
 
-function rememberPendingStep(itemId) {
+/* `mode` 'submit' (the float's 登录: the password step is filled and submitted as soon as it shows) or 'fill'
+   (the field menu: the password step is filled when its field gets focus, and never submitted). */
+function rememberPendingStep(itemId, mode = 'submit') {
   try {
-    sessionStorage.setItem(PENDING_KEY, JSON.stringify({ at: Date.now(), itemId }))
+    sessionStorage.setItem(PENDING_KEY, JSON.stringify({ at: Date.now(), itemId, mode }))
   } catch {}
+}
+
+function pendingStepMode() {
+  try {
+    return JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null')?.mode || 'submit'
+  } catch {
+    return 'submit'
+  }
 }
 
 function clearPendingStep() {
@@ -465,9 +503,140 @@ async function pickItem(item) {
     if (button) highlightProviderButton(button)
     return
   }
-  // The password crosses only now, for the one login picked.
-  const full = await fetchItem(item.id).catch(() => null)
-  if (full) fillLogin(full, { submit: true })
+  const login = findLoginForm()
+  if (!login) return
+  // Known already: the username goes in now, before the password is even asked for.
+  suppressMenuUntil = Date.now() + 1500
+  if (login.username && item.username) setFieldValue(login.username, item.username)
+  if (!item.has_password) return
+  if (!login.password) {
+    // Identifier-first: the password step comes after the page's own Next, which the user presses.
+    rememberPendingStep(item.id, 'fill')
+    return
+  }
+  await fillPasswordField(login.password, item.id)
+}
+
+/* The password crosses only now, for the one login picked, with a spinner on its field meanwhile. A value the
+   user typed in the meantime is left alone. */
+async function fillPasswordField(field, itemId) {
+  const before = field.value
+  const busy = fieldSpinner(field)
+  const { item, status } = await fetchPicked(itemId)
+  busy.stop()
+  if (!item) {
+    fillToast(field, fillErrorText(status))
+    return false
+  }
+  if (!field.isConnected || field.value !== before) return false
+  suppressMenuUntil = Date.now() + 1500
+  setFieldValue(field, item.password || '')
+  const username = findLoginForm()?.username?.value || item.username || ''
+  lastFilled = { password: item.password || '', username }
+  return true
+}
+
+/* The menu's pending identifier-first step: focus on the password step's field fills it (no submit). */
+function fillPendingPassword(field) {
+  if (field.type !== 'password' || field.value) return false
+  const itemId = pendingStepItemId()
+  if (!itemId || pendingStepMode() !== 'fill') return false
+  clearPendingStep()
+  closeMenu()
+  fillPasswordField(field, itemId)
+  return true
+}
+
+function fillErrorText(status) {
+  if (status === 423) return msg('fillErrorLocked')
+  if (status === 503) return msg('statusAppNotRunning')
+  if (status === 0) return msg('fillErrorTimeout')
+  return msg('fillErrorFailed')
+}
+
+/* ── Fill feedback: a spinner at the trailing edge of the field being filled, and a short note under it when
+   the fill failed. Closed shadow roots on zero-size fixed hosts, like the menu: the page cannot read, restyle or
+   click them, and nothing reflows. */
+const FEEDBACK_STYLE = `
+  :host { all: initial; }
+  .chip, .toast {${MENU_TOKENS}
+    position: fixed; z-index: 2147483647; box-sizing: border-box;
+    font: 12px/15px -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", sans-serif;
+    color: var(--text); -webkit-font-smoothing: antialiased; pointer-events: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    .chip, .toast {${MENU_TOKENS_DARK}
+    }
+  }
+  .chip { width: 22px; height: 22px; border-radius: 11px; display: grid; place-items: center;
+    background: var(--surface); box-shadow: 0 0 0 0.5px var(--border), 0 1px 3px #0000001f; }
+  .spinner { width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box;
+    border: 2px solid var(--border); border-top-color: var(--accent); animation: spin 700ms linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .spinner { animation: pulse 1.4s ease-in-out infinite alternate; border-color: var(--accent); }
+    @keyframes pulse { from { opacity: 0.35; } }
+  }
+  .toast { display: flex; gap: 6px; align-items: center; max-width: 320px; padding: 6px 10px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow);
+    animation: toast-in 160ms cubic-bezier(0.25, 0.1, 0.25, 1); }
+  .toast svg { flex: none; width: 14px; height: 14px; color: var(--danger); }
+  .toast { --danger: #d70015; }
+  @media (prefers-color-scheme: dark) { .toast { --danger: #ff6961; } }
+  @keyframes toast-in { from { opacity: 0; translate: 0 -4px; } }
+  @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+`
+
+function feedbackHost(child) {
+  const host = el('div', { 'data-mimatory-feedback': '' })
+  const root = host.attachShadow({ mode: 'closed' })
+  root.append(el('style', { text: FEEDBACK_STYLE }), child)
+  document.documentElement.append(host)
+  return host
+}
+
+// Follows the field while it scrolls; returns `stop()`.
+function fieldSpinner(field) {
+  const chip = el('div', { 'aria-label': msg('fillLoading'), class: 'chip', role: 'status' }, [
+    el('span', { 'aria-hidden': 'true', class: 'spinner' }),
+  ])
+  const host = feedbackHost(chip)
+  const place = () => {
+    const rect = field.getBoundingClientRect()
+    chip.style.left = `${Math.round(rect.right - 22 - Math.min(8, rect.width / 8))}px`
+    chip.style.top = `${Math.round(rect.top + (rect.height - 22) / 2)}px`
+  }
+  place()
+  window.addEventListener('scroll', place, true)
+  window.addEventListener('resize', place)
+  return {
+    stop() {
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+      host.remove()
+    },
+  }
+}
+
+const ICON_ALERT =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>'
+
+let toastHost = null
+// Under the field (or `rect`), for a few seconds.
+function fillToast(anchor, text) {
+  toastHost?.remove()
+  const toast = el('div', { class: 'toast', role: 'alert' })
+  toast.innerHTML = ICON_ALERT
+  toast.append(el('span', { text }))
+  const host = feedbackHost(toast)
+  toastHost = host
+  const rect = anchor instanceof Element ? anchor.getBoundingClientRect() : anchor
+  toast.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - toast.offsetWidth - 8))}px`
+  toast.style.top = `${Math.round(rect.bottom + 6)}px`
+  window.setTimeout(() => {
+    host.remove()
+    if (toastHost === host) toastHost = null
+  }, 4000)
 }
 
 async function openMenu(field) {
@@ -518,9 +687,12 @@ document.addEventListener(
   (event) => {
     if (event.target === menuHost || event.target === floatHost) return
     if (isLoginField(event.target)) {
-      // The user is signing in by hand: the float steps aside for the field menu.
-      hideFloat()
+      // The user is signing in by hand: the float steps aside for the field menu. (Not when the focus is the
+      // float's own sign-in filling the username: its spinner stays until the password is in.)
+      if (!floatPicking) hideFloat()
       reportFrameLogin(false)
+      warmBridge()
+      if (fillPendingPassword(event.target)) return
       openMenu(event.target)
     } else closeMenu()
   },
@@ -579,6 +751,8 @@ async function continuePendingStep() {
     pendingObserver?.disconnect()
     return
   }
+  // The field menu's pending step waits for the user to focus the password field (focusin below).
+  if (pendingStepMode() !== 'submit') return
   const login = findLoginForm()
   if (!login?.password) return
   continuing = true
@@ -605,8 +779,10 @@ if (pendingStepItemId()) {
   continuePendingStep()
 }
 
-// A sign-in field the page focused on load gets its menu too.
-if (isLoginField(document.activeElement)) openMenu(document.activeElement)
+// A sign-in field the page focused on load gets its menu too (or, on a pending password step, its password).
+if (isLoginField(document.activeElement) && !fillPendingPassword(document.activeElement)) {
+  openMenu(document.activeElement)
+}
 
 /* ── Passkeys (owner 2026-10-18: "完整passkey支持") ───────────────────────────────────────────────────────
    passkey-provider.js hands the page's navigator.credentials.create() / .get() here. Mimatory answers only
@@ -939,6 +1115,15 @@ const FLOAT_STYLE = `
   button:hover { background: var(--hover); }
   button:disabled { opacity: 0.5; }
   button:disabled:hover { background: transparent; }
+  .action.is-busy:disabled { opacity: 1; display: inline-flex; align-items: center; gap: 6px; }
+  .spinner { width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box; flex: none;
+    border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent);
+    animation: mimatory-spin 700ms linear infinite; }
+  @keyframes mimatory-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .spinner { animation: mimatory-pulse 1.4s ease-in-out infinite alternate; border-color: var(--accent); }
+    @keyframes mimatory-pulse { from { opacity: 0.35; } }
+  }
   button:focus-visible { outline: 3px solid var(--accent); outline-offset: 0; }
   .action { min-height: 32px; padding: 0 12px; border-radius: 16px; color: var(--accent); font-weight: 600;
     white-space: nowrap; }
@@ -963,6 +1148,8 @@ let floatScanTimer = 0
 let floatScanUntil = 0
 let floatPoll = null
 let floatLastHref = location.href
+// The float's sign-in is in flight (its spinner shows until the page is filled).
+let floatPicking = false
 // The page asked for this item by URL (Open & Fill): no float competes with it.
 const floatSuppressed = Boolean(openAndFillItemId)
 // Frames with a sign-in form, by frameId (top frame only).
@@ -1035,23 +1222,30 @@ function frameSource(frameId, origin) {
     frameId,
     match: async () => (await call({ call: 'match' })) || { items: [], status: 0 },
     origin,
-    pick: async (item) => Boolean(await call({ call: 'pick', itemId: item.id })),
+    pick: async (item) => (await call({ call: 'pick', itemId: item.id })) || { ok: false, status: 0 },
   }
 }
 
-/* Picking a login, wherever its form is: the password is fetched for this one item now, then filled and the page's
-   own button pressed. A "Sign in with…" login clicks the provider's button — here the user pressed a button that
-   says "使用 Google 登录", unlike the field menu, which only points at it. */
+/* Picking a login, wherever its form is: the username (known from the summary) goes in at once, the password is
+   fetched for this one item, then filled and the page's own button pressed. A "Sign in with…" login clicks the
+   provider's button — here the user pressed a button that says "使用 Google 登录", unlike the field menu, which
+   only points at it. Answers `{ ok, status }` (status as `fetchPicked`), so the float can say why it failed. */
 async function signInWith(item) {
   if (item.sign_in_with) {
     const button = findProviderButton(item.sign_in_with)
-    if (!button) return false
+    if (!button) return { ok: false, status: 404 }
     highlightProviderButton(button)
     button.click()
-    return true
+    return { ok: true, status: 200 }
   }
-  const full = await fetchItem(item.id).catch(() => null)
-  return full ? fillLogin(full, { submit: true }) : false
+  const login = findLoginForm()
+  if (login?.username && item.username) {
+    suppressMenuUntil = Date.now() + 1500
+    setFieldValue(login.username, item.username)
+  }
+  const { item: full, status } = await fetchPicked(item.id)
+  if (!full) return { ok: false, status }
+  return { ok: fillLogin(full, { submit: true }), status: 200 }
 }
 
 function providerLabel(provider) {
@@ -1125,11 +1319,30 @@ function actionLabel(item) {
   return item.sign_in_with ? msg('signInWithProvider', [providerLabel(item.sign_in_with)]) : msg('floatSignIn')
 }
 
-async function pickFromFloat(source, item) {
-  // Picked: the float is done on this site for this tab, whether or not the page lets the sign-in through.
+/* Picked: the float is done on this site for this tab, whether or not the page lets the sign-in through. It stays
+   up only while the password crosses — its button turns into a spinner with 正在登录… (the username is already in)
+   — and leaves the moment the page is filled; a failure is said in a note under it instead of silence. */
+async function pickFromFloat(source, item, button) {
   dismissFloatFor(source.origin)
-  hideFloat()
-  await source.pick(item)
+  const view = floatView
+  if (view && !item.sign_in_with) {
+    view.card.classList.add('is-busy')
+    for (const control of view.card.querySelectorAll('button')) control.disabled = true
+    const target = button?.classList.contains('action') ? button : view.card.querySelector('.action')
+    if (target) {
+      target.disabled = true
+      target.classList.add('is-busy')
+      target.replaceChildren(el('span', { 'aria-hidden': 'true', class: 'spinner' }), msg('floatSigningIn'))
+    }
+  }
+  const anchor = view?.card.getBoundingClientRect()
+  floatPicking = true
+  const result = await source.pick(item).catch(() => null)
+  floatPicking = false
+  if (floatView === view) hideFloat()
+  if (!result?.ok && anchor && !item.sign_in_with) {
+    fillToast({ bottom: anchor.bottom, left: anchor.left + 6 }, fillErrorText(result?.status ?? 0))
+  }
 }
 
 function showAccounts(source, items) {
@@ -1153,7 +1366,7 @@ function showAccounts(source, items) {
   const accountRows = () =>
     others.map((item) => {
       const title = item.title || location.hostname
-      const row = floatButton('row', '', '', () => pickFromFloat(source, item))
+      const row = floatButton('row', '', '', () => pickFromFloat(source, item, row))
       row.title = `${actionLabel(item)} · ${title}`
       row.append(
         siteBadge(item, title),
@@ -1179,7 +1392,7 @@ function showAccounts(source, items) {
     : null
   chevron?.setAttribute('aria-expanded', 'false')
   if (chevron) tools.push(chevron)
-  tools.push(floatButton('action', actionLabel(first), '', () => pickFromFloat(source, first)))
+  tools.push(floatButton('action', actionLabel(first), '', (button) => pickFromFloat(source, first, button)))
   const more = floatButton('icon-button', msg('floatMore'), ICON_ELLIPSIS, () => toggle('options'))
   more.setAttribute('aria-expanded', 'false')
   tools.push(more, closeButton())
@@ -1294,6 +1507,7 @@ async function scanForFloat() {
   floatScanTimer = 0
   if (floatSuppressed) return
   const login = findLoginForm()
+  if (login) warmBridge()
   if (!IS_TOP) {
     reportFrameLogin(Boolean(login) && !signInBusy())
     return
@@ -1370,7 +1584,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.present && sameSite(message.origin)) frameLogins.set(message.frameId, message.origin)
     else {
       frameLogins.delete(message.frameId)
-      if (floatView?.source.frameId === message.frameId) hideFloat()
+      if (floatView?.source.frameId === message.frameId && !floatPicking) hideFloat()
     }
     if (message.present) scheduleFloatScan(0)
     return false
@@ -1382,7 +1596,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         : message.call === 'pick' && typeof message.itemId === 'string'
           ? cachedMatches().then((items) => {
               const item = items.find((match) => match.id === message.itemId)
-              return item ? signInWith(item) : false
+              return item ? signInWith(item) : { ok: false, status: 404 }
             })
           : Promise.resolve(null)
     work.then(sendResponse, () => sendResponse(null))

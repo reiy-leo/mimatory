@@ -1293,6 +1293,43 @@ impl VaultService {
         Ok(matches)
     }
 
+    /// The one login the user picked in the extension (`/fill` with `item_id`, 2026-10-24): only that
+    /// item is read and decrypted — not every login of every open vault, which is what made a pick wait
+    /// on large vaults — and only if it is live in an open vault and one of its addresses covers this
+    /// page under its own autofill behaviour (the rule of `list_login_items_for_origin`), so an id from
+    /// another site still finds nothing.
+    pub fn login_item_for_origin_everywhere(
+        &self,
+        session: &Session,
+        origin: &str,
+        item_id: &str,
+    ) -> Result<Option<LoginItem>, VaultError> {
+        let Some(page) = site_match::parse_site(origin) else {
+            return Ok(None);
+        };
+        let vault_id = self
+            .connection
+            .query_row(
+                "SELECT vault_id FROM items WHERE id = ?1 AND archived = 0 AND trashed = 0",
+                [item_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        let Some(vault_id) = vault_id else {
+            return Ok(None);
+        };
+        if !self.open_vault_ids()?.contains(&vault_id) {
+            return Ok(None);
+        }
+        let Some(item) = self.get_login_item(&session.for_vault(&vault_id), item_id)? else {
+            return Ok(None);
+        };
+        let covers = normalized_urls(&item.website, &item.urls)
+            .iter()
+            .any(|url| site_match::address_matches(&url.url, &url.match_type, &page));
+        Ok(covers.then_some(item))
+    }
+
     /// The login a save from this page updates, wherever it lives, with the session of its vault.
     pub fn find_site_login_everywhere(
         &self,
@@ -1790,13 +1827,8 @@ impl VaultService {
         Ok(())
     }
 
-    /// The live items without their links — what the bridge, Watchtower and the migrations read,
-    /// none of which has any use for other items' titles.
-    fn list_live_items(
-        &self,
-        session: &Session,
-        query: Option<&str>,
-    ) -> Result<Vec<LoginItem>, VaultError> {
+    /// The live items' ids, most recently edited first — the order every live list keeps.
+    fn live_item_ids(&self, session: &Session) -> Result<Vec<String>, VaultError> {
         let mut statement = self.connection.prepare(
             "SELECT id FROM items
              WHERE vault_id = ?1 AND archived = 0 AND trashed = 0
@@ -1805,6 +1837,39 @@ impl VaultService {
         let ids = statement
             .query_map([&session.vault_id], |row| row.get::<_, String>(0))?
             .collect::<Result<Vec<_>, _>>()?;
+        Ok(ids)
+    }
+
+    /// The live items one of whose addresses passes `covers`, in the live order. Only the addresses
+    /// are decrypted to decide (2026-10-24); the whole item — password, notes, fields — only for the
+    /// few that match, instead of every login in the vault on every page the extension asks about.
+    fn live_items_whose_address(
+        &self,
+        session: &Session,
+        covers: impl Fn(&ItemUrl) -> bool,
+    ) -> Result<Vec<LoginItem>, VaultError> {
+        let mut matches = Vec::new();
+        for id in self.live_item_ids(session)? {
+            let urls = self.login_urls(session, &id)?;
+            let website = urls.first().map(|url| url.url.clone()).unwrap_or_default();
+            if !normalized_urls(&website, &urls).iter().any(&covers) {
+                continue;
+            }
+            if let Some(item) = self.get_login_item(session, &id)? {
+                matches.push(item);
+            }
+        }
+        Ok(matches)
+    }
+
+    /// The live items without their links — what the bridge, Watchtower and the migrations read,
+    /// none of which has any use for other items' titles.
+    fn list_live_items(
+        &self,
+        session: &Session,
+        query: Option<&str>,
+    ) -> Result<Vec<LoginItem>, VaultError> {
+        let ids = self.live_item_ids(session)?;
 
         let query = query
             .map(|value| value.trim().to_lowercase())
@@ -1841,16 +1906,9 @@ impl VaultService {
         let Some(page) = site_match::parse_site(origin) else {
             return Ok(Vec::new());
         };
-        let mut matches = Vec::new();
-        for item in self.list_live_items(session, None)? {
-            if normalized_urls(&item.website, &item.urls)
-                .iter()
-                .any(|url| site_match::address_matches(&url.url, &url.match_type, &page))
-            {
-                matches.push(item);
-            }
-        }
-        Ok(matches)
+        self.live_items_whose_address(session, |url| {
+            site_match::address_matches(&url.url, &url.match_type, &page)
+        })
     }
 
     /// The items a login saved from this page could be an update of: any address on the same site,
@@ -1864,15 +1922,9 @@ impl VaultService {
         let Some(page) = site_match::parse_site(origin) else {
             return Ok(Vec::new());
         };
-        let mut matches = Vec::new();
-        for item in self.list_live_items(session, None)? {
-            if normalized_urls(&item.website, &item.urls).iter().any(|url| {
-                site_match::address_matches(&url.url, site_match::MODE_DOMAIN, &page)
-            }) {
-                matches.push(item);
-            }
-        }
-        Ok(matches)
+        self.live_items_whose_address(session, |url| {
+            site_match::address_matches(&url.url, site_match::MODE_DOMAIN, &page)
+        })
     }
 
     pub fn watchtower_report(&self, session: &Session) -> Result<WatchtowerReport, VaultError> {
@@ -4234,12 +4286,31 @@ mod tests {
         assert_eq!(saved.id, theirs.id);
         assert!(service.list_login_items(&personal, None).expect("personal").is_empty());
 
+        // A pick reads that one item, in whichever open vault holds it, and only on its own site.
+        let picked = service
+            .login_item_for_origin_everywhere(&personal, "https://example.com", &theirs.id)
+            .expect("pick")
+            .expect("found in work");
+        assert_eq!((picked.vault_id.as_str(), picked.password.as_str()), (work_vault.id.as_str(), "secret"));
+        assert!(service
+            .login_item_for_origin_everywhere(&personal, "https://elsewhere.example.org", &theirs.id)
+            .expect("pick elsewhere")
+            .is_none());
+        assert!(service
+            .login_item_for_origin_everywhere(&personal, "https://example.com", "no-such-id")
+            .expect("unknown id")
+            .is_none());
+
         // An archived vault is out of reach.
         service.set_vault_archived(&personal, &work_vault.id, true).expect("archive work");
         assert!(service
             .list_login_items_for_origin_everywhere(&personal, "https://example.com")
             .expect("matches")
             .is_empty());
+        assert!(service
+            .login_item_for_origin_everywhere(&personal, "https://example.com", &theirs.id)
+            .expect("pick archived")
+            .is_none());
     }
 
     #[test]

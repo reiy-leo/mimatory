@@ -9,8 +9,20 @@
 	"extensionName": {
 		"message": "密码库存自动填充"
 	},
+	"fillErrorFailed": {
+		"message": "无法填充此登录信息。"
+	},
+	"fillErrorLocked": {
+		"message": "密码库存已锁定，解锁后再试。"
+	},
+	"fillErrorTimeout": {
+		"message": "密码库存没有及时响应，请再试一次。"
+	},
 	"filledPage": {
 		"message": "已填充此页面的登录信息。"
+	},
+	"fillLoading": {
+		"message": "正在填充密码…"
 	},
 	"fillPage": {
 		"message": "填充当前页面"
@@ -35,6 +47,9 @@
 	},
 	"floatSignIn": {
 		"message": "登录"
+	},
+	"floatSigningIn": {
+		"message": "正在登录…"
 	},
 	"floatUnlock": {
 		"message": "解锁密码库存"

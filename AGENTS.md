@@ -365,7 +365,19 @@ Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, id
   (2026-10-24): `/match` answers id, title, username, `sign_in_with`, `has_password`, last use and a cached icon —
   never a password, OTP seed, note or custom field (`a_match_summary_carries_nothing_secret`); the extension asks
   `/fill` with `item_id` only after the user picked that login with a trusted click. Keep it that way: anything that
-  merely *displays* logins reads `/match`.
+  merely *displays* logins reads `/match`. **The pick path is one item** (2026-10-24, Rei: "选了之后会有很长时间，
+  inputs中没有内容…突然就登录上了"): `/fill` with `item_id` reads and decrypts only that item
+  (`login_item_for_origin_everywhere`: live, in an open vault, one of its addresses covering the page — an id from
+  another site still finds nothing), and the use it records is written on its own thread after the answer (a write
+  can wait up to the 5s busy timeout behind the window's connection — measured 830ms behind one 800ms read). `/match`
+  and plain `/fill` decrypt only each item's **addresses** to decide (`live_items_whose_address`), the whole item
+  only for the matches.
+- **Every per-item query needs its index** (2026-10-24). `apply_schema` creates `item_fields_by_item`,
+  `item_urls_by_item`, `attachments_by_item`, `items_by_vault`, `item_tags_by_tag` (`IF NOT EXISTS`, no schema bump —
+  ids only, no data change). Before them every `get_login_item` scanned whole tables, so a list of N items was
+  O(N²): measured (scratch `work/vaultbench`, the real `vault.rs` by `#[path]`, debug build) /match 4.8s and /fill
+  pick 4.7s at 1,500 items; after, /match 0.22s and the pick 0.8ms. A new child table keyed by `item_id` gets its
+  index in the same change; `initialize_database_creates_vault_tables` checks the plan for `item_fields`.
 - **The TOTP seed rests masked**: `fieldValueInputProps` gives an `otp` input `type="password"` unless it is
   the focused field (`focusedOtpField` in `useVaultWindow.tsx`), so a saved key is legible only while being typed. Import
   runs the other way: the QR button in `OtpFieldActions` reads an image **off the clipboard**
@@ -420,6 +432,15 @@ as `{ id, status, data }` with the HTTP bridge's status codes (content.js reads 
   and `HKCU\Software\{Google\Chrome, Microsoft\Edge, BraveSoftware\Brave-Browser, Chromium, Mozilla}\NativeMessagingHosts\app.mimatory.native`.
   Settings ▸ Browser Extension shows the registered browsers, whether a host is connected and the ID
   (`browser_connection_status`); the pairing code moved under "Pairing Code (Fallback)".
+- **Warm-up** (2026-10-24): a content script that sees a sign-in form (scan) or a focused login field sends
+  `MIMATORY_WARM`; `background.js` opens the port and sends one `/health` unless the port already answered. The
+  first request on a port pays for starting the host (the app's own binary — under `tauri dev` the large debug
+  build), its socket connect and the app's caller checks (same executable; on macOS `SecCodeCheckValidity` of the
+  browser) — once per connection (`verify_client` runs at accept, never per request), so the warm-up takes it off
+  the user's pick. The open port keeps the MV3 worker alive (Chrome ≥ 105); a worker restart re-warms on the next
+  form. Stand-in measurement on Linux (8 MB host): 2ms cold vs 0.2ms warm — the Mac's cold cost (big binary +
+  signature check) was not measurable here. `work/nmcheck/warm-check.mjs` proves a form page sends `/health` with no
+  `/match` and the menu's `/match` rides the same host process.
 - **Fallback, this release only**: when `connectNative` cannot start a host at all (an older app, an unregistered
   browser) `background.js` uses the HTTP bridge + token as before, and only then does the popup show the pairing
   field. A native `403`/`503` does not fall back. Removing 17891 is a `needs-owner-decision` in `.agent/todo.md`.
@@ -799,6 +820,15 @@ as `{ id, status, data }` with the HTTP bridge's status codes (content.js reads 
   isolated world cannot see the page's `navigator.credentials` calls — the old observer there never fired. Mimatory
   stores metadata only; the private key stays with the platform authenticator.
 
+- **Field menu fills, the float signs in** (2026-10-24, as 1Password: its inline menu never submits). Picking in the
+  field menu fills the username from the `/match` summary at once, puts a spinner chip at the password field's
+  trailing edge (closed shadow root, `[data-mimatory-feedback]`), fills the password when `/fill` answers and **does
+  not submit**; a value the user typed meanwhile is left alone. No answer in 10s (`PICK_TIMEOUT_MS`), `423`, `503` or
+  a missing item → a short note under the field (`fillErrorLocked` / `fillErrorTimeout` / `statusAppNotRunning` /
+  `fillErrorFailed`), never silence. Identifier-first: the username is filled and the item stays pending for a
+  minute in mode `fill` (`rememberPendingStep(id, 'fill')`); the user presses Next, and focus on the password step's
+  field fills it (spinner, no submit) instead of opening the menu. The float's pending mode stays `submit` (the
+  password step is filled and submitted as soon as it shows). Old pending entries without a mode read as `submit`.
 - **One-click sign-in float** (owner 2026-10-24, 1Password's sign-in pill; `content.js`, last section). A pill at the
   **top centre** of the viewport (closed shadow root, `z-index` max, `position: fixed` on a zero-size host so the
   page never reflows) offers the **most recently used** login (`/match` order; a pick through `/fill` with
@@ -820,6 +850,10 @@ as `{ id, status, data }` with the HTTP bridge's status codes (content.js reads 
   is ignored (`sameSite`, a PSL-less heuristic: same host, or same last two labels, three under `co.uk`-style
   suffixes). The popup's Fill, Open & Fill and the passkey handler answer in the top frame only, as before.
   Tokens are the field menu's (`MENU_TOKENS` / `MENU_TOKENS_DARK`), following `prefers-color-scheme`.
+  **Feedback on 登录** (2026-10-24): the username goes in at once, the action turns into a spinner + 正在登录… (every
+  control disabled) until the page is filled and submitted, then the float leaves; a failure shows the same note as
+  the field menu under where the float was. `floatPicking` keeps the float's own username fill (a focus in a login
+  field, or the frame's "no form now" report) from hiding it mid-sign-in. A frame's pick answers `{ ok, status }`.
 
 ## Testing and verification
 

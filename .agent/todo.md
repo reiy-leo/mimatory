@@ -187,6 +187,13 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 
 ## Never yet seen in a running app
 
+- **Fill latency + feedback (2026-10-24)**: index/one-item `/fill`/off-path use recording measured only in the
+  scratch `work/vaultbench` (Linux, debug build of the real `vault.rs`), the warm-up and the menu/float feedback
+  only in apt Chromium (`work/pwt/signin-float` with a 1.5s artificial `/fill` delay, `work/nmcheck/warm-check.mjs`).
+  On Rei's Mac (Chrome, `tauri dev`): how long the first host start + `SecCodeCheckValidity` really takes, that the
+  warm-up hides it, the pick feeling instant with his real vault size, the spinner chip on real sites' password
+  fields (padding, RTL, fields inside scrolling containers), identifier-first fill-on-focus on Google/Microsoft.
+
 - **The localized app name (2026-10-24)**: 密码库存 in Finder/Dock/menu bar on a zh-Hans Mac (packaged build only),
   the zh `.desktop` name in a Hyprland launcher, and the main/settings windows retitling on a language switch.
 - **The Passless → Mimatory data migration (2026-10-23)** has only run in `cargo test` (temp dirs). Never seen:
@@ -237,6 +244,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-24 | Slow pick → instant: per-item indexes (O(N²) → O(N)), `/fill` item_id reads one item, `/match` decrypts addresses first, use recorded off the response path, native port warmed when a form shows; field menu fills only (username at once, spinner on the password field, inline error note), float keeps fill+submit with 正在登录… feedback | AGENTS.md "Vault security" (bridge, indexes), "Extension connection" (warm-up), "UI structure and its traps" (field menu / float) |
 | 2026-10-24 | Native messaging between the extension and the app (owner-approved incl. the macOS browser code-signature check): fixed extension ID from a manifest `key` (private key outside the repo), `mimatory` as its own native host relaying over a 0600 Unix socket / per-user pipe, peer = our executable (+ signed browser parent on macOS), host manifests registered at startup, popup/Settings show the native state, HTTP + pairing only as fallback | AGENTS.md "Extension connection" |
 | 2026-10-24 | One-click sign-in float in the extension (top-centre pill, most recently used login, list below the pill, 解锁密码库存 while locked, × / Escape per tab, never-on-this-site, popup switch) + bridge `POST /match` (summaries, cached icon, no secrets) and `POST /unlock`; the field menu reads `/match` and fetches `/fill` with `item_id` only on a pick; `content.js` runs in all frames (iframe forms report to the top frame). **Unverified**: never run against the real app or in an everyday browser profile — proven only in apt Chromium 156 (headless=new, unpacked extension) against a mock bridge and local test pages (39 checks; screenshots light/dark); `cargo check --tests` on Linux only, the Rust tests were not run (link OOMs); `/unlock` raising the window on macOS/Windows never seen | `AGENTS.md` One-click sign-in float |
 | 2026-10-24 | Rust-built UI localized en/zh/ja (`native_i18n.rs`): tray menu + tooltip, macOS menu bar, `.1pux` picker, Touch ID reason; follows the in-app language via `set_native_locale`, OS locale until the first report. Never seen in a running app (Linux `cargo check --tests` only) | `AGENTS.md` Chinese name |

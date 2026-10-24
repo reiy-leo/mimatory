@@ -9,8 +9,20 @@
 	"extensionName": {
 		"message": "Mimatory 自動入力"
 	},
+	"fillErrorFailed": {
+		"message": "このログイン情報を入力できませんでした。"
+	},
+	"fillErrorLocked": {
+		"message": "Mimatory はロックされています。ロックを解除してからもう一度お試しください。"
+	},
+	"fillErrorTimeout": {
+		"message": "Mimatory から応答がありません。もう一度お試しください。"
+	},
 	"filledPage": {
 		"message": "このページのログインを入力しました。"
+	},
+	"fillLoading": {
+		"message": "パスワードを入力しています…"
 	},
 	"fillPage": {
 		"message": "現在のページに入力"
@@ -35,6 +47,9 @@
 	},
 	"floatSignIn": {
 		"message": "サインイン"
+	},
+	"floatSigningIn": {
+		"message": "サインインしています…"
 	},
 	"floatUnlock": {
 		"message": "Mimatory のロックを解除"

@@ -54,7 +54,8 @@ function settleAll(answer) {
   pendingRequests.clear()
 }
 
-/* One persistent port while the worker lives (an open native port also keeps the worker alive); a disconnect —
+/* One persistent port while the worker lives (an open native port also keeps the worker alive, Chrome ≥ 105), opened
+   ahead of the first pick by `warmNative`; a disconnect —
    the host could not start, the app quit, the browser recycled it — fails what is in flight and the next call
    reconnects. */
 function openNativePort() {
@@ -131,6 +132,23 @@ async function bridgeRequest(path, body) {
   const answer = native ?? (await httpRequest(path, body))
   return { data: answer.data, ok: answer.status >= 200 && answer.status < 300, status: answer.status }
 }
+
+/* Warm-up (2026-10-24): a content script that sees a sign-in form (or a focused login field) asks for the
+   native connection before the user picks anything. The first request on a new port pays for starting the host
+   — the app's own binary — plus its socket connect and the app's caller checks (same executable, on macOS the
+   browser's code signature), all once per connection; a /health now moves that off the pick. The open port then
+   keeps this worker alive, so later picks reuse it. Answers nothing to the page. */
+let warmUntil = 0
+function warmNative() {
+  if (nativePort?.answered || Date.now() < warmUntil) return
+  warmUntil = Date.now() + 5000
+  nativeRequest('/health', {}).catch(() => {})
+}
+
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (message?.type === 'MIMATORY_WARM' && sender.tab) warmNative()
+  return false
+})
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type !== 'MIMATORY_BRIDGE' || !BRIDGE_PATHS.has(message.path) || !sender.tab) return false
