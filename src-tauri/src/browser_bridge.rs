@@ -1,4 +1,6 @@
+use crate::favicon;
 use crate::passkey::{self, PASSKEY_CREDENTIAL_FIELD};
+use crate::site_match;
 use crate::storage;
 use crate::vault::{
     default_match_type, sign_in_provider_of, ItemUrl, LoginItem, LoginItemInput, LoginItemUpdate,
@@ -15,6 +17,16 @@ pub type SharedBridgeToken = Arc<Mutex<Option<String>>>;
 
 #[derive(Deserialize)]
 struct FillRequest {
+    origin: String,
+    /// The one item the user picked in the float or the field menu. Absent (an old caller, the
+    /// popup's Fill, Open & Fill) means every match for the page, as before.
+    #[serde(default)]
+    item_id: Option<String>,
+}
+
+/// `/match`: the page's logins as summaries, for the one-click float and the field menu.
+#[derive(Deserialize)]
+struct MatchRequest {
     origin: String,
 }
 
@@ -59,6 +71,72 @@ impl From<LoginItem> for BridgeMatch {
         item.custom_fields.retain(|field| field.field_type != PASSKEY_CREDENTIAL_FIELD);
         Self { item, sign_in_with }
     }
+}
+
+/// One login the extension may offer on a page, without anything secret in it: no password, no
+/// one-time-code seed, no notes, no custom field. The extension asks `/fill` for the item only once
+/// the user picked it (2026-10-24, the one-click sign-in float). `icon` is the site's icon from the
+/// app's encrypted cache when one is there (never fetched for this), else the letter badge.
+#[derive(Debug, Serialize)]
+struct MatchSummary {
+    id: String,
+    title: String,
+    username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sign_in_with: Option<String>,
+    /// Whether there is a password to fill at all (a passkey-only login has none): a yes/no, never
+    /// the value.
+    has_password: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_used_at: Option<String>,
+    use_count: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    icon: Option<String>,
+}
+
+impl MatchSummary {
+    fn from_item(item: &LoginItem, icon: Option<String>) -> Self {
+        Self {
+            id: item.id.clone(),
+            title: item.title.clone(),
+            username: item.username.clone(),
+            sign_in_with: sign_in_provider_of(item),
+            has_password: !item.password.is_empty(),
+            last_used_at: item.last_used_at.clone(),
+            use_count: item.use_count,
+            icon,
+        }
+    }
+}
+
+/// Most recently used first (the float shows the first one); never-used items keep the bridge's
+/// order (open vault first, then most recently edited) after them. Stored stamps are all
+/// `Utc::now().to_rfc3339()`, so they order as strings.
+fn order_by_recent_use(items: &mut [LoginItem]) {
+    items.sort_by(|a, b| match (&a.last_used_at, &b.last_used_at) {
+        (Some(a), Some(b)) => b.cmp(a),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => std::cmp::Ordering::Equal,
+    });
+}
+
+/// The host whose cached icon an item's tile shows: its first address, unless the user chose the
+/// letter tile — the same rule as `itemIconDomain` in the window.
+fn icon_domain(item: &LoginItem) -> Option<String> {
+    if item.icon_mode == "letter" {
+        return None;
+    }
+    let first = if item.website.trim().is_empty() {
+        item.urls.first().map(|url| url.url.as_str()).unwrap_or("")
+    } else {
+        item.website.as_str()
+    };
+    let site = site_match::parse_site(first)?;
+    if site.is_ip {
+        return None;
+    }
+    favicon::normalize_domain(&site.host).ok()
 }
 
 /// `navigator.credentials.create()` handed to Mimatory (all binary values base64url).
@@ -125,7 +203,8 @@ pub fn start_browser_bridge(session: SharedSession, bridge_token: SharedBridgeTo
         for mut request in server.incoming_requests() {
             let method = request.method().clone();
             let path = request.url().to_string();
-            let writes = matches!(path.as_str(), "/save" | "/passkey-event" | "/passkey/create" | "/passkey/get");
+            let mut writes =
+                matches!(path.as_str(), "/save" | "/passkey-event" | "/passkey/create" | "/passkey/get");
             let response = match (method, path.as_str()) {
                 (Method::Get, "/health") => json_response(&serde_json::json!({ "ok": true })),
                 (Method::Options, _) => empty_response(),
@@ -136,12 +215,43 @@ pub fn start_browser_bridge(session: SharedSession, bridge_token: SharedBridgeTo
                     }
                     let request_body = read_body(&mut request);
                     match serde_json::from_str::<FillRequest>(&request_body) {
-                        Ok(input) => match list_matches(&session, &input.origin) {
+                        Ok(input) => {
+                            // A pick counts as a use (it orders the next float), so the window re-lists.
+                            writes = input.item_id.is_some();
+                            match list_matches(&session, &input.origin, input.item_id.as_deref()) {
+                                Ok(items) => json_response(&items),
+                                Err(error) => error_response(StatusCode(423), error),
+                            }
+                        }
+                        Err(error) => error_response(StatusCode(400), error.to_string()),
+                    }
+                }
+                (Method::Post, "/match") => {
+                    if let Err(error) = authorize(&request, &bridge_token) {
+                        let _ = request.respond(error_response(StatusCode(401), error));
+                        continue;
+                    }
+                    let request_body = read_body(&mut request);
+                    match serde_json::from_str::<MatchRequest>(&request_body) {
+                        Ok(input) => match list_match_summaries(&session, &input.origin) {
                             Ok(items) => json_response(&items),
                             Err(error) => error_response(StatusCode(423), error),
                         },
                         Err(error) => error_response(StatusCode(400), error.to_string()),
                     }
+                }
+                // The float's "Unlock 密码库存": bring the main window (its lock screen) forward. The
+                // master password is only ever typed there, never in a page.
+                (Method::Post, "/unlock") => {
+                    if let Err(error) = authorize(&request, &bridge_token) {
+                        let _ = request.respond(error_response(StatusCode(401), error));
+                        continue;
+                    }
+                    let unlocked = current_session(&session).is_ok();
+                    if !unlocked {
+                        show_main_window(&app);
+                    }
+                    json_response(&serde_json::json!({ "unlocked": unlocked }))
                 }
                 (Method::Post, "/save") => {
                     if let Err(error) = authorize(&request, &bridge_token) {
@@ -357,14 +467,60 @@ fn tokens_match(provided: &str, expected: &str) -> bool {
         == 0
 }
 
-fn list_matches(session: &SharedSession, origin: &str) -> Result<Vec<BridgeMatch>, String> {
+fn list_matches(
+    session: &SharedSession,
+    origin: &str,
+    item_id: Option<&str>,
+) -> Result<Vec<BridgeMatch>, String> {
+    let session = current_session(session)?;
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let mut items = service
+        .list_login_items_for_origin_everywhere(&session, origin)
+        .map_err(|error| error.to_string())?;
+    if let Some(item_id) = item_id {
+        // Still the origin's own matches: an id from another site finds nothing.
+        items.retain(|item| item.id == item_id);
+        for item in &items {
+            let _ = service.record_item_use(&session.for_vault(&item.vault_id), &item.id);
+        }
+    }
+    Ok(items.into_iter().map(BridgeMatch::from).collect())
+}
+
+/// The same matches as `/fill` (same origin rules, "never" addresses excluded), as summaries.
+fn list_match_summaries(session: &SharedSession, origin: &str) -> Result<Vec<MatchSummary>, String> {
     let session = current_session(session)?;
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let service = VaultService::new(connection);
-    service
+    let mut items = service
         .list_login_items_for_origin_everywhere(&session, origin)
-        .map(|items| items.into_iter().map(BridgeMatch::from).collect())
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    order_by_recent_use(&mut items);
+    let domains = items.iter().filter_map(icon_domain).collect::<Vec<_>>();
+    // Cache only; a failure just means letter badges.
+    let icons = service.cached_site_icons(&session, &domains).unwrap_or_default();
+    Ok(items
+        .iter()
+        .map(|item| {
+            let icon = icon_domain(item)
+                .and_then(|domain| icons.get(&domain))
+                .and_then(|cached| cached.icon.clone());
+            MatchSummary::from_item(item, icon)
+        })
+        .collect())
+}
+
+fn show_main_window(app: &AppHandle) {
+    use tauri::Manager;
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let Some(window) = handle.get_webview_window("main") {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    });
 }
 
 fn save_login(session: &SharedSession, input: SaveRequest) -> Result<LoginItem, String> {
@@ -479,7 +635,7 @@ fn with_cors(response: Response<std::io::Cursor<Vec<u8>>>) -> Response<std::io::
 
 #[cfg(test)]
 mod tests {
-    use super::{tokens_match, BridgeMatch};
+    use super::{order_by_recent_use, tokens_match, BridgeMatch, MatchSummary};
     use crate::vault::{CustomField, LoginItem};
 
     fn item(fields: Vec<CustomField>) -> LoginItem {
@@ -516,6 +672,42 @@ mod tests {
 
         let plain = serde_json::to_value(BridgeMatch::from(item(vec![]))).unwrap();
         assert!(plain.get("sign_in_with").is_none());
+    }
+
+    #[test]
+    fn a_match_summary_carries_nothing_secret() {
+        let otp = CustomField { label: "otp".into(), value: "JBSWY3DPEHPK3PXP".into(), field_type: "otp".into() };
+        let mut login = item(vec![otp]);
+        login.password = "hunter2-secret".into();
+        login.notes = "the notes".into();
+        let json = serde_json::to_value(MatchSummary::from_item(&login, None)).unwrap();
+        let object = json.as_object().unwrap();
+        for key in ["password", "notes", "custom_fields", "urls", "totp", "relations"] {
+            assert!(!object.contains_key(key), "{key} must not cross /match");
+        }
+        let text = json.to_string();
+        assert!(!text.contains("hunter2-secret"));
+        assert!(!text.contains("JBSWY3DPEHPK3PXP"));
+        assert_eq!(json["title"], "Figma");
+        assert_eq!(json["username"], "rei@example.com");
+        assert_eq!(json["has_password"], true);
+        assert!(object.get("icon").is_none());
+    }
+
+    #[test]
+    fn matches_are_ordered_by_most_recent_use() {
+        let mut never = item(vec![]);
+        never.id = "never".into();
+        let mut old = item(vec![]);
+        old.id = "old".into();
+        old.last_used_at = Some("2026-01-01T00:00:00+00:00".into());
+        let mut new = item(vec![]);
+        new.id = "new".into();
+        new.last_used_at = Some("2026-10-01T00:00:00+00:00".into());
+        let mut items = vec![never, old, new];
+        order_by_recent_use(&mut items);
+        let ids = items.iter().map(|item| item.id.as_str()).collect::<Vec<_>>();
+        assert_eq!(ids, ["new", "old", "never"]);
     }
 
     #[test]
