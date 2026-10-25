@@ -83,6 +83,8 @@ struct ParsedItem {
     uuid: String,
     /// The 1Password uuid of the account this item signs in with (its `ssoLogin.item`).
     sign_in_ref: Option<String>,
+    /// 1Password uuids of this item's "Related Items" (fields whose value is `{"reference": …}`).
+    related_refs: Vec<String>,
     input: LoginItemInput,
     archived: bool,
     created_at: Option<i64>,
@@ -123,6 +125,7 @@ pub fn import(path: &Path, service: &mut VaultService, session: &Session) -> Res
     // item exists: an account can come after the item that signs in with it.
     let mut imported: HashMap<String, (String, String)> = HashMap::new();
     let mut sign_in_links: Vec<(String, String, String)> = Vec::new();
+    let mut related_links: Vec<(String, String, String)> = Vec::new();
     for vault in vaults {
         if vault.items.is_empty() {
             continue;
@@ -146,6 +149,9 @@ pub fn import(path: &Path, service: &mut VaultService, session: &Session) -> Res
             }
             if let Some(reference) = &item.sign_in_ref {
                 sign_in_links.push((vault_id.clone(), created.id.clone(), reference.clone()));
+            }
+            for reference in &item.related_refs {
+                related_links.push((vault_id.clone(), created.id.clone(), reference.clone()));
             }
             let mut files = Vec::new();
             for (entry, name) in &item.attachments {
@@ -179,6 +185,15 @@ pub fn import(path: &Path, service: &mut VaultService, session: &Session) -> Res
             continue;
         }
         let _ = service.set_item_sign_in(&session.for_vault(&vault_id), &item_id, Some(account_id));
+    }
+    // 1Password "Related Items" become peer links. Links stay inside one vault, so a related item
+    // 1Password keeps in another vault (or one left out of the export) is skipped.
+    for (vault_id, item_id, reference) in related_links {
+        let Some((other_vault, other_id)) = imported.get(&reference) else { continue };
+        if *other_vault != vault_id || *other_id == item_id {
+            continue;
+        }
+        let _ = service.link_related_items(&session.for_vault(&vault_id), &item_id, other_id);
     }
     Ok(summary)
 }
@@ -549,6 +564,7 @@ fn parse_item(item: &Value, zip_names: &[String]) -> Option<ParsedItem> {
     let mut ssh_public_key = String::new();
     let mut sign_in_field: Option<CustomField> = None;
     let mut sign_in_ref = None;
+    let mut related_refs: Vec<String> = Vec::new();
 
     if let Some(document) = details.get("documentAttributes") {
         let name = text(document, "fileName");
@@ -582,6 +598,18 @@ fn parse_item(item: &Value, zip_names: &[String]) -> Option<ParsedItem> {
                     if !reference.trim().is_empty() {
                         sign_in_ref = Some(reference);
                     }
+                }
+                continue;
+            }
+            // "Related Items": `{"reference": "<item uuid>"}` (older exports nest it as `{"itemUuid": …}`).
+            if let Some(reference) = value.get("reference") {
+                let uuid = match reference {
+                    Value::String(uuid) => uuid.clone(),
+                    other => text(other, "itemUuid"),
+                };
+                let uuid = uuid.trim().to_string();
+                if !uuid.is_empty() && !related_refs.contains(&uuid) {
+                    related_refs.push(uuid);
                 }
                 continue;
             }
@@ -652,6 +680,7 @@ fn parse_item(item: &Value, zip_names: &[String]) -> Option<ParsedItem> {
     Some(ParsedItem {
         uuid: text(item, "uuid"),
         sign_in_ref,
+        related_refs,
         input,
         archived: state == "archived",
         created_at: item.get("createdAt").and_then(Value::as_i64),
@@ -761,6 +790,22 @@ mod tests {
     fn unknown_categories_become_secure_notes() {
         let vaults = parse_export(&export(), &[]);
         assert_eq!(vaults[0].items[2].input.item_type, "secure_note");
+    }
+
+    #[test]
+    fn related_items_keep_their_references_and_add_no_field() {
+        let item = json!({
+            "uuid": "n", "categoryUuid": "003", "state": "active",
+            "overview": { "title": "Mail note" },
+            "details": { "sections": [{ "title": "Related Items", "name": "linked items", "fields": [
+                { "title": "", "id": "r1", "value": { "reference": "mail" } },
+                { "title": "", "id": "r2", "value": { "reference": { "itemUuid": "bank" } } },
+                { "title": "", "id": "r3", "value": { "reference": "mail" } }
+            ]}]}
+        });
+        let parsed = parse_item(&item, &[]).expect("a live item");
+        assert_eq!(parsed.related_refs, vec!["mail".to_string(), "bank".to_string()]);
+        assert!(parsed.input.custom_fields.is_empty());
     }
 
     #[test]
