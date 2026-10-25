@@ -337,3 +337,5 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
   against a mock bridge — screenshots in `work/screens/sync-ui/`), a real 坚果云/Nextcloud server. On a Mac check:
   connect 坚果云 with an app password, a second device asking for the remote master password, Sync Now after an edit
   on the other side, the Google button opening the browser and Cancel ending the wait.
+
+- [ ] Native-speaker review of es/pt/ru/de/fr/id strings; verify system_locales, menu bar and Touch ID prompt languages on a real Mac (2026-10-25).

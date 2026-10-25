@@ -253,7 +253,9 @@
     --measure-sidebar: 220px;
     --measure-item-list-min: 150px;
     --measure-window-min: 960px;
-    --measure-settings-nav: 200px;
+    /* Settings panes column: fits the longest pane name with its glyph (ru "Расширение браузера", fr
+       "Extension de navigateur"); the main sidebar's starting width. */
+    --measure-settings-nav: 220px;
     --measure-slider-min: 160px;
     --measure-resizer: 6px;
     --measure-item-list-default: 220px;
@@ -1346,7 +1348,7 @@
 
   .settings-tabs button {
     color: var(--color-text-subtle);
-    @apply flex min-h-400 items-center gap-100 rounded-medium px-100 text-left text-body font-semibold transition-colors hover:bg-background-neutral-subtle-hovered;
+    @apply flex min-h-400 min-w-0 items-center gap-100 rounded-medium px-100 text-left text-body font-semibold transition-colors hover:bg-background-neutral-subtle-hovered;
   }
 
   /* Each pane's glyph, like a source-list row (design.md › Sidebar): 16pt, the accent, fixed before the label. */

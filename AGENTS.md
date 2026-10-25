@@ -41,6 +41,22 @@ the binary, paths, `productName` and the bundle id stay `mimatory`/`Mimatory`. W
   `productName`. iOS/Android home-screen name: `src-tauri/gen/` is generated in CI, so an
   `InfoPlist.strings` / `values-zh/strings.xml` has to be injected after `tauri ios|android init` — not done yet.
 
+## Languages and adding a language
+
+UI languages: en, zh (Simplified), ja, es, pt (Brazilian; pt-PT and bare pt resolve to it), ru, de, fr, id.
+Default is "Follow System" (nothing stored in `mimatory-language`); a stored pick wins. The window resolves from
+`navigator.languages`, the app from the Rust command `system_locales` (WKWebView reports bundle localizations,
+not the user's order), re-checked on `languagechange` and window focus. Unknown → en. Rust native UI (menu bar,
+tray, dialogs, Touch ID prompt) follows the language the window resolved to.
+
+To add a language:
+1. `src/app/locales/<code>.ts` with every key in `en.ts` (plural forms `_one`/`_few`/`_many` as the language needs).
+2. `supportedLanguages`, `languageNames` and the resolver mapping in `src/app/i18n.ts`.
+3. A row in `src-tauri/src/native_i18n.rs` and the code in `CFBundleLocalizations` (tauri.conf / Info.plist).
+4. `browser-extension/_locales/<chrome code>/messages.json` with every key.
+5. Run the i18n parity + hardcodedStrings guard tests; screenshot long-text screens at 960×640 (work/pwt/shoot-locales.mjs).
+Native-speaker review of es/pt/ru/de/fr/id is still owed (de uses "du", fr "vous").
+
 ## Where the rules live
 
 | File | Carries | Read it when |
