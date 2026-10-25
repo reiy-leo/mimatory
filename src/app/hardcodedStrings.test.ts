@@ -105,7 +105,13 @@ function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const path = join(dir, entry.name)
     if (entry.isDirectory()) return sourceFiles(path)
-    if (!/\.tsx?$/.test(path) || /\.test\.tsx?$/.test(path) || path.endsWith('.d.ts') || path.endsWith('i18n.ts'))
+    if (
+      !/\.tsx?$/.test(path) ||
+      /\.test\.tsx?$/.test(path) ||
+      path.endsWith('.d.ts') ||
+      path.endsWith('i18n.ts') ||
+      path.includes('/locales/')
+    )
       return []
     return [path]
   })

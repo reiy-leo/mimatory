@@ -37,7 +37,7 @@ function sourceFiles(dir: string): string[] {
     const path = join(dir, entry.name)
     if (entry.isDirectory()) return sourceFiles(path)
     if (!path.endsWith('.ts') && !path.endsWith('.tsx')) return []
-    if (path.endsWith('i18n.ts') || path.endsWith('.test.ts')) return []
+    if (path.endsWith('i18n.ts') || path.includes('/locales/') || path.endsWith('.test.ts')) return []
     return [path]
   })
 }
