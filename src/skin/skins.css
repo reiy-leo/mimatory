@@ -93,7 +93,8 @@
   padding-left: var(--space-150);
 }
 
-:where(:root[data-skin="winui"] .nav-item) > svg {
+:where(:root[data-skin="winui"] .nav-item) > svg,
+:where(:root[data-skin="winui"] .settings-tabs button) > svg {
   color: var(--color-icon);
 }
 
@@ -276,7 +277,8 @@
   border-radius: var(--radius-full);
 }
 
-:where(:root[data-skin="material"] .nav-item) > svg {
+:where(:root[data-skin="material"] .nav-item) > svg,
+:where(:root[data-skin="material"] .settings-tabs button) > svg {
   color: var(--color-icon-subtle);
 }
 

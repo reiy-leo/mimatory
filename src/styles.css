@@ -1346,7 +1346,22 @@
 
   .settings-tabs button {
     color: var(--color-text-subtle);
-    @apply min-h-400 rounded-medium px-100 text-left text-body font-semibold transition-colors hover:bg-background-neutral-subtle-hovered;
+    @apply flex min-h-400 items-center gap-100 rounded-medium px-100 text-left text-body font-semibold transition-colors hover:bg-background-neutral-subtle-hovered;
+  }
+
+  /* Each pane's glyph, like a source-list row (design.md › Sidebar): 16pt, the accent, fixed before the label. */
+  :where(.settings-tabs button) > svg {
+    color: var(--color-accent);
+  }
+
+  .settings-tabs button svg {
+    @apply h-200 w-200 shrink-0;
+  }
+
+  /* A label too long for the column (de "Browsererweiterung", ru "Расширение браузера") ends in an ellipsis; the
+     button's title carries the whole name. */
+  .settings-tabs button span {
+    @apply min-w-0 flex-1 truncate;
   }
 
   .settings-tabs button.active {

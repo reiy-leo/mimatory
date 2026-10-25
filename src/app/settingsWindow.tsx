@@ -19,7 +19,14 @@ import {
   type SecurityPreferences,
   saveSecurityPreferences,
 } from './securityPreferences'
-import { isSettingsTab, type SettingsTab, settingsTabEvent, settingsTabLabels, settingsTabs } from './settingsTabs'
+import {
+  isSettingsTab,
+  type SettingsTab,
+  settingsTabEvent,
+  settingsTabIcons,
+  settingsTabLabels,
+  settingsTabs,
+} from './settingsTabs'
 import { forgetSiteIcons, readSiteIconsEnabled, writeSiteIconsEnabled } from './siteIcons'
 import { SyncSettingsPane } from './syncSettingsPane'
 import { followSystemAppearance } from './theme'
@@ -258,16 +265,21 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
           </div>
         </div>
         <nav aria-label={t('landmarks.settingsSections')} className="settings-tabs">
-          {visibleSettingsTabs.map((id) => (
-            <button
-              className={activeTab === id ? 'active' : ''}
-              key={id}
-              onClick={() => setActiveTab(id)}
-              type="button"
-            >
-              {t(settingsTabLabels[id])}
-            </button>
-          ))}
+          {visibleSettingsTabs.map((id) => {
+            const Icon = settingsTabIcons[id]
+            return (
+              <button
+                className={activeTab === id ? 'active' : ''}
+                key={id}
+                onClick={() => setActiveTab(id)}
+                title={t(settingsTabLabels[id])}
+                type="button"
+              >
+                <Icon aria-hidden="true" size={16} />
+                <span>{t(settingsTabLabels[id])}</span>
+              </button>
+            )
+          })}
         </nav>
       </aside>
 

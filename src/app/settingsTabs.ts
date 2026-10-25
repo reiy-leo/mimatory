@@ -1,3 +1,14 @@
+import {
+  Keyboard,
+  LockKeyhole,
+  type LucideIcon,
+  Palette,
+  Puzzle,
+  RefreshCw,
+  ShieldCheck,
+  SlidersHorizontal,
+} from 'lucide-react'
+
 export const settingsTabLabels: Record<SettingsTab, string> = {
   appearance: 'settings.tabs.appearance',
   browser: 'settings.tabs.browser',
@@ -6,6 +17,21 @@ export const settingsTabLabels: Record<SettingsTab, string> = {
   shortcuts: 'settings.tabs.shortcuts',
   sync: 'settings.tabs.sync',
   watchtower: 'settings.tabs.watchtower',
+}
+
+/*
+ * Each pane's sidebar glyph (owner 2026-10-25: "设置窗口侧边栏的每个item都配一个图标"), drawn like the main window's
+ * source list — a 16pt lucide glyph in the accent before the label (design.md › Sidebar), not System Settings'
+ * coloured badges, so the two sidebars read as one app.
+ */
+export const settingsTabIcons: Record<SettingsTab, LucideIcon> = {
+  appearance: Palette,
+  browser: Puzzle,
+  general: SlidersHorizontal,
+  security: LockKeyhole,
+  shortcuts: Keyboard,
+  sync: RefreshCw,
+  watchtower: ShieldCheck,
 }
 
 /**
