@@ -187,6 +187,14 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 
 ## Never yet seen in a running app
 
+- **Localized error lines (2026-10-25)**: every vault command now rejects with `{ code, message }` and the UI
+  translates the code. Proven by vitest (`errors.test.ts`, `hardcodedStrings.test.ts`), `cargo check --lib --tests`
+  on Linux and Chromium screenshots against mockIPC (`work/screens/i18n/`). Not run: `cargo test` (the test build
+  of the full crate graph is OOM-killed in this sandbox, so `command_error.rs`'s own tests only compiled), the macOS
+  and phone `BiometricError::code()` arms (cfg'd out on Linux, checked by reading), and a real Mac showing the
+  Touch ID failure / wrong-password line in zh. The macOS menu bar / tray in zh and ja are from 2026-10-24 and still
+  unseen on a Mac.
+
 - **Multi-selection, bulk actions, first-row-on-scope, the vault-row fix (2026-10-25)**: proven by vitest (jsdom +
   mockIPC), Playwright screenshots in Chromium (`work/screens/multiselect/`, `work/pwt/shoot-multiselect.mjs`) and the
   Rust commands in `work/vaultbench` (the real `vault.rs`); the app binary was not built here. On the Mac check:
@@ -254,6 +262,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-25 | i18n audit: Rust commands reject with stable error codes (`command_error.rs`) and `describeError` translates them (42 raw `String(error)` sites, 46 codes × 3 languages); guard test against hardcoded English (`hardcodedStrings.test.ts`, incl. extension `_locales` and error-code parity); extension Chinese moved to `_locales/zh_CN`; zh copy pass on translationese, 保管库 → 保险库, pairing token → 配对码 | AGENTS.md "Workflow" (No hardcoded user-facing English, Errors carry a code) |
 | 2026-10-25 | Finder/1Password multi-selection (⌘A, ⌘/⇧-click, ⇧↑↓, Esc, Edit ▸ Select All) with bulk Archive / Move To / Move to Trash and, in Trash, Restore / Delete Permanently / Empty Trash — one Rust transaction each; first row selected on every sidebar scope; the vault row lists from the same live items as its count (838-items-empty bug); the last open vault cannot be archived or dissolved | AGENTS.md "Data model" (Multi-selection and bulk actions, first row, vault row, last open vault) |
 | 2026-10-24 | Slow pick → instant: per-item indexes (O(N²) → O(N)), `/fill` item_id reads one item, `/match` decrypts addresses first, use recorded off the response path, native port warmed when a form shows; field menu fills only (username at once, spinner on the password field, inline error note), float keeps fill+submit with 正在登录… feedback; float background = animated macOS material | AGENTS.md "Vault security" (bridge, indexes), "Extension connection" (warm-up), "UI structure and its traps" (field menu / float) |
 | 2026-10-24 | Native messaging between the extension and the app (owner-approved incl. the macOS browser code-signature check): fixed extension ID from a manifest `key` (private key outside the repo), `mimatory` as its own native host relaying over a 0600 Unix socket / per-user pipe, peer = our executable (+ signed browser parent on macOS), host manifests registered at startup, popup/Settings show the native state, HTTP + pairing only as fallback | AGENTS.md "Extension connection" |

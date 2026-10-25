@@ -13,7 +13,7 @@ HTTP bridge on `127.0.0.1:17891` + pairing token only as a fallback — see "Ext
 
 **Chinese name: 密码库存** (owner, 2026-10-24: "软件的名称是“Mimatory”，中文“密码库存”"). Every zh string that names the
 app says 密码库存 — the app bundle (`lock.appName`, `settings.appName`, `settings.windowTitle`, …) and the extension's
-`_locales/zh` — while en and ja say Mimatory (the lock screen / sidebar wordmark `lock.appName` is lowercase
+`_locales/zh_CN` — while en and ja say Mimatory (the lock screen / sidebar wordmark `lock.appName` is lowercase
 `mimatory` there, on purpose since 2026-10-08). `i18n.test.ts` fails on a zh string containing "Mimatory". Identifiers,
 the binary, paths, `productName` and the bundle id stay `mimatory`/`Mimatory`. Where the name reaches the OS:
 - The main and settings windows retitle themselves from i18n (`windowTitle.ts`, needs `core:window:allow-set-title`)
@@ -116,9 +116,23 @@ change, so the expensive bundle belongs once at the end. The one exception is in
   another reason.
 - **i18n completeness before every commit** (owner instruction, 2026-10-09): every user-facing string added or
   changed that turn — labels, notices, *and* error and success messages — exists in all three bundles in
-  `src/app/i18n.ts`, and in `_locales/{en,zh,ja}/messages.json` too if it is popup text. `npm run test` proves
-  it (`i18n.test.ts`: named keys defined, no English `defaultValue` fallback, runtime-built prefixes covered).
-  Fill the gap before committing, not after.
+  `src/app/i18n.ts`, and in `browser-extension/_locales/{en,zh_CN,ja}/messages.json` too if it is extension
+  text. `npm run test` proves it (`i18n.test.ts`: named keys defined, no English `defaultValue` fallback,
+  runtime-built prefixes covered). Fill the gap before committing, not after.
+- **No hardcoded user-facing English** (owner, 2026-10-25: "各种提示也要i18n，现在发现很多提醒在中文环境中也是英文").
+  `src/app/hardcodedStrings.test.ts` parses `src/` with the TypeScript compiler and fails on JSX text, a literal in
+  `title`/`aria-label`/`placeholder`/`alt`/`label`, a `label:`/`message:`/`title:`… property, or any
+  sentence-shaped literal that skips `t()`, and on `setError(String(error))`. Its allowlist is for brand names,
+  URLs and shortcut ids only — never add UI copy to it. The same file checks the extension (`_locales` parity,
+  every `msg()` / `data-i18n` key defined, no English `text:` built in the scripts) and the error codes below.
+- **Errors carry a code, never prose** (2026-10-25). Every vault command rejects with `CommandError
+  { code, message, detail?, status? }` (`src-tauri/src/command_error.rs`); the UI shows `describeError(error)`
+  (`src/app/errors.ts`), which translates `errors.<code>`, appends `detail` for wrapper codes (SQLite / I/O text),
+  shows an HTTP `status` with its Chinese gloss in every language ("401 未授权"), sends sync codes through
+  `describeSyncError`, and reads anything unknown as the localized generic line plus the raw text. A new error
+  variant needs: its code in the `From` impl, in `CODES`, in `errorCodes` and in `errors.*` of all three bundles —
+  `hardcodedStrings.test.ts` and `command_error.rs`'s own test fail on any gap. `message` stays English on purpose
+  (logs, bug reports); it is never the line the user reads. Sync commands keep their own `SyncErrorInfo`.
 - **This file records decisions and traps, not diffs** (owner ruling, 2026-10-10). Add a paragraph only for an
   irreversible decision, a new trap, or a rule the next turn would otherwise re-derive. A hover state or one
   utility class is a commit message. Status goes in `.agent/todo.md`.
@@ -154,6 +168,7 @@ src/                  # React frontend
   app/vaultModel.ts   # form state + conversions, menu/column constants, `categoryItems` (the one item-type table)
   app/settingsTabs.ts # the Settings panes list
   app/syncApi.ts syncSettingsPane.tsx syncErrors.ts  # sync: command wrappers + requestSync, Settings ▸ Sync, error/i18n + WebDAV URL rules
+  app/errors.ts       # describeError(): the one way a command rejection becomes a localized line (codes from command_error.rs)
   styles.css          # Tailwind + all custom CSS + the token values in :root (~2380 lines)
   app/vaultApi.ts     # All Tauri invoke() calls — typed wrappers
   app/navigation.ts   # Sidebar nav rows (4 rows in 2 groups)
@@ -192,6 +207,7 @@ src-tauri/src/        # Rust backend
   native_messaging.rs # Native-messaging host mode (`mimatory chrome-extension://…`), stdio framing, host manifests + registration
   native_ipc.rs       # Host ↔ app channel: 0600 Unix socket / per-user named pipe, peer checks, macOS browser code-signature check
   site_match.rs       # Autofill behaviour: registrable-domain / exact-host / never matching (psl crate), describe_website
+  command_error.rs    # CommandError { code, message, detail?, status? }: what every vault command rejects with
   native_i18n.rs      # en/zh/ja table for every string Rust shows (menus, tray, pickers, Touch ID) + the native locale
   shell.rs            # Desktop only: tray, Quick Access (hotkey on macOS/Windows, `--quick-access` on Linux), autostart, single instance
   totp.rs             # TOTP code generation
@@ -964,7 +980,8 @@ as `{ id, status, data }` with the HTTP bridge's status codes (content.js reads 
 - `@types/node` is a devDependency and `tsconfig.json` `types` lists `node` beside `vitest/globals`: the guard
   tests read source files through `node:fs`, and without it `npm run typecheck` fails on a clean `npm ci`.
 - Vite exposes `VITE_*` and `TAURI_*` prefixed env vars only.
-- The extension popup is localised by Chrome, not by the app: `_locales/{en,zh,ja}/messages.json` plus
+- The extension popup is localised by Chrome, not by the app: `_locales/{en,zh_CN,ja}/messages.json` (the folder
+  is `zh_CN`, Chrome's documented Simplified Chinese locale, since 2026-10-25; `default_locale` is `en`) plus
   `__MSG_key__` in `manifest.json` and `chrome.i18n.getMessage` applied to `[data-i18n]` /
   `[data-i18n-placeholder]` by `popup.js` (`getUILanguage()` sets `document.documentElement.lang`). English is the
   in-file fallback so the popup still reads if a message is missing. The desktop app's language picker stays in
