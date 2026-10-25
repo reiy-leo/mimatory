@@ -1,6 +1,7 @@
 mod biometric;
 mod breach_check;
 mod browser_bridge;
+mod command_error;
 mod crypto;
 mod favicon;
 mod import_1pux;
@@ -20,6 +21,7 @@ mod totp;
 mod vault;
 
 use breach_check::BreachCheckResult;
+use command_error::CommandError;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
@@ -47,11 +49,11 @@ struct AppStatus {
 }
 
 #[tauri::command]
-fn initialize_database(state: State<AppState>) -> Result<AppStatus, String> {
+fn initialize_database(state: State<AppState>) -> Result<AppStatus, CommandError> {
     let connection = storage::open_default_database()
-        .map_err(|error| format!("failed to initialize database: {error}"))?;
+        .map_err(|error| CommandError { code: "database_init", ..CommandError::from(error) })?;
     let service = VaultService::new(connection);
-    let has_master_password = service.has_master_password().map_err(String::from)?;
+    let has_master_password = service.has_master_password().map_err(CommandError::from)?;
 
     Ok(AppStatus {
         name: "Mimatory",
@@ -60,7 +62,7 @@ fn initialize_database(state: State<AppState>) -> Result<AppStatus, String> {
         unlocked: state
             .session
             .lock()
-            .map_err(|_| "session lock poisoned".to_string())?
+            .map_err(|_| CommandError::internal("session lock poisoned"))?
             .is_some(),
     })
 }
@@ -69,58 +71,58 @@ fn initialize_database(state: State<AppState>) -> Result<AppStatus, String> {
 fn setup_master_password(
     password: String,
     state: State<AppState>,
-) -> Result<Vec<LoginItemSummary>, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+) -> Result<Vec<LoginItemSummary>, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = service
         .setup_master_password(&password)
-        .map_err(String::from)?;
+        .map_err(CommandError::from)?;
     *state
         .session
         .lock()
-        .map_err(|_| "session lock poisoned".to_string())? = Some(session.clone());
+        .map_err(|_| CommandError::internal("session lock poisoned"))? = Some(session.clone());
     *state
         .biometric_session
         .lock()
-        .map_err(|_| "biometric session lock poisoned".to_string())? = Some(session.clone());
+        .map_err(|_| CommandError::internal("biometric session lock poisoned"))? = Some(session.clone());
     service
         .list_login_summaries(&session, None)
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command(async)]
-fn unlock_vault(password: String, state: State<AppState>) -> Result<Vec<LoginItemSummary>, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn unlock_vault(password: String, state: State<AppState>) -> Result<Vec<LoginItemSummary>, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
-    let session = service.unlock(&password).map_err(String::from)?;
+    let session = service.unlock(&password).map_err(CommandError::from)?;
     let items = service
         .list_login_summaries(&session, None)
-        .map_err(String::from)?;
+        .map_err(CommandError::from)?;
     *state
         .session
         .lock()
-        .map_err(|_| "session lock poisoned".to_string())? = Some(session);
+        .map_err(|_| CommandError::internal("session lock poisoned"))? = Some(session);
     *state
         .biometric_session
         .lock()
-        .map_err(|_| "biometric session lock poisoned".to_string())? = state
+        .map_err(|_| CommandError::internal("biometric session lock poisoned"))? = state
         .session
         .lock()
-        .map_err(|_| "session lock poisoned".to_string())?
+        .map_err(|_| CommandError::internal("session lock poisoned"))?
         .clone();
     Ok(items)
 }
 
 #[tauri::command]
-fn lock_vault(state: State<AppState>) -> Result<(), String> {
+fn lock_vault(state: State<AppState>) -> Result<(), CommandError> {
     *state
         .session
         .lock()
-        .map_err(|_| "session lock poisoned".to_string())? = None;
+        .map_err(|_| CommandError::internal("session lock poisoned"))? = None;
     *state
         .bridge_token
         .lock()
-        .map_err(|_| "bridge token lock poisoned".to_string())? = None;
+        .map_err(|_| CommandError::internal("bridge token lock poisoned"))? = None;
     Ok(())
 }
 
@@ -128,13 +130,13 @@ fn lock_vault(state: State<AppState>) -> Result<(), String> {
 fn list_login_items(
     query: Option<String>,
     state: State<AppState>,
-) -> Result<Vec<LoginItemSummary>, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+) -> Result<Vec<LoginItemSummary>, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .list_login_summaries(&session, query.as_deref())
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 /// One item, decrypted in full with its links resolved: the detail pane asks for it when a row is
@@ -145,8 +147,8 @@ fn get_login_item(
     item_id: String,
     vault_id: Option<String>,
     state: State<AppState>,
-) -> Result<LoginItem, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+) -> Result<LoginItem, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let service = VaultService::new(connection);
     let session = current_session(&state)?;
     let session = match vault_id.as_deref() {
@@ -155,61 +157,61 @@ fn get_login_item(
     };
     service
         .login_item_detail(&session, &item_id)
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command(async)]
-fn list_vaults(state: State<AppState>) -> Result<Vec<VaultSummary>, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn list_vaults(state: State<AppState>) -> Result<Vec<VaultSummary>, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let service = VaultService::new(connection);
     let session = current_session(&state)?;
-    service.list_vaults(&session).map_err(String::from)
+    service.list_vaults(&session).map_err(CommandError::from)
 }
 
 #[tauri::command]
-fn create_vault(name: String, state: State<AppState>) -> Result<VaultSummary, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn create_vault(name: String, state: State<AppState>) -> Result<VaultSummary, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
-    let vault = service.create_vault(&session, &name).map_err(String::from)?;
+    let vault = service.create_vault(&session, &name).map_err(CommandError::from)?;
     *state
         .session
         .lock()
-        .map_err(|_| "session lock poisoned".to_string())? =
-        Some(service.session_for_vault(&session, &vault.id).map_err(String::from)?);
+        .map_err(|_| CommandError::internal("session lock poisoned"))? =
+        Some(service.session_for_vault(&session, &vault.id).map_err(CommandError::from)?);
     *state
         .biometric_session
         .lock()
-        .map_err(|_| "biometric session lock poisoned".to_string())? = state
+        .map_err(|_| CommandError::internal("biometric session lock poisoned"))? = state
         .session
         .lock()
-        .map_err(|_| "session lock poisoned".to_string())?
+        .map_err(|_| CommandError::internal("session lock poisoned"))?
         .clone();
     Ok(vault)
 }
 
 #[tauri::command(async)]
-fn switch_vault(id: String, state: State<AppState>) -> Result<Vec<LoginItemSummary>, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn switch_vault(id: String, state: State<AppState>) -> Result<Vec<LoginItemSummary>, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     let next_session = service
         .session_for_vault(&session, &id)
-        .map_err(String::from)?;
+        .map_err(CommandError::from)?;
     let items = service
         .list_login_summaries(&next_session, None)
-        .map_err(String::from)?;
+        .map_err(CommandError::from)?;
     *state
         .session
         .lock()
-        .map_err(|_| "session lock poisoned".to_string())? = Some(next_session);
+        .map_err(|_| CommandError::internal("session lock poisoned"))? = Some(next_session);
     *state
         .biometric_session
         .lock()
-        .map_err(|_| "biometric session lock poisoned".to_string())? = state
+        .map_err(|_| CommandError::internal("biometric session lock poisoned"))? = state
         .session
         .lock()
-        .map_err(|_| "session lock poisoned".to_string())?
+        .map_err(|_| CommandError::internal("session lock poisoned"))?
         .clone();
     Ok(items)
 }
@@ -218,21 +220,21 @@ fn switch_vault(id: String, state: State<AppState>) -> Result<Vec<LoginItemSumma
 /// another vault only needs the session to follow it (so edits act there); the window already holds
 /// every vault's items, so decrypting that vault again here was pure delay.
 #[tauri::command(async)]
-fn focus_vault(id: String, state: State<AppState>) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn focus_vault(id: String, state: State<AppState>) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     let next_session = service
         .session_for_vault(&session, &id)
-        .map_err(String::from)?;
+        .map_err(CommandError::from)?;
     *state
         .session
         .lock()
-        .map_err(|_| "session lock poisoned".to_string())? = Some(next_session.clone());
+        .map_err(|_| CommandError::internal("session lock poisoned"))? = Some(next_session.clone());
     *state
         .biometric_session
         .lock()
-        .map_err(|_| "biometric session lock poisoned".to_string())? = Some(next_session);
+        .map_err(|_| CommandError::internal("biometric session lock poisoned"))? = Some(next_session);
     Ok(())
 }
 
@@ -243,58 +245,58 @@ fn update_vault(
     id: String,
     name: String,
     state: State<AppState>,
-) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .update_vault(&session, &id, &name, &icon, &color)
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 /// A vault parks what is in it as well, so the archive view is where its items go to be read. The
 /// session stays put: archiving the open vault leaves the app looking at an empty one, and the
 /// sidebar decides which vault to open instead.
 #[tauri::command]
-fn set_vault_archived(archived: bool, id: String, state: State<AppState>) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn set_vault_archived(archived: bool, id: String, state: State<AppState>) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .set_vault_archived(&session, &id, archived)
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 /// Empties a vault into `into_id` and drops the row. `into_id` may be null when the vault holds
 /// nothing; the last vault in the file cannot be dissolved at all.
 #[tauri::command]
-fn dissolve_vault(id: String, into_id: Option<String>, state: State<AppState>) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn dissolve_vault(id: String, into_id: Option<String>, state: State<AppState>) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .dissolve_vault(&session, &id, into_id.as_deref())
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
-fn create_login_item(input: LoginItemInput, state: State<AppState>) -> Result<LoginItem, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn create_login_item(input: LoginItemInput, state: State<AppState>) -> Result<LoginItem, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .create_login_item(&session, input)
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
-fn update_login_item(input: LoginItemUpdate, state: State<AppState>) -> Result<LoginItem, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn update_login_item(input: LoginItemUpdate, state: State<AppState>) -> Result<LoginItem, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .update_login_item(&session, input)
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -302,81 +304,81 @@ fn duplicate_login_item(
     id: String,
     title: String,
     state: State<AppState>,
-) -> Result<LoginItem, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+) -> Result<LoginItem, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .duplicate_login_item(&session, &id, &title)
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 /// The item leaves the vault the session is reading, so the caller's list changes underneath it —
 /// this does not switch the app to the target vault.
 #[tauri::command]
-fn move_login_item(id: String, vault_id: String, state: State<AppState>) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn move_login_item(id: String, vault_id: String, state: State<AppState>) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .move_login_item(&session, &id, &vault_id)
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
-fn trash_login_item(id: String, state: State<AppState>) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn trash_login_item(id: String, state: State<AppState>) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
-    service.trash_item(&session, &id).map_err(String::from)
+    service.trash_item(&session, &id).map_err(CommandError::from)
 }
 
 #[tauri::command(async)]
-fn list_trashed_login_items(state: State<AppState>) -> Result<Vec<LoginItemSummary>, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn list_trashed_login_items(state: State<AppState>) -> Result<Vec<LoginItemSummary>, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .list_trashed_login_summaries(&session)
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
-fn restore_trashed_login_item(id: String, state: State<AppState>) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn restore_trashed_login_item(id: String, state: State<AppState>) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .restore_trashed_item(&session, &id)
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
-fn purge_login_item(id: String, state: State<AppState>) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn purge_login_item(id: String, state: State<AppState>) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
-    service.purge_item(&session, &id).map_err(String::from)
+    service.purge_item(&session, &id).map_err(CommandError::from)
 }
 
 /// Selection actions (2026-10-25): one call and one transaction for the whole selection, however many items.
 fn with_service<T>(
     state: &State<AppState>,
     run: impl FnOnce(&mut VaultService, &vault::Session) -> Result<T, vault::VaultError>,
-) -> Result<T, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+) -> Result<T, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(state)?;
-    run(&mut service, &session).map_err(String::from)
+    run(&mut service, &session).map_err(CommandError::from)
 }
 
 #[tauri::command(async)]
-fn trash_login_items(ids: Vec<String>, state: State<AppState>) -> Result<vault::BulkOutcome, String> {
+fn trash_login_items(ids: Vec<String>, state: State<AppState>) -> Result<vault::BulkOutcome, CommandError> {
     with_service(&state, |service, session| service.trash_items(session, &ids))
 }
 
 #[tauri::command(async)]
-fn archive_login_items(ids: Vec<String>, state: State<AppState>) -> Result<vault::BulkOutcome, String> {
+fn archive_login_items(ids: Vec<String>, state: State<AppState>) -> Result<vault::BulkOutcome, CommandError> {
     with_service(&state, |service, session| service.archive_items(session, &ids))
 }
 
@@ -384,7 +386,7 @@ fn archive_login_items(ids: Vec<String>, state: State<AppState>) -> Result<vault
 fn restore_archived_login_items(
     ids: Vec<String>,
     state: State<AppState>,
-) -> Result<vault::BulkOutcome, String> {
+) -> Result<vault::BulkOutcome, CommandError> {
     with_service(&state, |service, session| service.restore_archived_items(session, &ids))
 }
 
@@ -392,13 +394,13 @@ fn restore_archived_login_items(
 fn restore_trashed_login_items(
     ids: Vec<String>,
     state: State<AppState>,
-) -> Result<vault::BulkOutcome, String> {
+) -> Result<vault::BulkOutcome, CommandError> {
     with_service(&state, |service, session| service.restore_trashed_items(session, &ids))
 }
 
 /// Delete Permanently and Empty Trash: only items already in the trash, never undone.
 #[tauri::command(async)]
-fn purge_login_items(ids: Vec<String>, state: State<AppState>) -> Result<vault::BulkOutcome, String> {
+fn purge_login_items(ids: Vec<String>, state: State<AppState>) -> Result<vault::BulkOutcome, CommandError> {
     with_service(&state, |service, session| service.purge_items(session, &ids))
 }
 
@@ -407,7 +409,7 @@ fn move_login_items(
     ids: Vec<String>,
     vault_id: String,
     state: State<AppState>,
-) -> Result<vault::BulkOutcome, String> {
+) -> Result<vault::BulkOutcome, CommandError> {
     with_service(&state, |service, session| service.move_items(session, &ids, &vault_id))
 }
 
@@ -417,33 +419,33 @@ fn set_item_parent(
     id: String,
     parent_id: Option<String>,
     state: State<AppState>,
-) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .set_item_parent(&session, &id, parent_id.as_deref())
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
-fn link_related_items(id: String, other_id: String, state: State<AppState>) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn link_related_items(id: String, other_id: String, state: State<AppState>) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .link_related_items(&session, &id, &other_id)
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
-fn unlink_related_items(id: String, other_id: String, state: State<AppState>) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn unlink_related_items(id: String, other_id: String, state: State<AppState>) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .unlink_related_items(&session, &id, &other_id)
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 /// Sets or clears the account an item signs in with ("Sign in with Google" → the Google login).
@@ -452,22 +454,22 @@ fn set_item_sign_in(
     id: String,
     account_id: Option<String>,
     state: State<AppState>,
-) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .set_item_sign_in(&session, &id, account_id.as_deref())
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 /// `auto` shows the website icon, `letter` keeps the letter tile.
 #[tauri::command]
-fn set_item_icon_mode(id: String, mode: String, state: State<AppState>) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn set_item_icon_mode(id: String, mode: String, state: State<AppState>) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
-    service.set_item_icon_mode(&session, &id, &mode).map_err(String::from)
+    service.set_item_icon_mode(&session, &id, &mode).map_err(CommandError::from)
 }
 
 /// The cached website icons for these sites. Never touches the network: a site missing from the
@@ -476,8 +478,8 @@ fn set_item_icon_mode(id: String, mode: String, state: State<AppState>) -> Resul
 fn cached_site_icons(
     domains: Vec<String>,
     state: State<AppState>,
-) -> Result<HashMap<String, CachedSiteIcon>, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+) -> Result<HashMap<String, CachedSiteIcon>, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let service = VaultService::new(connection);
     let session = current_session(&state)?;
     let domains: Vec<String> = domains
@@ -485,7 +487,7 @@ fn cached_site_icons(
         .filter_map(|domain| favicon::normalize_domain(domain).ok())
         .take(500)
         .collect();
-    service.cached_site_icons(&session, &domains).map_err(String::from)
+    service.cached_site_icons(&session, &domains).map_err(CommandError::from)
 }
 
 /// Fetches one site's icon from the site itself (see favicon.rs for every rule it follows) and
@@ -496,16 +498,16 @@ async fn fetch_site_icon(
     domain: String,
     force: bool,
     state: State<'_, AppState>,
-) -> Result<Option<String>, String> {
+) -> Result<Option<String>, CommandError> {
     let session = current_session(&state)?;
-    let domain = favicon::normalize_domain(&domain).map_err(|error| error.to_string())?;
-    tauri::async_runtime::spawn_blocking(move || -> Result<Option<String>, String> {
+    let domain = favicon::normalize_domain(&domain).map_err(CommandError::from)?;
+    tauri::async_runtime::spawn_blocking(move || -> Result<Option<String>, CommandError> {
         if !force {
-            let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+            let connection = storage::open_default_database().map_err(CommandError::from)?;
             let service = VaultService::new(connection);
             let cached = service
                 .cached_site_icons(&session, std::slice::from_ref(&domain))
-                .map_err(String::from)?;
+                .map_err(CommandError::from)?;
             if let Some(entry) = cached.get(&domain).filter(|entry| entry.fresh) {
                 return Ok(entry.icon.clone());
             }
@@ -513,64 +515,64 @@ async fn fetch_site_icon(
         // Unreachable and icon-less sites are both remembered as a miss, so neither is asked again
         // on every list render; the miss expires sooner than an icon does.
         let png = favicon::fetch_site_icon(&domain, &favicon::FetchPolicy::strict()).unwrap_or(None);
-        let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+        let connection = storage::open_default_database().map_err(CommandError::from)?;
         let mut service = VaultService::new(connection);
         service
             .store_site_icon(&session, &domain, png.as_deref())
-            .map_err(String::from)
+            .map_err(CommandError::from)
     })
     .await
-    .map_err(|error| error.to_string())?
+    .map_err(CommandError::from)?
 }
 
 /// Forgets every cached website icon (the "Download website icons" setting was turned off).
 #[tauri::command]
-fn clear_site_icons(state: State<AppState>) -> Result<(), String> {
+fn clear_site_icons(state: State<AppState>) -> Result<(), CommandError> {
     current_session(&state)?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
-    service.clear_site_icons().map_err(String::from)
+    service.clear_site_icons().map_err(CommandError::from)
 }
 
 #[tauri::command]
-fn archive_login_item(id: String, state: State<AppState>) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn archive_login_item(id: String, state: State<AppState>) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
-    service.archive_item(&session, &id).map_err(String::from)
+    service.archive_item(&session, &id).map_err(CommandError::from)
 }
 
 #[tauri::command]
-fn restore_login_item(id: String, state: State<AppState>) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn restore_login_item(id: String, state: State<AppState>) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
-    service.restore_item(&session, &id).map_err(String::from)
+    service.restore_item(&session, &id).map_err(CommandError::from)
 }
 
 #[tauri::command(async)]
-fn list_archived_login_items(state: State<AppState>) -> Result<Vec<LoginItemSummary>, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn list_archived_login_items(state: State<AppState>) -> Result<Vec<LoginItemSummary>, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .list_archived_login_summaries(&session)
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
-fn set_login_favorite(id: String, favorite: bool, state: State<AppState>) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn set_login_favorite(id: String, favorite: bool, state: State<AppState>) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .set_favorite(&session, &id, favorite)
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
-fn generate_password_command(options: PasswordGeneratorOptions) -> Result<String, String> {
-    generate_password(options).map_err(String::from)
+fn generate_password_command(options: PasswordGeneratorOptions) -> Result<String, CommandError> {
+    generate_password(options).map_err(CommandError::from)
 }
 
 // A tag row lives only while some item names it, and it is addressed by name because a name is the
@@ -578,36 +580,36 @@ fn generate_password_command(options: PasswordGeneratorOptions) -> Result<String
 // frontend, so the number beside a tag cannot disagree with what clicking that tag reveals.
 /// All (owner 2026-10-18): the live items of every open vault, each with its `vault_id`.
 #[tauri::command(async)]
-fn list_all_login_items(state: State<AppState>) -> Result<Vec<LoginItemSummary>, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn list_all_login_items(state: State<AppState>) -> Result<Vec<LoginItemSummary>, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let service = VaultService::new(connection);
     let session = current_session(&state)?;
-    service.list_all_login_summaries(&session).map_err(String::from)
+    service.list_all_login_summaries(&session).map_err(CommandError::from)
 }
 
 /// The sidebar's tags: one per name across the open vaults, not tied to the open one.
 #[tauri::command(async)]
-fn list_all_tags(state: State<AppState>) -> Result<Vec<Tag>, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn list_all_tags(state: State<AppState>) -> Result<Vec<Tag>, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let service = VaultService::new(connection);
     let session = current_session(&state)?;
-    service.list_all_tags(&session).map_err(String::from)
+    service.list_all_tags(&session).map_err(CommandError::from)
 }
 
 #[tauri::command]
-fn record_item_use(id: String, state: State<AppState>) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn record_item_use(id: String, state: State<AppState>) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
-    service.record_item_use(&session, &id).map_err(String::from)
+    service.record_item_use(&session, &id).map_err(CommandError::from)
 }
 
 #[tauri::command(async)]
-fn list_tags(state: State<AppState>) -> Result<Vec<Tag>, String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn list_tags(state: State<AppState>) -> Result<Vec<Tag>, CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let service = VaultService::new(connection);
     let session = current_session(&state)?;
-    service.list_tags(&session).map_err(String::from)
+    service.list_tags(&session).map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -617,21 +619,21 @@ fn update_tag(
     icon: String,
     name: String,
     state: State<AppState>,
-) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
     service
         .update_tag_everywhere(&session, &from, &name, &icon, &color)
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
-fn delete_tag(name: String, state: State<AppState>) -> Result<(), String> {
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+fn delete_tag(name: String, state: State<AppState>) -> Result<(), CommandError> {
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     let session = current_session(&state)?;
-    service.delete_tag_everywhere(&session, &name).map_err(String::from)
+    service.delete_tag_everywhere(&session, &name).map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -647,13 +649,13 @@ fn describe_website(url: String) -> Option<site_match::WebsiteScope> {
 }
 
 #[tauri::command]
-fn generate_totp_code(secret: String) -> Result<TotpCode, String> {
-    totp::generate_totp_now(&secret).map_err(|error| error.to_string())
+fn generate_totp_code(secret: String) -> Result<TotpCode, CommandError> {
+    totp::generate_totp_now(&secret).map_err(CommandError::from)
 }
 
 #[cfg(desktop)]
 #[tauri::command]
-fn pick_attachment_file() -> Result<Option<String>, String> {
+fn pick_attachment_file() -> Result<Option<String>, CommandError> {
     Ok(rfd::FileDialog::new()
         .pick_file()
         .map(|path| path.to_string_lossy().to_string()))
@@ -663,7 +665,7 @@ fn pick_attachment_file() -> Result<Option<String>, String> {
 /// was cancelled.
 #[cfg(desktop)]
 #[tauri::command]
-fn preview_1pux_import(state: State<AppState>) -> Result<Option<import_1pux::ImportPreview>, String> {
+fn preview_1pux_import(state: State<AppState>) -> Result<Option<import_1pux::ImportPreview>, CommandError> {
     let session = current_session(&state)?;
     let Some(path) = rfd::FileDialog::new()
         .set_title(native_i18n::tr(native_i18n::Text::Import1PuxDialogTitle))
@@ -672,15 +674,15 @@ fn preview_1pux_import(state: State<AppState>) -> Result<Option<import_1pux::Imp
     else {
         return Ok(None);
     };
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let service = VaultService::new(connection);
-    import_1pux::preview(&path, &service, &session).map(Some).map_err(String::from)
+    import_1pux::preview(&path, &service, &session).map(Some).map_err(CommandError::from)
 }
 
 #[cfg(mobile)]
 #[tauri::command]
-fn preview_1pux_import() -> Result<Option<import_1pux::ImportPreview>, String> {
-    Err("importing is not available on this platform yet".to_string())
+fn preview_1pux_import() -> Result<Option<import_1pux::ImportPreview>, CommandError> {
+    Err(CommandError::unsupported("importing is not available on this platform yet"))
 }
 
 /// Async and off the main thread: a large export (attachments especially) takes seconds, and a synchronous
@@ -689,22 +691,22 @@ fn preview_1pux_import() -> Result<Option<import_1pux::ImportPreview>, String> {
 async fn import_1pux_file(
     path: String,
     state: State<'_, AppState>,
-) -> Result<import_1pux::ImportSummary, String> {
+) -> Result<import_1pux::ImportSummary, CommandError> {
     let session = current_session(&state)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+        let connection = storage::open_default_database().map_err(CommandError::from)?;
         let mut service = VaultService::new(connection);
-        import_1pux::import(std::path::Path::new(&path), &mut service, &session).map_err(String::from)
+        import_1pux::import(std::path::Path::new(&path), &mut service, &session).map_err(CommandError::from)
     })
     .await
-    .map_err(|error| error.to_string())?
+    .map_err(CommandError::from)?
 }
 
 /// rfd has no iOS/Android backend; the frontend hides the attach button there (src/app/platformFeatures.ts).
 #[cfg(mobile)]
 #[tauri::command]
-fn pick_attachment_file() -> Result<Option<String>, String> {
-    Err("attaching files is not available on this platform yet".to_string())
+fn pick_attachment_file() -> Result<Option<String>, CommandError> {
+    Err(CommandError::unsupported("attaching files is not available on this platform yet"))
 }
 
 #[tauri::command]
@@ -712,61 +714,61 @@ fn attach_file_to_item(
     id: String,
     path: String,
     state: State<AppState>,
-) -> Result<CustomField, String> {
+) -> Result<CustomField, CommandError> {
     let session = current_session(&state)?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     service
         .add_attachment(&session, &id, &PathBuf::from(path))
-        .map_err(String::from)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
-fn export_attachment_to_temp(id: String, state: State<AppState>) -> Result<String, String> {
+fn export_attachment_to_temp(id: String, state: State<AppState>) -> Result<String, CommandError> {
     let session = current_session(&state)?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let service = VaultService::new(connection);
     let attachment = service
         .export_attachment(&session, &id)
-        .map_err(String::from)?;
+        .map_err(CommandError::from)?;
     let file_name = PathBuf::from(&attachment.file_name)
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| "attachment".to_string());
     let directory = storage::temp_base_directory().join("Mimatory Attachments");
-    storage::create_private_directory(&directory).map_err(|error| error.to_string())?;
+    storage::create_private_directory(&directory).map_err(CommandError::from)?;
     let path = directory.join(file_name);
-    fs::write(&path, attachment.bytes).map_err(|error| error.to_string())?;
+    fs::write(&path, attachment.bytes).map_err(CommandError::from)?;
     // The bytes here are already decrypted, so the temp copy cannot lean on the vault's
     // encryption for confidentiality.
-    storage::set_private_permissions(&path).map_err(|error| error.to_string())?;
+    storage::set_private_permissions(&path).map_err(CommandError::from)?;
     Ok(path.to_string_lossy().to_string())
 }
 
 /// A plain-text attachment for the in-app preview (a `.txt` row opens it). Read from the vault
 /// and decoded in memory: unlike Export, nothing decrypted is written to disk.
 #[tauri::command]
-fn read_attachment_text(id: String, state: State<AppState>) -> Result<vault::AttachmentText, String> {
+fn read_attachment_text(id: String, state: State<AppState>) -> Result<vault::AttachmentText, CommandError> {
     let session = current_session(&state)?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let service = VaultService::new(connection);
     let attachment = service
         .export_attachment(&session, &id)
-        .map_err(String::from)?;
+        .map_err(CommandError::from)?;
     Ok(vault::text_preview(&attachment.file_name, &attachment.bytes, vault::TEXT_PREVIEW_LIMIT))
 }
 
 #[tauri::command]
-fn generate_browser_pairing_token(state: State<AppState>) -> Result<String, String> {
+fn generate_browser_pairing_token(state: State<AppState>) -> Result<String, CommandError> {
     // The extension bridge only listens on desktop (see `run`); a token on a phone would pair nothing.
     if cfg!(mobile) {
-        return Err("the browser extension bridge is desktop-only".to_string());
+        return Err(CommandError::unsupported("the browser extension bridge is desktop-only"));
     }
     let token = uuid::Uuid::new_v4().to_string();
     *state
         .bridge_token
         .lock()
-        .map_err(|_| "bridge token lock poisoned".to_string())? = Some(token.clone());
+        .map_err(|_| CommandError::internal("bridge token lock poisoned"))? = Some(token.clone());
     Ok(token)
 }
 
@@ -788,7 +790,7 @@ struct BrowserConnectionStatus {
 }
 
 #[tauri::command]
-fn browser_connection_status() -> Result<BrowserConnectionStatus, String> {
+fn browser_connection_status() -> Result<BrowserConnectionStatus, CommandError> {
     #[cfg(desktop)]
     {
         let registered_browsers = NATIVE_HOST_BROWSERS.lock().map(|list| list.clone()).unwrap_or_default();
@@ -801,11 +803,11 @@ fn browser_connection_status() -> Result<BrowserConnectionStatus, String> {
         })
     }
     #[cfg(mobile)]
-    Err("the browser extension bridge is desktop-only".to_string())
+    Err(CommandError::unsupported("the browser extension bridge is desktop-only"))
 }
 
 #[tauri::command]
-fn can_use_biometrics(app: tauri::AppHandle) -> Result<bool, String> {
+fn can_use_biometrics(app: tauri::AppHandle) -> Result<bool, CommandError> {
     Ok(biometric::can_authenticate(&app).is_ok())
 }
 
@@ -815,75 +817,82 @@ fn can_use_biometrics(app: tauri::AppHandle) -> Result<bool, String> {
 async fn unlock_with_biometrics(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
-) -> Result<Vec<LoginItemSummary>, String> {
-    biometric::authenticate(&app, native_i18n::tr(native_i18n::Text::BiometricReason)).map_err(|error| error.to_string())?;
+) -> Result<Vec<LoginItemSummary>, CommandError> {
+    biometric::authenticate(&app, native_i18n::tr(native_i18n::Text::BiometricReason)).map_err(CommandError::from)?;
     let session = state
         .biometric_session
         .lock()
-        .map_err(|_| "biometric session lock poisoned".to_string())?
+        .map_err(|_| CommandError::internal("biometric session lock poisoned"))?
         .clone()
-        .ok_or_else(|| "Unlock with master password once before using biometrics".to_string())?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+        .ok_or_else(|| {
+            CommandError::new(
+                "biometric_needs_password",
+                "unlock with the master password once before using biometrics",
+            )
+        })?;
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let mut service = VaultService::new(connection);
     // The same vault a password unlock opens, never whichever one the session last followed: the window starts
     // on that rule, and a session left on another vault made the vault row show that vault's list (2026-10-25).
-    let opening = service.opening_vault_id().map_err(String::from)?;
-    let session = service.session_for_vault(&session, &opening).map_err(String::from)?;
+    let opening = service.opening_vault_id().map_err(CommandError::from)?;
+    let session = service.session_for_vault(&session, &opening).map_err(CommandError::from)?;
     let items = service
         .list_login_summaries(&session, None)
-        .map_err(String::from)?;
+        .map_err(CommandError::from)?;
     *state
         .biometric_session
         .lock()
-        .map_err(|_| "biometric session lock poisoned".to_string())? = Some(session.clone());
+        .map_err(|_| CommandError::internal("biometric session lock poisoned"))? = Some(session.clone());
     *state
         .session
         .lock()
-        .map_err(|_| "session lock poisoned".to_string())? = Some(session);
+        .map_err(|_| CommandError::internal("session lock poisoned"))? = Some(session);
     Ok(items)
 }
 
 #[tauri::command(async)]
-fn watchtower_report(state: State<AppState>) -> Result<WatchtowerReport, String> {
+fn watchtower_report(state: State<AppState>) -> Result<WatchtowerReport, CommandError> {
     let session = current_session(&state)?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let service = VaultService::new(connection);
-    service.watchtower_report(&session).map_err(String::from)
+    service.watchtower_report(&session).map_err(CommandError::from)
 }
 
 #[tauri::command(async)]
-fn check_breached_passwords(state: State<AppState>) -> Result<BreachCheckResult, String> {
+fn check_breached_passwords(state: State<AppState>) -> Result<BreachCheckResult, CommandError> {
     let session = current_session(&state)?;
-    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let connection = storage::open_default_database().map_err(CommandError::from)?;
     let service = VaultService::new(connection);
-    let items = service.export_login_items(&session).map_err(String::from)?;
-    breach_check::check_breached_passwords(&items).map_err(|error| error.to_string())
+    let items = service.export_login_items(&session).map_err(CommandError::from)?;
+    breach_check::check_breached_passwords(&items).map_err(CommandError::from)
 }
 
-fn current_session(state: &State<AppState>) -> Result<Session, String> {
+fn current_session(state: &State<AppState>) -> Result<Session, CommandError> {
     state
         .session
         .lock()
-        .map_err(|_| "session lock poisoned".to_string())?
+        .map_err(|_| CommandError::internal("session lock poisoned"))?
         .clone()
-        .ok_or_else(|| String::from(VaultError::Locked))
+        .ok_or_else(|| CommandError::from(VaultError::Locked))
 }
 
 #[tauri::command]
-fn set_autostart(enabled: bool, app: tauri::AppHandle) -> Result<(), String> {
+fn set_autostart(enabled: bool, app: tauri::AppHandle) -> Result<(), CommandError> {
     #[cfg(desktop)]
-    return shell::set_autostart(&app, enabled);
+    return shell::set_autostart(&app, enabled)
+        .map_err(|message| CommandError { code: "autostart", ..CommandError::internal(message) });
     #[cfg(mobile)]
     {
         let _ = (enabled, app);
-        Err("launch at login is desktop-only".to_string())
+        Err(CommandError::unsupported("launch at login is desktop-only"))
     }
 }
 
 #[tauri::command]
-fn is_autostart_enabled(app: tauri::AppHandle) -> Result<bool, String> {
+fn is_autostart_enabled(app: tauri::AppHandle) -> Result<bool, CommandError> {
     #[cfg(desktop)]
-    return shell::autostart_enabled(&app);
+    return shell::autostart_enabled(&app)
+        .map_err(|message| CommandError { code: "autostart", ..CommandError::internal(message) });
     #[cfg(mobile)]
     {
         let _ = app;

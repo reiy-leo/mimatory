@@ -1,6 +1,7 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import type { useTranslation as useTranslationType } from 'react-i18next'
 import { copyText } from './clipboard'
+import { describeError } from './errors'
 import { openAndFillUrl } from './fieldActions'
 import { openUrlExternally } from './fieldControls'
 import type { SecurityPreferences } from './securityPreferences'
@@ -55,7 +56,7 @@ export function useItemActions({
       setItems(await vaultApi.list())
       setOperationMessage(t(icon ? 'messages.iconRefreshed' : 'messages.iconNotFound'))
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 
@@ -66,7 +67,7 @@ export function useItemActions({
       await vaultApi.setIconMode(selectedItem.id, mode)
       setItems(await vaultApi.list())
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 
@@ -86,7 +87,7 @@ export function useItemActions({
     } catch (nextError) {
       // Rust refuses an item that still has links; the menu row is disabled for that, so this is
       // only reached when the list in hand was stale.
-      setError(String(nextError))
+      setError(describeError(nextError))
       return
     }
     const nextItems = await vaultApi.list()
@@ -125,7 +126,7 @@ export function useItemActions({
       setComposing(false)
       setOperationMessage(t('messages.movedItem', { vault: vaultName }))
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 
@@ -138,7 +139,7 @@ export function useItemActions({
       setSelectedId(copy.id)
       setOperationMessage(t('messages.duplicatedItem', { title: copy.title }))
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 
@@ -166,7 +167,7 @@ export function useItemActions({
       setOperationMessage(t('messages.copiedField', { label }))
       if (selectedItem) void vaultApi.recordUse(selectedItem.id).catch(() => {})
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 

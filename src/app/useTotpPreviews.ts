@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { useEffect, useState } from 'react'
+import { describeError } from './errors'
 import { vaultApi } from './vaultApi'
 import type { FieldTotpPreview, LoginFormState } from './vaultModel'
 
@@ -76,7 +77,7 @@ export function useTotpPreviews({
     } catch (nextError) {
       // A secret that no longer decodes should not stop the detail view from opening; the card has no
       // code to show until it is fixed, and opening an item is not an error.
-      if (!silent) setError(String(nextError))
+      if (!silent) setError(describeError(nextError))
     }
   }
 

@@ -18,6 +18,7 @@ import { currentPlatformState, usePlatformState } from '../skin/runtime'
 import type { AddMoreFieldType } from './addMoreOptions'
 import { useAnchoredPanel } from './anchoredPanel'
 import { attachmentId, type TextPreviewState } from './attachmentControls'
+import { describeError } from './errors'
 import { orderCredentialFields } from './fieldReorder'
 import i18n from './i18n'
 import { isFormDirty } from './itemDrafts'
@@ -320,15 +321,15 @@ export function useVaultWindow() {
           setItems(nextItems)
           setSelectedId((current) => current ?? nextItems[0]?.id ?? null)
         })
-        .catch((nextError) => setError(String(nextError)))
+        .catch((nextError) => setError(describeError(nextError)))
     }, 120)
     return () => window.clearTimeout(timer)
   }, [mode])
 
   useEffect(() => {
     if (mode !== 'unlocked') return
-    loadArchivedItems().catch((nextError) => setError(String(nextError)))
-    loadTrashedItems().catch((nextError) => setError(String(nextError)))
+    loadArchivedItems().catch((nextError) => setError(describeError(nextError)))
+    loadTrashedItems().catch((nextError) => setError(describeError(nextError)))
   }, [mode])
 
   useEffect(() => {
@@ -385,10 +386,10 @@ export function useVaultWindow() {
       .then(() => {
         setActiveVaultId(target)
         setItems(allItems?.filter((item) => item.vault_id === target) ?? [])
-        loadArchivedItems().catch((nextError) => setError(String(nextError)))
-        loadTrashedItems().catch((nextError) => setError(String(nextError)))
+        loadArchivedItems().catch((nextError) => setError(describeError(nextError)))
+        loadTrashedItems().catch((nextError) => setError(describeError(nextError)))
       })
-      .catch((nextError: unknown) => setError(String(nextError)))
+      .catch((nextError: unknown) => setError(describeError(nextError)))
       .finally(() => {
         followingVaultRef.current = null
       })
@@ -486,13 +487,13 @@ export function useVaultWindow() {
       .then((nextTags) => {
         if (!stale && Array.isArray(nextTags)) setTagRecords(nextTags)
       })
-      .catch((nextError: unknown) => setError(String(nextError)))
+      .catch((nextError: unknown) => setError(describeError(nextError)))
     vaultApi
       .allItems()
       .then((nextItems) => {
         if (!stale) setAllItems(Array.isArray(nextItems) ? nextItems : null)
       })
-      .catch((nextError: unknown) => setError(String(nextError)))
+      .catch((nextError: unknown) => setError(describeError(nextError)))
     return () => {
       stale = true
     }
@@ -510,7 +511,7 @@ export function useVaultWindow() {
         if (!stale && Array.isArray(nextVaults))
           setVaults((current) => (sameVaults(current, nextVaults) ? current : nextVaults))
       })
-      .catch((nextError: unknown) => setError(String(nextError)))
+      .catch((nextError: unknown) => setError(describeError(nextError)))
     return () => {
       stale = true
     }
@@ -816,14 +817,14 @@ export function useVaultWindow() {
       draftKeyRef.current = saved.id
       baselineRef.current = fresh
       setForm(fresh)
-      if (relationError) setError(String(relationError))
+      if (relationError) setError(describeError(relationError))
       itemDetail.prime(full)
       setItems(nextItems)
       setSelectedId(saved.id)
       setComposing(false)
       setIsEditing(false)
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     } finally {
       setSaving(false)
     }
@@ -987,7 +988,7 @@ export function useVaultWindow() {
     } catch (nextError) {
       // The session did not move, so neither does the window's idea of it: edits keep acting where the list is.
       setActiveVaultId(previousVaultId)
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 
@@ -1026,7 +1027,7 @@ export function useVaultWindow() {
       closeCreateVault()
       setOperationMessage(t('messages.createdVault', { name: vault.name }))
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 
@@ -1067,7 +1068,7 @@ export function useVaultWindow() {
       // A vault is addressed by id, so renaming it moves nothing — the row is the same row.
       setOperationMessage(t('messages.updatedVault', { name }))
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 
@@ -1098,7 +1099,7 @@ export function useVaultWindow() {
       }
       setOperationMessage(t(archived ? 'messages.archivedVault' : 'messages.restoredVault', { name: vault.name }))
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 
@@ -1157,7 +1158,7 @@ export function useVaultWindow() {
         await loadTrashedItems()
       }
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 
@@ -1270,7 +1271,7 @@ export function useVaultWindow() {
     try {
       await action()
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     } finally {
       setBulkBusy(false)
     }
@@ -1573,7 +1574,7 @@ export function useVaultWindow() {
       // The dialog saves the styling and the name together, so a run of icon clicks is not a rename.
       setOperationMessage(t(name === tagEditor.from ? 'messages.updatedTag' : 'messages.renamedTag', { name }))
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 
@@ -1595,7 +1596,7 @@ export function useVaultWindow() {
       if (wasFilteredOn) setActiveNavigation('vaults')
       setOperationMessage(t('messages.deletedTag', { name: tagDeleteTarget.name }))
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 
@@ -1913,7 +1914,7 @@ export function useVaultWindow() {
         })
         attached += 1
       } catch (nextError) {
-        setError(String(nextError))
+        setError(describeError(nextError))
         return
       }
     }
@@ -1928,7 +1929,7 @@ export function useVaultWindow() {
       const path = await vaultApi.exportAttachmentToTemp(field.value.replace('attachment://', ''))
       setOperationMessage(t('messages.exportedAttachment', { path }))
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 
@@ -1946,7 +1947,7 @@ export function useVaultWindow() {
       if (textPreviewRequest.current === request) setTextPreview({ fileName, result, status: 'ready' })
     } catch (nextError) {
       if (textPreviewRequest.current === request)
-        setTextPreview({ error: String(nextError), fileName, status: 'error' })
+        setTextPreview({ error: describeError(nextError), fileName, status: 'error' })
     }
   }
 
@@ -2131,7 +2132,7 @@ export function useVaultWindow() {
       const preview = await vaultApi.preview1pux()
       if (preview) setOnePuxPreview(preview)
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
   useEffect(() => {
@@ -2171,7 +2172,7 @@ export function useVaultWindow() {
       await refreshItems()
       setOperationMessage(t('messages.imported1pux', { count: summary.item_count }))
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     } finally {
       setIsImporting1pux(false)
     }
@@ -2191,7 +2192,7 @@ export function useVaultWindow() {
       await vaultApi.purge(purgeTarget.id)
     } catch (nextError) {
       setPurgeTarget(null)
-      setError(String(nextError))
+      setError(describeError(nextError))
       return
     }
     setPurgeTarget(null)

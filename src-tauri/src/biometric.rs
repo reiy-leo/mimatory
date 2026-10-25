@@ -23,6 +23,17 @@ mod platform {
         Timeout,
     }
 
+    impl BiometricError {
+        /// The stable code the frontend translates (see command_error.rs).
+        pub fn code(&self) -> &'static str {
+            match self {
+                BiometricError::Unavailable => "biometric_unavailable",
+                BiometricError::Failed => "biometric_failed",
+                BiometricError::Timeout => "biometric_timeout",
+            }
+        }
+    }
+
     pub fn can_authenticate<R: Runtime>(_app: &AppHandle<R>) -> Result<(), BiometricError> {
         let context = unsafe { LAContext::new() };
         unsafe {
@@ -73,6 +84,16 @@ mod platform {
         Failed(String),
     }
 
+    impl BiometricError {
+        /// The stable code the frontend translates (see command_error.rs).
+        pub fn code(&self) -> &'static str {
+            match self {
+                BiometricError::Unavailable => "biometric_unavailable",
+                BiometricError::Failed(_) => "biometric_failed",
+            }
+        }
+    }
+
     pub fn can_authenticate<R: Runtime>(app: &AppHandle<R>) -> Result<(), BiometricError> {
         match app.biometric().status() {
             Ok(status) if status.is_available => Ok(()),
@@ -104,6 +125,15 @@ mod platform {
     pub enum BiometricError {
         #[error("biometric unlock is not available on this platform")]
         Unavailable,
+    }
+
+    impl BiometricError {
+        /// The stable code the frontend translates (see command_error.rs).
+        pub fn code(&self) -> &'static str {
+            match self {
+                BiometricError::Unavailable => "biometric_unavailable",
+            }
+        }
     }
 
     pub fn can_authenticate<R: Runtime>(_app: &AppHandle<R>) -> Result<(), BiometricError> {

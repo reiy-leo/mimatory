@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { usePlatformState } from '../skin/runtime'
 import { copyText } from './clipboard'
+import { describeError } from './errors'
 import i18n, { getInitialLanguage, languageOptions, type SupportedLanguage } from './i18n'
 import { featuresFor, quickAccessKeys, shortcutLabel } from './platformFeatures'
 import {
@@ -140,7 +141,7 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
     vaultApi
       .initialize()
       .then(setStatus)
-      .catch((nextError) => setError(String(nextError)))
+      .catch((nextError) => setError(describeError(nextError)))
     vaultApi
       .isAutostartEnabled()
       .then(setAutostartEnabled)
@@ -168,7 +169,7 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
       await vaultApi.setAutostart(enabled)
       setAutostartEnabled(enabled)
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 
@@ -177,7 +178,7 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
     try {
       setWatchtower(await vaultApi.watchtower())
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 
@@ -187,7 +188,7 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
     try {
       setBreachResult(await vaultApi.checkBreaches())
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     } finally {
       setOperationMessage(null)
     }

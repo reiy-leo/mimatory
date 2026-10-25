@@ -1,6 +1,7 @@
 import { FileArchive, Loader2 } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { TextPreviewDialog } from './attachmentControls'
+import { describeError } from './errors'
 import i18n from './i18n'
 import type { VaultWindowModel } from './useVaultWindow'
 
@@ -110,7 +111,7 @@ export function VaultDialogs({ vw }: { vw: VaultWindowModel }) {
               await copySecretText(text, true)
               return true
             } catch (nextError) {
-              setError(String(nextError))
+              setError(describeError(nextError))
               return false
             }
           }}

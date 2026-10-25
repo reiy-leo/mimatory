@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { describeError } from './errors'
 import { getAutoLockMilliseconds, type SecurityPreferences } from './securityPreferences'
 import { type AppStatus, type LoginItemSummary, vaultApi } from './vaultApi'
 import type { VaultMode } from './vaultModel'
@@ -46,7 +47,7 @@ export function useVaultSession({
         setMode(nextStatus.has_master_password ? 'locked' : 'setup')
       })
       .catch((nextError) => {
-        setError(String(nextError))
+        setError(describeError(nextError))
         setMode('setup')
       })
   }, [])
@@ -113,11 +114,11 @@ export function useVaultSession({
       setMasterPassword('')
       setMode('unlocked')
       await followOpenedVault(nextItems)
-      loadArchivedItems().catch((nextError) => setError(String(nextError)))
-      loadTrashedItems().catch((nextError) => setError(String(nextError)))
+      loadArchivedItems().catch((nextError) => setError(describeError(nextError)))
+      loadTrashedItems().catch((nextError) => setError(describeError(nextError)))
       setStatus((current) => (current ? { ...current, has_master_password: true, unlocked: true } : current))
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     } finally {
       setIsUnlocking(false)
     }
@@ -132,7 +133,7 @@ export function useVaultSession({
       setMode('unlocked')
       await followOpenedVault(nextItems)
     } catch (nextError) {
-      setError(String(nextError))
+      setError(describeError(nextError))
     }
   }
 
