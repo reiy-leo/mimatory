@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { EditBannerPattern } from './editBanner'
 import { ItemDetailView } from './itemDetailView'
 import { ItemEditForm } from './itemEditForm'
+import { SelectionPane } from './selectionPane'
 import { Toast } from './toast'
 import type { VaultWindowModel } from './useVaultWindow'
 
@@ -24,11 +25,13 @@ export function ItemDetailPane({ vw }: { vw: VaultWindowModel }) {
     itemMenuTriggerRef,
     itemTypePickerOpen,
     listTitle,
+    multiSelected,
     openItemTypePicker,
     operationMessage,
     platform,
     saving,
     selectedItem,
+    selectedStateRow,
     setMobileDetailOpen,
     setOperationMessage,
     t,
@@ -112,7 +115,9 @@ export function ItemDetailPane({ vw }: { vw: VaultWindowModel }) {
           ) : null}
         </div>
       </div>
-      {selectedItem || composing ? (
+      {multiSelected || selectedStateRow ? (
+        <SelectionPane vw={vw} />
+      ) : selectedItem || composing ? (
         isEditing ? (
           <ItemEditForm vw={vw} />
         ) : (

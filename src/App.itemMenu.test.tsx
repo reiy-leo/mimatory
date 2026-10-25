@@ -5,7 +5,7 @@
 // previous / next toolbar buttons step through the list.
 import '@testing-library/jest-dom/vitest'
 import { clearMocks, mockIPC, mockWindows } from '@tauri-apps/api/mocks'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { flushSync } from 'react-dom'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import i18n from './app/i18n'
@@ -37,6 +37,24 @@ const detailReads: Array<{ itemId: string; vaultId: string | null }> = []
 
 type StubItem = ReturnType<typeof item> & { vault_id?: string }
 
+// Per-test knobs for the bridge (reset after each test), and every bulk command the window sent with its ids.
+const scenario = {
+  // The Rust session on another (empty) vault while the window names Personal — the 2026-10-25 "838, empty" bug.
+  sessionOnEmptyVault: false,
+  switchFails: false,
+  trashed: [] as StubItem[],
+  workArchived: false,
+}
+const bulkCalls: Array<{ cmd: string; ids: string[]; vaultId?: string }> = []
+const bulkCommands = [
+  'trash_login_items',
+  'archive_login_items',
+  'restore_archived_login_items',
+  'restore_trashed_login_items',
+  'purge_login_items',
+  'move_login_items',
+]
+
 // What the list commands answer with (vault.rs LoginItemSummary): no password, notes, fields or second address.
 function summary({ custom_fields: _fields, notes: _notes, password: _password, urls: _urls, ...rest }: StubItem) {
   return structuredClone(rest)
@@ -46,6 +64,12 @@ function stubBridge() {
   mockWindows('main')
   mockIPC(
     (cmd, args) => {
+      if (bulkCommands.includes(cmd)) {
+        const { ids, vaultId } = args as { ids: string[]; vaultId?: string }
+        bulkCalls.push({ cmd, ids: [...ids], vaultId })
+        if (cmd === 'purge_login_items') scenario.trashed = scenario.trashed.filter((entry) => !ids.includes(entry.id))
+        return { done: ids.length, held: [] }
+      }
       switch (cmd) {
         case 'set_login_favorite': {
           const { id, favorite } = args as { favorite: boolean; id: string }
@@ -59,6 +83,7 @@ function stubBridge() {
         case 'switch_vault': {
           const id = (args as { id: string }).id
           switchedTo.push(id)
+          if (scenario.switchFails) throw new Error('database is locked')
           return id === 'work' ? [summary(workItem)] : items.map(summary)
         }
         case 'get_login_item': {
@@ -72,7 +97,7 @@ function stubBridge() {
           return { database_ready: true, has_master_password: true, name: 'Mimatory', unlocked: false }
         case 'unlock_vault':
         case 'list_login_items':
-          return items.map(summary)
+          return scenario.sessionOnEmptyVault ? [] : items.map(summary)
         case 'list_all_login_items':
           return [...items.map((entry) => summary({ ...entry, vault_id: 'personal' })), summary(workItem)]
         case 'list_vaults':
@@ -88,7 +113,7 @@ function stubBridge() {
               updated_at: '2026-10-18T00:00:00Z',
             },
             {
-              archived: false,
+              archived: scenario.workArchived,
               color: 'green',
               created_at: 'Thu 2026-01-01 8:00 AM CST (UTC+08:00)',
               icon: 'vault',
@@ -100,9 +125,10 @@ function stubBridge() {
           ]
         case 'list_all_tags':
           return [{ color: '', icon: 'tag', name: 'shared' }]
+        case 'list_trashed_login_items':
+          return scenario.trashed.map((entry) => summary({ ...entry, vault_id: 'personal' }))
         case 'list_tags':
         case 'list_archived_login_items':
-        case 'list_trashed_login_items':
           return []
         case 'password_strength':
           return { bits: 60, level: 'strong' }
@@ -167,7 +193,33 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   clearMocks()
+  Object.assign(scenario, { sessionOnEmptyVault: false, switchFails: false, trashed: [], workArchived: false })
+  bulkCalls.length = 0
 })
+
+const primary = { ctrlKey: true, metaKey: true }
+const row = (name: RegExp) => screen.getByRole('button', { name })
+const sidebarButton = (label: string) =>
+  [...(document.querySelector('.sidebar') as HTMLElement).querySelectorAll('button')].find((button) =>
+    button.textContent?.trim().startsWith(label),
+  ) as HTMLElement
+const activeTitles = () => [...document.querySelectorAll('.item-row.active strong')].map((node) => node.textContent)
+
+// The session is on an empty vault: the first list is empty, so the window has no row to wait for.
+async function renderUnlockedAll() {
+  stubBridge()
+  const { App } = await import('./App')
+  render(<App />)
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  })
+  const password = await screen.findByLabelText(/password/i, { selector: 'input[type=password]' })
+  fireEvent.change(password, { target: { value: 'password123' } })
+  await act(async () => {
+    fireEvent.submit(password.closest('form') as HTMLFormElement)
+  })
+  await screen.findByRole('button', { name: /Delta/ })
+}
 
 async function renderUnlocked() {
   stubBridge()
@@ -182,6 +234,10 @@ async function renderUnlocked() {
     fireEvent.submit(password.closest('form') as HTMLFormElement)
   })
   await screen.findByRole('button', { name: /Alpha/ })
+  // The window re-lists 120ms after unlocking; let that settle before a test starts selecting.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  })
 }
 
 describe('vault window', () => {
@@ -363,5 +419,161 @@ describe('vault window', () => {
     fireEvent.mouseUp(window)
     expect(JSON.parse(localStorage.getItem('mimatory-column-widths') ?? '{}')).toEqual({ itemList: 230, sidebar: 9999 })
     localStorage.removeItem('mimatory-column-widths')
+  })
+
+  // Rei, 2026-10-25: "personal库显示838个items，但点击后，列表为空". The vault row listed `items` — whatever the Rust
+  // session last read — whenever the window already named that vault; with the session elsewhere (here: on an empty
+  // vault, and the switch to Personal failing) the row showed nothing under its count.
+  it('lists the vault row from the same live items its count is made of, even when the session is elsewhere', async () => {
+    scenario.sessionOnEmptyVault = true
+    scenario.switchFails = true
+    await renderUnlockedAll()
+    await act(async () => {
+      fireEvent.click(sidebarButton('Personal'))
+    })
+    await waitFor(() => expect(screen.getByRole('button', { name: /Alpha/ })).toBeInTheDocument())
+    const count = Number(sidebarButton('Personal').querySelector('.nav-count')?.textContent)
+    expect(document.querySelectorAll('.item-row')).toHaveLength(count)
+    expect(screen.queryByRole('button', { name: /Delta/ })).not.toBeInTheDocument()
+  })
+
+  it('selects every row with ⌘A, but leaves ⌘A in a text field alone', async () => {
+    await renderUnlocked()
+    await screen.findByRole('button', { name: /Delta/ })
+    const search = screen.getByLabelText('Search items and settings')
+    fireEvent.keyDown(search, { ...primary, code: 'KeyA', key: 'a' })
+    expect(activeTitles().length).toBeLessThanOrEqual(1)
+    fireEvent.keyDown(document.body, { ...primary, code: 'KeyA', key: 'a' })
+    await screen.findByText('4 Items Selected')
+    expect(activeTitles()).toHaveLength(4)
+    // Escape clears the selection, and the pane says nothing is selected.
+    fireEvent.keyDown(document.body, { code: 'Escape', key: 'Escape' })
+    await screen.findByText('No Item Selected')
+    expect(activeTitles()).toHaveLength(0)
+  })
+
+  it('selects all from Edit ▸ Select All (the webview’s selectAll: reaches the page as selectstart)', async () => {
+    await renderUnlocked()
+    await screen.findByRole('button', { name: /Delta/ })
+    document.body.dispatchEvent(new Event('selectstart', { bubbles: true, cancelable: true }))
+    await screen.findByText('4 Items Selected')
+  })
+
+  it('toggles with ⌘-click, ranges with ⇧-click and extends with ⇧↓', async () => {
+    await renderUnlocked()
+    await screen.findByRole('button', { name: /Delta/ })
+    const titles = () => [...document.querySelectorAll('.item-row strong')].map((node) => node.textContent as string)
+    const [first, second, third, fourth] = titles()
+    fireEvent.click(row(new RegExp(first)))
+    fireEvent.click(row(new RegExp(third)), primary)
+    await screen.findByText('2 Items Selected')
+    expect(activeTitles()).toEqual([first, third])
+    fireEvent.click(row(new RegExp(third)), primary)
+    await waitFor(() => expect(activeTitles()).toEqual([first]))
+    fireEvent.click(row(new RegExp(third)), { shiftKey: true })
+    await screen.findByText('3 Items Selected')
+    expect(activeTitles()).toEqual([first, second, third])
+    fireEvent.keyDown(document.body, { key: 'ArrowDown', shiftKey: true })
+    await waitFor(() => expect(activeTitles()).toEqual([first, second, third, fourth]))
+  })
+
+  it('moves a multi-selection to the Trash in one call, after a light confirmation that counts it', async () => {
+    await renderUnlocked()
+    await screen.findByRole('button', { name: /Delta/ })
+    fireEvent.keyDown(document.body, { ...primary, code: 'KeyA', key: 'a' })
+    await screen.findByText('4 Items Selected')
+    fireEvent.keyDown(document.body, { ...primary, key: 'Backspace' })
+    const alert = await screen.findByRole('alertdialog')
+    expect(alert).toHaveTextContent('Move 4 items to the Trash?')
+    expect(alert).toHaveTextContent('You can restore them from the Trash.')
+    await act(async () => {
+      fireEvent.click(within(alert).getByRole('button', { name: 'Move to Trash' }))
+    })
+    await waitFor(() => expect(bulkCalls).toHaveLength(1))
+    expect(bulkCalls[0].cmd).toBe('trash_login_items')
+    expect([...bulkCalls[0].ids].sort()).toEqual(['a', 'b', 'c', 'd'])
+  })
+
+  it('archives a selection from the pane and from the right-click menu', async () => {
+    await renderUnlocked()
+    await screen.findByRole('button', { name: /Delta/ })
+    fireEvent.click(row(/Alpha/))
+    fireEvent.click(row(/Bravo/), primary)
+    await screen.findByText('2 Items Selected')
+    fireEvent.contextMenu(row(/Bravo/))
+    const menu = await screen.findByRole('menu')
+    expect(menu).toHaveTextContent('2 Items Selected')
+    await act(async () => {
+      fireEvent.click(within(menu).getByRole('button', { name: 'Archive' }))
+    })
+    await waitFor(() => expect(bulkCalls.map((call) => call.cmd)).toEqual(['archive_login_items']))
+    expect([...bulkCalls[0].ids].sort()).toEqual(['a', 'b'])
+  })
+
+  it('opens Trash on its first item, deletes a selection permanently and empties the trash behind a destructive alert', async () => {
+    scenario.trashed = [item('t1', 'Old One'), item('t2', 'Old Two'), item('t3', 'Old Three')]
+    await renderUnlocked()
+    await act(async () => {
+      fireEvent.click(sidebarButton('Trash'))
+    })
+    // The first row of the trash is selected and the pane offers its way back.
+    await waitFor(() => expect(activeTitles()).toHaveLength(1))
+    expect(screen.getByRole('button', { name: 'Restore' })).toBeInTheDocument()
+    fireEvent.keyDown(document.body, { ...primary, code: 'KeyA', key: 'a' })
+    await screen.findByText('3 Items Selected')
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Permanently' }))
+    let alert = await screen.findByRole('alertdialog')
+    expect(alert).toHaveTextContent('Delete 3 items permanently?')
+    expect(alert).toHaveTextContent("You can't undo this.")
+    // The safe button has the focus; Escape walks away with nothing deleted.
+    expect(within(alert).getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(bulkCalls).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Empty Trash' }))
+    alert = await screen.findByRole('alertdialog')
+    expect(alert).toHaveTextContent('Empty the Trash?')
+    expect(alert).toHaveTextContent('(3)')
+    await act(async () => {
+      fireEvent.click(within(alert).getByRole('button', { name: 'Empty Trash' }))
+    })
+    await waitFor(() => expect(bulkCalls.map((call) => call.cmd)).toEqual(['purge_login_items']))
+    expect([...bulkCalls[0].ids].sort()).toEqual(['t1', 't2', 't3'])
+  })
+
+  it('opens every sidebar scope on its first item and leaves the pane empty for an empty one', async () => {
+    await renderUnlocked()
+    await screen.findByRole('button', { name: /Delta/ })
+    fireEvent.click(row(/Charlie/))
+    fireEvent.click(row(/Alpha/), primary)
+    await screen.findByText('2 Items Selected')
+    // A tag: its one item replaces the multi-selection.
+    await act(async () => {
+      fireEvent.click(sidebarButton('shared'))
+    })
+    await waitFor(() => expect(activeTitles()).toEqual(['Delta']))
+    expect(await screen.findByText('Delta', { selector: '.detail-pane *' })).toBeInTheDocument()
+    // Favorites holds nothing: no stale item in the pane.
+    await act(async () => {
+      fireEvent.click(sidebarButton('Favorites'))
+    })
+    await screen.findByText('No Item Selected')
+    // A vault: its first row in the current sort.
+    await act(async () => {
+      fireEvent.click(sidebarButton('Personal'))
+    })
+    await waitFor(() => expect(activeTitles()).toHaveLength(1))
+    const first = document.querySelector('.item-row strong')?.textContent
+    expect(activeTitles()).toEqual([first])
+  })
+
+  it('keeps the last open vault: Archive and Dissolve are there but unavailable, with the reason', async () => {
+    scenario.workArchived = true
+    await renderUnlocked()
+    fireEvent.contextMenu(sidebarButton('Personal'))
+    const archive = await screen.findByRole('button', { name: /Archive Vault/ })
+    expect(archive).toBeDisabled()
+    expect(archive).toHaveTextContent('At least one vault has to stay open.')
+    expect(screen.getByRole('button', { name: /Dissolve/ })).toBeDisabled()
   })
 })

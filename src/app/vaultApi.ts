@@ -281,12 +281,21 @@ function write<T>(command: string, args?: InvokeArgs): Promise<T> {
   })
 }
 
+/** What a selection action did (vault.rs BulkOutcome): how many changed, and which stayed because of links. */
+export type BulkOutcome = {
+  done: number
+  held: string[]
+}
+
 export const vaultApi = {
   // All (owner 2026-10-18): every open vault's live items, and the tags across them, not tied to the open vault.
   allItems: () => invoke<LoginItemSummary[]>('list_all_login_items'),
   allTags: () => invoke<Tag[]>('list_all_tags'),
   archive: (id: string) => write<void>('archive_login_item', { id }),
   archived: () => invoke<LoginItemSummary[]>('list_archived_login_items'),
+  // Selection actions (2026-10-25): one call and one transaction for the whole selection, across vaults. Synced
+  // writes, so declared with write().
+  archiveMany: (ids: string[]) => write<BulkOutcome>('archive_login_items', { ids }),
   attachFileToItem: (id: string, path: string) => write<CustomField>('attach_file_to_item', { id, path }),
   // Native messaging (primary since 2026-10-24): which browsers have the host manifest, and live connections.
   browserConnectionStatus: () => invoke<BrowserConnectionStatus>('browser_connection_status'),
@@ -323,19 +332,24 @@ export const vaultApi = {
   list: (query?: string) => invoke<LoginItemSummary[]>('list_login_items', { query: query || null }),
   listVaults: () => invoke<VaultSummary[]>('list_vaults'),
   lock: () => invoke<void>('lock_vault'),
-  // The item leaves the vault the session is reading; this does not switch the app to the target.
   move: (id: string, vaultId: string) => write<void>('move_login_item', { id, vaultId }),
+  // The item leaves the vault the session is reading; this does not switch the app to the target.
+  moveMany: (ids: string[], vaultId: string) => write<BulkOutcome>('move_login_items', { ids, vaultId }),
   passwordStrength: (password: string) => invoke<PasswordStrength>('password_strength', { password }),
   pickAttachmentFile: () => invoke<string | null>('pick_attachment_file'),
   // File ▸ Import ▸ 1Password: the picker and a read-only look at the file (null when cancelled), then the import.
   preview1pux: () => invoke<OnePuxPreview | null>('preview_1pux_import'),
   purge: (id: string) => write<void>('purge_login_item', { id }),
+  // Only items already in the trash; Delete Permanently and Empty Trash.
+  purgeMany: (ids: string[]) => write<BulkOutcome>('purge_login_items', { ids }),
   // Decrypted in memory only, unlike exportAttachmentToTemp, which writes a file.
   readAttachmentText: (id: string) => invoke<AttachmentText>('read_attachment_text', { id }),
   // One use (a field copied, Open & Fill), for the Frequently / Recently Used sorts.
   recordUse: (id: string) => invoke<void>('record_item_use', { id }),
   restore: (id: string) => write<void>('restore_login_item', { id }),
+  restoreArchivedMany: (ids: string[]) => write<BulkOutcome>('restore_archived_login_items', { ids }),
   restoreFromTrash: (id: string) => write<void>('restore_trashed_login_item', { id }),
+  restoreTrashedMany: (ids: string[]) => write<BulkOutcome>('restore_trashed_login_items', { ids }),
   setAutostart: (enabled: boolean) => invoke<void>('set_autostart', { enabled }),
   // `parentId: null` clears the parent. Rust refuses itself, a cycle, and an item in the trash.
   setIconMode: (id: string, mode: ItemIconMode) => write<void>('set_item_icon_mode', { id, mode }),
@@ -350,6 +364,8 @@ export const vaultApi = {
   tags: () => invoke<Tag[]>('list_tags'),
   trash: (id: string) => write<void>('trash_login_item', { id }),
   trashed: () => invoke<LoginItemSummary[]>('list_trashed_login_items'),
+  // Items linked to something outside the selection stay, and come back in `held`.
+  trashMany: (ids: string[]) => write<BulkOutcome>('trash_login_items', { ids }),
   unlinkRelated: (id: string, otherId: string) => write<void>('unlink_related_items', { id, otherId }),
   unlock: (password: string) => invoke<LoginItemSummary[]>('unlock_vault', { password }),
   unlockWithBiometrics: () => invoke<LoginItemSummary[]>('unlock_with_biometrics'),

@@ -1,5 +1,6 @@
 import {
   Archive,
+  ArchiveRestore,
   CaseUpper,
   ChevronLeft,
   ChevronRight,
@@ -19,6 +20,7 @@ import type { VaultWindowModel } from './useVaultWindow'
 /** The item actions panel (header ellipsis or row right-click). */
 export function ItemActionsMenu({ vw }: { vw: VaultWindowModel }) {
   const {
+    archiveSelection,
     beginEdit,
     closeFieldMenus,
     handleArchive,
@@ -34,7 +36,14 @@ export function ItemActionsMenu({ vw }: { vw: VaultWindowModel }) {
     itemMenuPanelRef,
     itemMenuPlaced,
     itemMenuSource,
+    moveSelection,
     otherVaults,
+    requestPurgeSelection,
+    requestTrashSelection,
+    restoreSelection,
+    selectedRowIds,
+    selectionMoveTargets,
+    stateView,
     selectedHasRelations,
     selectedItem,
     setItemMenu,
@@ -54,7 +63,82 @@ export function ItemActionsMenu({ vw }: { vw: VaultWindowModel }) {
           role="menu"
           style={itemMenuSource === 'header' ? { ...itemMenuPlaced, overflowY: 'auto' } : itemMenuAnchor?.style}
         >
-          {itemMenu === 'move' ? (
+          {itemMenu === 'selection' ? (
+            // A multi-selection's right-click, or any trash / archive row's: what applies to every selected item.
+            stateView ? (
+              <>
+                <button className="menu-option with-icon" onClick={() => restoreSelection()} type="button">
+                  <ArchiveRestore aria-hidden="true" size={15} />
+                  <span className="menu-option-label">
+                    <span>{t('selection.restore')}</span>
+                  </span>
+                </button>
+                <button
+                  className="menu-option with-icon is-danger separated"
+                  onClick={() => (stateView === 'trash' ? requestPurgeSelection() : requestTrashSelection())}
+                  type="button"
+                >
+                  <Trash2 aria-hidden="true" size={15} />
+                  <span className="menu-option-label">
+                    <span>{t(stateView === 'trash' ? 'selection.deletePermanently' : 'selection.moveToTrash')}</span>
+                  </span>
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="list-sort-heading">{t('selection.itemsSelected', { count: selectedRowIds.length })}</p>
+                <button className="menu-option with-icon" onClick={() => archiveSelection()} type="button">
+                  <Archive aria-hidden="true" size={15} />
+                  <span className="menu-option-label">
+                    <span>{t('selection.archive')}</span>
+                  </span>
+                </button>
+                {selectionMoveTargets.length ? (
+                  <button className="menu-option with-icon" onClick={() => setItemMenu('selectionMove')} type="button">
+                    <FolderInput aria-hidden="true" size={15} />
+                    <span className="menu-option-label trailing">
+                      <span>{t('selection.moveTo')}</span>
+                      <ChevronRight aria-hidden="true" size={15} />
+                    </span>
+                  </button>
+                ) : null}
+                <button
+                  className="menu-option with-icon is-danger separated"
+                  onClick={() => requestTrashSelection()}
+                  type="button"
+                >
+                  <Trash2 aria-hidden="true" size={15} />
+                  <span className="menu-option-label">
+                    <span>{t('selection.moveToTrash')}</span>
+                  </span>
+                </button>
+              </>
+            )
+          ) : itemMenu === 'selectionMove' ? (
+            <>
+              {itemMenuSource === 'row' ? (
+                <button className="menu-option with-icon" onClick={() => setItemMenu('selection')} type="button">
+                  <ChevronLeft aria-hidden="true" size={15} />
+                  <span className="menu-option-label">
+                    <span>{t('selection.moveTo')}</span>
+                  </span>
+                </button>
+              ) : null}
+              {selectionMoveTargets.map((vault) => (
+                <button
+                  className="menu-option with-icon"
+                  key={vault.id}
+                  onClick={() => moveSelection(vault)}
+                  type="button"
+                >
+                  <Vault aria-hidden="true" size={15} />
+                  <span className="menu-option-label">
+                    <span>{vault.name}</span>
+                  </span>
+                </button>
+              ))}
+            </>
+          ) : itemMenu === 'move' ? (
             <>
               <button className="menu-option with-icon" onClick={() => setItemMenu('actions')} type="button">
                 <ChevronLeft aria-hidden="true" size={15} />

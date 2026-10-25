@@ -18,6 +18,7 @@ export function SidebarMenus({ vw }: { vw: VaultWindowModel }) {
     handleTagDelete,
     handleTagSave,
     handleVaultArchive,
+    isLastOpenVault,
     handleVaultDissolve,
     handleVaultSave,
     highlights,
@@ -152,7 +153,17 @@ export function SidebarMenus({ vw }: { vw: VaultWindowModel }) {
               <span>{t('vault.editVault')}</span>
             </span>
           </button>
-          <button className="menu-option with-icon" onClick={handleVaultArchive} type="button">
+          {/* Owner 2026-10-25: "如果只剩下一个保险库了，这个保险库不能archive，不能删，只能编辑". The last open vault keeps both
+              rows, unavailable, with the reason under them (menus.md: dim an unavailable item rather than hide it,
+              so people learn it exists). Rust refuses both as well (VaultLastOpen). */}
+          <button
+            aria-describedby={isLastOpenVault(vaultMenu) ? 'vault-last-open-hint' : undefined}
+            className="menu-option with-icon"
+            disabled={isLastOpenVault(vaultMenu)}
+            onClick={handleVaultArchive}
+            title={isLastOpenVault(vaultMenu) ? t('vault.lastOpenVault') : undefined}
+            type="button"
+          >
             {vaultMenu.archived ? (
               <ArchiveRestore aria-hidden="true" size={15} />
             ) : (
@@ -160,10 +171,18 @@ export function SidebarMenus({ vw }: { vw: VaultWindowModel }) {
             )}
             <span className="menu-option-label">
               <span>{t(vaultMenu.archived ? 'vault.restoreVault' : 'vault.archiveVault')}</span>
+              {isLastOpenVault(vaultMenu) ? <small id="vault-last-open-hint">{t('vault.lastOpenVault')}</small> : null}
             </span>
           </button>
-          {canDissolveVault(vaultMenu) ? (
-            <button className="menu-option with-icon is-danger separated" onClick={askVaultDissolve} type="button">
+          {canDissolveVault(vaultMenu) || isLastOpenVault(vaultMenu) ? (
+            <button
+              aria-describedby={isLastOpenVault(vaultMenu) ? 'vault-last-open-hint' : undefined}
+              className="menu-option with-icon is-danger separated"
+              disabled={isLastOpenVault(vaultMenu)}
+              onClick={askVaultDissolve}
+              title={isLastOpenVault(vaultMenu) ? t('vault.lastOpenVault') : undefined}
+              type="button"
+            >
               <Trash2 aria-hidden="true" size={15} />
               <span className="menu-option-label">
                 <span>{t('vault.dissolveVault')}</span>

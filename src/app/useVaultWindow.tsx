@@ -47,6 +47,17 @@ import {
 } from './itemTags'
 import { getItemTemplate } from './itemTemplates'
 import { itemTypeArtFor } from './itemTypeArt'
+import {
+  emptySelection,
+  extendSelectionBy,
+  extendSelectionTo,
+  isTextEntryTarget,
+  type ListSelection,
+  pruneSelection,
+  selectAllOf,
+  selectedInOrder,
+  toggleInSelection,
+} from './listSelection'
 import { getMenuAnchorStyle, type MenuAnchor } from './menuPlacement'
 import { clipboardImageFile, otpSecretFromQrImage } from './otpQrImport'
 import { featuresFor, isPrimaryModifier } from './platformFeatures'
@@ -71,10 +82,11 @@ import { useItemDetail } from './useItemDetail'
 import { useItemFormFields } from './useItemFormFields'
 import { useItemSort } from './useItemSort'
 import { useTotpPreviews } from './useTotpPreviews'
-import { useVaultItems } from './useVaultItems'
+import { isLastOpenVaultIn, useVaultItems } from './useVaultItems'
 import { useVaultSession } from './useVaultSession'
 import { useWindowAppearance } from './useWindowAppearance'
 import {
+  type BulkOutcome,
   type CustomField,
   customFieldsToInput,
   emptyLoginItem,
@@ -118,6 +130,8 @@ export function useVaultWindow() {
     setAllItems,
     selectedId,
     setSelectedId,
+    selection,
+    setSelection,
     vaults,
     setVaults,
     activeVaultId,
@@ -213,7 +227,9 @@ export function useVaultWindow() {
   // than a second anchor that could cover the trigger, and the source decides which of the two rows
   // that only make sense in one of the two places are offered — 编辑 where there is no 编辑 button,
   // 分享 where the row is not already the whole subject.
-  const [itemMenu, setItemMenu] = useState<'actions' | 'move' | null>(null)
+  // `selection` / `selectionMove` are the same panel for a multi-selection (or a trash / archive row): the actions
+  // that apply to every selected item, and the vault list a selection moves to.
+  const [itemMenu, setItemMenu] = useState<'actions' | 'move' | 'selection' | 'selectionMove' | null>(null)
   const [itemMenuSource, setItemMenuSource] = useState<'header' | 'row'>('header')
   const [itemMenuAnchor, setItemMenuAnchor] = useState<MenuAnchor>()
   // The header's ellipsis menu is measured and placed against its trigger (flips above, never leaves the window);
@@ -356,7 +372,9 @@ export function useVaultWindow() {
   // keeps the row the user picked.
   const followingVaultRef = useRef<string | null>(null)
   useEffect(() => {
-    if (mode !== 'unlocked' || isEditing || !selectedId) return
+    // The vault row lists one vault, which the session is switched to by the click itself; following a row there
+    // would move the list it is on (a transient row of the previous vault ping-ponged the two, 2026-10-25).
+    if (mode !== 'unlocked' || isEditing || !selectedId || activeNavigation === 'vault') return
     const target = allItems?.find((item) => item.id === selectedId)?.vault_id
     if (!target || target === activeVaultId || followingVaultRef.current === target) return
     followingVaultRef.current = target
@@ -374,7 +392,7 @@ export function useVaultWindow() {
       .finally(() => {
         followingVaultRef.current = null
       })
-  }, [activeVaultId, allItems, isEditing, mode, selectedId])
+  }, [activeNavigation, activeVaultId, allItems, isEditing, mode, selectedId])
 
   useEffect(() => setRevealAllSecure(false), [selectedId, isEditing])
 
@@ -401,7 +419,20 @@ export function useVaultWindow() {
 
   // The vault row lists the open vault; every other row — All, Favorites, a category, a tag — reads across every
   // open vault (owner 2026-10-18: sidebar rows are exclusive and tags belong to All, not to a vault).
-  const scopeItems = activeNavigation === 'vault' ? items : (allItems ?? items)
+  // The vault row lists that vault's live items out of `allItems` — the same rows, read the same way, as the count beside
+  // it (list_vaults counts the live items of each vault). It used to list `items`, the list the Rust session last
+  // read, which only matched while the session and `activeVaultId` agreed: when they did not (a Touch ID unlock after a
+  // lock, a switch that failed or was still running), the row showed another vault's list — Rei's "Personal 838,
+  // click, empty list" (2026-10-25). `items` stays the fallback before All has loaded and for an archived vault.
+  const activeVault = vaults.find((vault) => vault.id === activeVaultId)
+  const vaultViewItems = useMemo(
+    () =>
+      allItems && activeVault && !activeVault.archived
+        ? allItems.filter((item) => item.vault_id === activeVault.id)
+        : items,
+    [activeVault, allItems, items],
+  )
+  const scopeItems = activeNavigation === 'vault' ? vaultViewItems : (allItems ?? items)
   const visibleItems = useMemo(() => {
     const pick = () => {
       // Archived and trash each have their own list and their own rows, so neither reads live items.
@@ -920,16 +951,21 @@ export function useVaultWindow() {
 
   async function handleSwitchVault(vaultId: string) {
     setError(null)
+    const previousVaultId = activeVaultId
+    // The window names the vault at once — the vault row lists it out of `allItems` — and the session follows.
+    setActiveVaultId(vaultId)
     try {
       const nextItems = await vaultApi.switchVault(vaultId)
       setActiveVaultId(vaultId)
       setItems(nextItems)
-      setSelectedId(nextItems[0]?.id ?? null)
-      setForm(toFormState(emptyLoginItem()))
+      // Which row is selected is the list's business: switching to the vault's row selects its first item (the
+      // navigation effect below), any other view keeps what it has.
       setComposing(false)
       await loadArchivedItems()
       await loadTrashedItems()
     } catch (nextError) {
+      // The session did not move, so neither does the window's idea of it: edits keep acting where the list is.
+      setActiveVaultId(previousVaultId)
       setError(String(nextError))
     }
   }
@@ -1019,6 +1055,7 @@ export function useVaultWindow() {
   async function handleVaultArchive() {
     if (!vaultMenu) return
     const vault = vaultMenu
+    if (isLastOpenVault(vault)) return
     const archived = !vault.archived
     setError(null)
     try {
@@ -1052,11 +1089,21 @@ export function useVaultWindow() {
   // The last vault in the file cannot be dissolved and a full one needs somewhere to send its items, so
   // the row that meets neither offers no destructive option at all.
   function canDissolveVault(vault: VaultSummary) {
-    return vaults.length > 1 && (vault.item_count === 0 || dissolveDestinationsFor(vault).length > 0)
+    return (
+      vaults.length > 1 &&
+      !isLastOpenVault(vault) &&
+      (vault.item_count === 0 || dissolveDestinationsFor(vault).length > 0)
+    )
+  }
+
+  // The one vault still open: it can be edited, never archived or dissolved (owner 2026-10-25), so the app always has
+  // a vault to read. An archived vault is not "the last one" — restoring it is always allowed.
+  function isLastOpenVault(vault: VaultSummary) {
+    return isLastOpenVaultIn(vaults, vault)
   }
 
   function askVaultDissolve() {
-    if (!vaultMenu) return
+    if (!vaultMenu || isLastOpenVault(vaultMenu)) return
     // A vault with nothing in it has nowhere to send anything, so it is opened with no destination
     // chosen and the command is given none — only a full one has to say where its items go.
     setVaultDissolveInto(vaultMenu.item_count > 0 ? (dissolveDestinationsFor(vaultMenu)[0]?.id ?? '') : '')
@@ -1115,6 +1162,255 @@ export function useVaultWindow() {
     setTopSearch('')
     setMobileDetailOpen(true)
   }
+
+  // ── The list's selection (2026-10-25, owner: Finder / 1Password multi-selection and bulk actions) ──────────────
+  // The rows on screen in their order: what ⌘A selects, what ⇧-click and ⇧↑/⇧↓ range over, and what a selection is
+  // pruned to when rows leave. The trash and the archive list their own rows, and are selectable the same way now.
+  const listRows: LoginItemSummary[] = stateRows ?? visibleItems
+  const listRowIds = useMemo(() => listRows.map((item) => item.id), [listRows])
+  const selectedRowIds = useMemo(() => selectedInOrder(selection, listRowIds), [listRowIds, selection])
+  const multiSelected = selection.ids.size > 1
+  const stateView: 'archived' | 'trash' | null =
+    activeNavigation === 'trash' ? 'trash' : activeNavigation === 'archived' ? 'archived' : null
+  // The single trash / archive row on show, when one is selected: the pane offers its way back instead of the item.
+  const selectedStateRow =
+    stateView && !multiSelected ? (stateRows?.find((item) => item.id === selectedId) ?? null) : null
+  // Bulk confirmation alerts: Move to Trash for several items, Delete Permanently, Empty Trash.
+  const [bulkConfirm, setBulkConfirm] = useState<{ ids: string[]; kind: 'empty' | 'purge' | 'trash' } | null>(null)
+  const [bulkBusy, setBulkBusy] = useState(false)
+
+  // Rows that leave the list (trashed, moved, filtered away) leave a multi-selection with them. A single selection is
+  // left alone: the pane may be showing an item from another list (a save, a linked item) on purpose.
+  useEffect(() => {
+    if (selection.ids.size < 2) return
+    const next = pruneSelection(selection, new Set(listRowIds))
+    if (next !== selection) setSelection(next)
+  }, [listRowIds])
+
+  // Owner 2026-10-25: "切换分类，则默认focus这个分类中的第一个项目，如果分类中没有items，则详情页为空" / "标签同理". Every sidebar
+  // scope — All, Favorites, a vault, a category, a tag, Archive, Trash — opens on its first row in the current sort,
+  // scrolled into view, replacing any selection; an empty list leaves the pane empty. Keyboard focus is not moved
+  // (it stays in the sidebar or a search field). A new item's draft switches to its category itself, so composing
+  // and editing are left alone.
+  const navigationKey = activeNavigation === 'vault' ? `vault:${activeVaultId}` : activeNavigation
+  const previousNavigationKey = useRef(navigationKey)
+  useEffect(() => {
+    if (previousNavigationKey.current === navigationKey) return
+    previousNavigationKey.current = navigationKey
+    if (mode !== 'unlocked' || isEditing || composing) return
+    const first = listRowIds[0] ?? null
+    setSelectedId(first)
+    if (first) listScrollToItemRef.current?.(first)
+  }, [navigationKey])
+
+  function selectRow(id: string, modifiers: { extend: boolean; toggle: boolean }) {
+    if (editLocked) return
+    closeFieldMenus()
+    if (modifiers.extend) setSelection((current) => extendSelectionTo(current, listRowIds, id))
+    else if (modifiers.toggle) setSelection((current) => toggleInSelection(current, id))
+    else {
+      setSelectedId(id)
+      if (!stateView) setMobileDetailOpen(true)
+    }
+  }
+
+  function selectAllRows() {
+    if (editLocked || !listRowIds.length) return
+    closeFieldMenus()
+    setSelection(selectAllOf(listRowIds))
+  }
+
+  function replaceSelection(ids: string[]) {
+    setSelection(ids.length ? ({ anchor: ids[0], ids: new Set(ids), lead: ids[0] } as ListSelection) : emptySelection)
+  }
+
+  // After a bulk command: re-read every list it can have changed, say what happened, and keep selected only what
+  // stayed behind because of its links (so the user sees which ones).
+  async function finishBulk(outcome: BulkOutcome, message: string) {
+    const [nextItems] = await Promise.all([vaultApi.list(), loadArchivedItems(), loadTrashedItems()])
+    setItems(nextItems)
+    replaceSelection(outcome.held)
+    setOperationMessage(
+      outcome.held.length ? `${message} · ${t('messages.heldLinked', { count: outcome.held.length })}` : message,
+    )
+  }
+
+  async function runBulk(action: () => Promise<void>) {
+    if (bulkBusy) return
+    closeFieldMenus()
+    setBulkBusy(true)
+    setError(null)
+    try {
+      await action()
+    } catch (nextError) {
+      setError(String(nextError))
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  // Move to Trash: one item goes at once (as ⌘⌫ does in Finder); several ask first, lightly — the trash gives them back.
+  // Archived items can go to the trash too (they come back to the archive from there), so "delete everything" reaches
+  // them; trashed ones are already there.
+  function requestTrashSelection(ids = selectedRowIds) {
+    if (!ids.length || stateView === 'trash') return
+    if (ids.length === 1) {
+      void runBulk(async () => {
+        const outcome = await vaultApi.trashMany(ids)
+        await finishBulk(outcome, t('messages.trashedItems', { count: outcome.done }))
+      })
+      return
+    }
+    closeFieldMenus()
+    setBulkConfirm({ ids, kind: 'trash' })
+  }
+
+  function requestPurgeSelection(ids = selectedRowIds) {
+    if (!ids.length || stateView !== 'trash') return
+    closeFieldMenus()
+    setBulkConfirm({ ids, kind: 'purge' })
+  }
+
+  function requestEmptyTrash() {
+    if (!trashedItems.length) return
+    closeFieldMenus()
+    setBulkConfirm({ ids: trashedItems.map((item) => item.id), kind: 'empty' })
+  }
+
+  function confirmBulk() {
+    const request = bulkConfirm
+    if (!request) return
+    setBulkConfirm(null)
+    void runBulk(async () => {
+      if (request.kind === 'trash') {
+        const outcome = await vaultApi.trashMany(request.ids)
+        await finishBulk(outcome, t('messages.trashedItems', { count: outcome.done }))
+      } else {
+        const outcome = await vaultApi.purgeMany(request.ids)
+        await finishBulk(outcome, t('messages.purgedItems', { count: outcome.done }))
+      }
+    })
+  }
+
+  function archiveSelection(ids = selectedRowIds) {
+    if (!ids.length || stateView) return
+    void runBulk(async () => {
+      const outcome = await vaultApi.archiveMany(ids)
+      await finishBulk(outcome, t('messages.archivedItems', { count: outcome.done }))
+    })
+  }
+
+  function restoreSelection(ids = selectedRowIds) {
+    if (!ids.length || !stateView) return
+    const view = stateView
+    void runBulk(async () => {
+      const outcome =
+        view === 'trash' ? await vaultApi.restoreTrashedMany(ids) : await vaultApi.restoreArchivedMany(ids)
+      await finishBulk(outcome, t('messages.restoredItems', { count: outcome.done }))
+    })
+  }
+
+  function moveSelection(vault: VaultSummary, ids = selectedRowIds) {
+    if (!ids.length || stateView) return
+    void runBulk(async () => {
+      const outcome = await vaultApi.moveMany(ids, vault.id)
+      await finishBulk(outcome, t('messages.movedItems', { count: outcome.done, vault: vault.name }))
+    })
+  }
+
+  // Where a selection can move: every open vault except the one all of it already sits in.
+  const selectionMoveTargets = useMemo(() => {
+    if (!multiSelected || stateView) return []
+    const byId = new Map(listRows.map((item) => [item.id, item.vault_id ?? activeVaultId]))
+    const sources = new Set(selectedRowIds.map((id) => byId.get(id)))
+    return openVaults.filter((vault) => !(sources.size === 1 && sources.has(vault.id)))
+  }, [activeVaultId, listRows, multiSelected, openVaults, selectedRowIds, stateView])
+
+  // Anything that owns the keyboard while it is open: menus, sheets, alerts, pickers.
+  const overlayOpen =
+    itemMenu !== null ||
+    categoryMenu !== null ||
+    tagMenu !== null ||
+    vaultMenu !== null ||
+    sectionHighlightMenu !== null ||
+    sectionMenuIndex !== null ||
+    showAddMore ||
+    sortMenuOpen ||
+    bulkConfirm !== null ||
+    purgeTarget !== null ||
+    isCreatingVault ||
+    tagEditor !== null ||
+    tagDeleteTarget !== null ||
+    itemTypePickerOpen ||
+    relationPicker !== null ||
+    signInPickerOpen ||
+    vaultEditor !== null ||
+    vaultDissolveTarget !== null ||
+    onePuxPreview !== null ||
+    textPreview !== null
+
+  // ⌘A, ⇧↑ / ⇧↓, Escape and ⌘⌫ on the list. Never while a field, a menu or a dialog has the keyboard: ⌘A in a text
+  // field keeps selecting its text. Read through a ref so the one listener always sees this render's list.
+  const selectionKeyRef = useRef<(event: KeyboardEvent) => void>(() => {})
+  selectionKeyRef.current = (event: KeyboardEvent) => {
+    if (mode !== 'unlocked' || editLocked || overlayOpen || isMobileLayout) return
+    if (isTextEntryTarget(event.target)) return
+    const target = event.target as Element | null
+    if (target?.closest?.('[role="dialog"], [role="alertdialog"], [role="menu"]')) return
+    const primary = isPrimaryModifier(event, platform)
+    if (primary && !event.shiftKey && !event.altKey && event.code === 'KeyA') {
+      event.preventDefault()
+      selectAllRows()
+    } else if (!primary && event.shiftKey && !event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+      event.preventDefault()
+      const next = extendSelectionBy(selection, listRowIds, event.key === 'ArrowUp' ? -1 : 1)
+      setSelection(next)
+      if (next.lead) listScrollToItemRef.current?.(next.lead)
+    } else if (event.key === 'Escape' && !primary && multiSelected) {
+      event.preventDefault()
+      setSelection(emptySelection)
+    } else if (primary && !event.altKey && (event.key === 'Backspace' || event.key === 'Delete')) {
+      if (!selectedRowIds.length) return
+      event.preventDefault()
+      if (stateView === 'trash') requestPurgeSelection()
+      else requestTrashSelection()
+    }
+  }
+  const selectAllRef = useRef(selectAllRows)
+  selectAllRef.current = selectAllRows
+  const selectAllAllowedRef = useRef(false)
+  selectAllAllowedRef.current = mode === 'unlocked' && !editLocked && !overlayOpen && !isMobileLayout
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => selectionKeyRef.current(event)
+    // Edit ▸ Select All from the menu bar sends AppKit's selectAll: to the webview, which runs the editing command:
+    // the page sees it as a `selectstart` on the document's root (the keyboard ⌘A is handled above and never gets
+    // here). Outside a text field that means the list; a drag that starts a text selection is told apart by the
+    // pointer being down.
+    let pointerDown = false
+    const handlePointerDown = () => {
+      pointerDown = true
+    }
+    const handlePointerUp = () => {
+      pointerDown = false
+    }
+    const handleSelectStart = (event: Event) => {
+      if (pointerDown || !selectAllAllowedRef.current || isTextEntryTarget(event.target)) return
+      const target = event.target
+      if (target !== document && target !== document.body && target !== document.documentElement) return
+      event.preventDefault()
+      selectAllRef.current()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('pointerdown', handlePointerDown, true)
+    window.addEventListener('pointerup', handlePointerUp, true)
+    document.addEventListener('selectstart', handleSelectStart, true)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('pointerdown', handlePointerDown, true)
+      window.removeEventListener('pointerup', handlePointerUp, true)
+      document.removeEventListener('selectstart', handleSelectStart, true)
+    }
+  }, [])
 
   // Both Add More menus are one component (addMoreMenu.tsx) that places itself in a portal layer.
   function toggleAddMoreMenu() {
@@ -1291,6 +1587,7 @@ export function useVaultWindow() {
     if (
       !menuOpen &&
       !purgeTarget &&
+      !bulkConfirm &&
       !isCreatingVault &&
       !tagEditor &&
       !tagDeleteTarget &&
@@ -1317,6 +1614,7 @@ export function useVaultWindow() {
       if (event.key !== 'Escape') return
       if (menuOpen) closeFieldMenus()
       setPurgeTarget(null)
+      setBulkConfirm(null)
       setRelationPicker(null)
       setSignInPickerOpen(false)
       closeCreateVault()
@@ -1333,6 +1631,7 @@ export function useVaultWindow() {
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [
+    bulkConfirm,
     categoryMenu,
     isCreatingVault,
     itemMenu,
@@ -1672,6 +1971,19 @@ export function useVaultWindow() {
     setItemMenu('actions')
   }
 
+  // The multi-selection pane's Move To: the same panel, anchored to that button (the header's ellipsis is not on
+  // screen while several items are selected, so its trigger ref is free to point here).
+  function toggleSelectionMoveMenu(trigger: HTMLElement) {
+    if (itemMenu) {
+      closeFieldMenus()
+      return
+    }
+    closeFieldMenus()
+    trigger.focus()
+    setItemMenuSource('header')
+    setItemMenu('selectionMove')
+  }
+
   // Right-clicking a row makes it the selected item first, so every row of the panel acts on the thing
   // that was clicked rather than on whatever the pane happened to be showing. The panel then opens at
   // the cursor the way the tag row's does, at the row's left edge. Unlike the header's trigger, this one
@@ -1679,16 +1991,22 @@ export function useVaultWindow() {
   // Stable for the memoised rows; the ref always calls this render's handlers.
   const itemRowHandlersRef = useRef({
     menu: (_event: ReactMouseEvent<HTMLButtonElement>, _item: LoginItemSummary) => {},
-    select: (_id: string) => {},
+    select: (_id: string, _event: ReactMouseEvent<HTMLButtonElement>) => {},
   })
   itemRowHandlersRef.current = {
     menu: (event, item) => openItemRowMenu(event, item),
-    select: (id) => {
-      setSelectedId(id)
-      setMobileDetailOpen(true)
-    },
+    // ⌘-click (Ctrl elsewhere) toggles a row, ⇧-click selects the range from the anchor; the phone layout has
+    // neither and a tap opens the item.
+    select: (id, event) =>
+      selectRow(id, {
+        extend: !isMobileLayout && event.shiftKey,
+        toggle: !isMobileLayout && isPrimaryModifier(event.nativeEvent, platform),
+      }),
   }
-  const handleItemRowSelect = useCallback((id: string) => itemRowHandlersRef.current.select(id), [])
+  const handleItemRowSelect = useCallback(
+    (id: string, event: ReactMouseEvent<HTMLButtonElement>) => itemRowHandlersRef.current.select(id, event),
+    [],
+  )
   const handleItemRowContextMenu = useCallback(
     (event: ReactMouseEvent<HTMLButtonElement>, item: LoginItemSummary) => itemRowHandlersRef.current.menu(event, item),
     [],
@@ -1696,9 +2014,12 @@ export function useVaultWindow() {
 
   function openItemRowMenu(event: ReactMouseEvent<HTMLButtonElement>, item: LoginItemSummary) {
     closeFieldMenus()
-    setSelectedId(item.id)
+    // A right-click inside a multi-selection acts on all of it (Finder); a trash or archive row always opens the
+    // selection panel, since its only actions are the way back and the way out.
+    const keepsSelection = selection.ids.size > 1 && selection.ids.has(item.id)
+    if (!keepsSelection) setSelectedId(item.id)
     setItemMenuSource('row')
-    setItemMenu('actions')
+    setItemMenu(keepsSelection || stateView ? 'selection' : 'actions')
     const rect = event.currentTarget.getBoundingClientRect()
     setItemMenuAnchor(
       getMenuAnchorStyle({
@@ -1932,6 +2253,7 @@ export function useVaultWindow() {
     archivedItems,
     archivedVaults,
     archivedVaultsCollapsed,
+    archiveSelection,
     askTagDelete,
     askVaultDissolve,
     attachDroppedFiles,
@@ -1942,6 +2264,8 @@ export function useVaultWindow() {
     beginSidebarResize,
     biometricsAvailable,
     buildDraftForm,
+    bulkBusy,
+    bulkConfirm,
     canDissolveVault,
     categoriesCollapsed,
     categoryListRef,
@@ -1959,6 +2283,7 @@ export function useVaultWindow() {
     commitTagDraft,
     composing,
     confirm1puxImport,
+    confirmBulk,
     copyFieldTotp,
     copyFieldValue,
     copyPassword,
@@ -2030,6 +2355,7 @@ export function useVaultWindow() {
     isDraggingFiles,
     isEditing,
     isImporting1pux,
+    isLastOpenVault,
     isMobileLayout,
     isUnlocking,
     itemDetail,
@@ -2066,7 +2392,9 @@ export function useVaultWindow() {
     mobileDetailOpen,
     mobileTab,
     mode,
+    moveSelection,
     moveUrl,
+    multiSelected,
     navigationCounts,
     newItemButtonRef,
     newItemCategory,
@@ -2116,7 +2444,11 @@ export function useVaultWindow() {
     removeSectionChild,
     removeWebsite,
     reorderFor,
+    requestEmptyTrash,
+    requestPurgeSelection,
+    requestTrashSelection,
     restoreArchivedItem,
+    restoreSelection,
     restoreStateItem,
     restoreTrashedItem,
     revealAllSecure,
@@ -2127,16 +2459,22 @@ export function useVaultWindow() {
     sectionHighlightMenuAnchor,
     sectionMenuIndex,
     securityPreferences,
+    selectAllRows,
     selectedHasRelations,
     selectedId,
     selectedItem,
+    selectedRowIds,
+    selectedStateRow,
     selectedSummary,
+    selection,
+    selectionMoveTargets,
     setActiveNavigation,
     setActiveVaultId,
     setAllItems,
     setArchivedItems,
     setArchivedVaultsCollapsed,
     setBiometricsAvailable,
+    setBulkConfirm,
     setCategoriesCollapsed,
     setCategoryMenu,
     setCategoryMenuAnchor,
@@ -2213,6 +2551,7 @@ export function useVaultWindow() {
     sortMenuOpen,
     start1puxImportRef,
     stateRows,
+    stateView,
     status,
     stepSelectedItem,
     swallowWhileLocked,
@@ -2232,6 +2571,7 @@ export function useVaultWindow() {
     toggleItemMenu,
     toggleRowHighlight,
     toggleSectionMenu,
+    toggleSelectionMoveMenu,
     topSearch,
     topSearchInputRef,
     topSearchResults,

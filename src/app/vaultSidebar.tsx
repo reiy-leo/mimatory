@@ -102,8 +102,10 @@ export function VaultSidebar({ vw }: { vw: VaultWindowModel }) {
           className={activeNavigation === 'vault' && vault.id === activeVaultId ? 'nav-item active' : 'nav-item'}
           key={vault.id}
           onClick={() => {
+            // Coming from another row switches even to the vault the window already names: the session (and `items`)
+            // may be on another vault, which is how this row once showed an empty list under a count of 838.
+            if (vault.id !== activeVaultId || activeNavigation !== 'vault') void handleSwitchVault(vault.id)
             setActiveNavigation('vault')
-            if (vault.id !== activeVaultId) void handleSwitchVault(vault.id)
           }}
           onContextMenu={(event) => openVaultMenu(event, vault)}
           type="button"

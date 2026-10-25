@@ -1775,31 +1775,6 @@
     @apply min-w-0 flex-1 truncate;
   }
 
-  /* A row in a state view has no detail pane to open, so it must not answer to the hover that says it
-     does. Archived and trash rows share this because their actions are the whole interaction. */
-  .state-row:hover {
-    background: transparent;
-  }
-
-  .state-row-actions {
-    @apply mt-075 flex items-center gap-075;
-  }
-
-  .state-row-button {
-    background: var(--color-background-control);
-    box-shadow: var(--shadow-control);
-    @apply inline-flex min-h-300 items-center rounded-medium border-0 px-100 text-callout font-regular text-text transition-colors;
-  }
-
-  .state-row-button:hover {
-    color: var(--color-text);
-    background: var(--color-background-control-pressed);
-  }
-
-  .state-row-button.danger {
-    color: var(--color-text-danger);
-  }
-
   /* Sheets and alerts (sheets.md › Desktop: "a cardlike view with rounded corners that floats on top
      of its parent window. The parent window is dimmed"): the blanket dims, the card wears the sheet
      material, a 12pt corner and the sheet shadow. */
@@ -3792,6 +3767,22 @@
 
 .detail-topbar.is-editing .unsaved-hint {
   color: var(--color-text-subtle);
+}
+
+/* The detail pane for a selection (2026-10-25): several items, or one trash / archive row. The empty state's layout
+   (title 3 heading, secondary-label hint) with the actions as a row of push buttons under it, as Finder's and
+   1Password's "N Items Selected" panes do. */
+.selection-actions {
+  @apply flex flex-wrap items-center justify-center gap-100;
+}
+
+.selection-pane .selection-pane-icon {
+  @apply mb-200 h-600 w-600 text-title-2;
+}
+
+.selection-pane .selection-pane-caption {
+  color: var(--color-text-subtle);
+  @apply mt-050 mb-0 text-callout;
 }
 
 /* The list's sort control (owner 2026-10-18): a quiet "Date Modified ⌄" at the top right of the list, opening

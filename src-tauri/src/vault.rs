@@ -83,6 +83,11 @@ pub struct Session {
 }
 
 impl Session {
+    /// The vault this session reads and writes.
+    pub fn vault_id(&self) -> &str {
+        &self.vault_id
+    }
+
     /// The same unlocked key pointed at another vault. Every vault shares the account key, so reading or
     /// changing an item in a vault other than the open one only needs its id.
     pub fn for_vault(&self, vault_id: &str) -> Session {
@@ -313,6 +318,14 @@ impl RelationRecord {
     }
 }
 
+/// What a selection action did: how many items changed, and which were held back because they are still
+/// linked to an item outside the selection (trash and move only).
+#[derive(Clone, Debug, Default, Serialize, PartialEq, Eq)]
+pub struct BulkOutcome {
+    pub done: usize,
+    pub held: Vec<String>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct VaultSummary {
     pub id: String,
@@ -501,6 +514,8 @@ pub enum VaultError {
     VaultDestinationRequired,
     #[error("the last vault cannot be dissolved")]
     VaultLastOne,
+    #[error("at least one vault has to stay open, so the last open vault cannot be archived or dissolved")]
+    VaultLastOpen,
     #[error("an item cannot be linked to itself")]
     RelationSelf,
     #[error("that link would make an item its own parent")]
@@ -597,7 +612,7 @@ impl VaultService {
 
         let session = Session {
             key,
-            vault_id: DEFAULT_VAULT_ID.to_string(),
+            vault_id: self.opening_vault_id()?,
         };
         self.run_legacy_migrations(&session)?;
         Ok(session)
@@ -868,6 +883,10 @@ impl VaultService {
         archived: bool,
     ) -> Result<(), VaultError> {
         let target = self.session_for_vault(session, vault_id)?;
+        // Owner 2026-10-25: "如果只剩下一个保险库了，这个保险库不能archive，不能删，只能编辑". Restoring is always allowed.
+        if archived && self.is_last_open_vault(vault_id)? {
+            return Err(VaultError::VaultLastOpen);
+        }
 
         let now = Utc::now().to_rfc3339();
         if archived {
@@ -915,6 +934,9 @@ impl VaultService {
         if others == 0 {
             return Err(VaultError::VaultLastOne);
         }
+        if self.is_last_open_vault(vault_id)? {
+            return Err(VaultError::VaultLastOpen);
+        }
 
         let mut statement = self
             .connection
@@ -949,6 +971,34 @@ impl VaultService {
                 None => format!("Dissolved empty vault {vault_id}"),
             },
         )
+    }
+
+    /// Whether this vault is open (not archived) and no other vault is: the one the app must keep.
+    fn is_last_open_vault(&self, vault_id: &str) -> Result<bool, VaultError> {
+        let (open, others_open) = self.connection.query_row(
+            "SELECT
+                (SELECT count(*) FROM vaults WHERE id = ?1 AND archived = 0),
+                (SELECT count(*) FROM vaults WHERE id <> ?1 AND archived = 0)",
+            [vault_id],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+        )?;
+        Ok(open == 1 && others_open == 0)
+    }
+
+    /// The vault an unlock opens: the seeded one while it exists and is open, otherwise the oldest open vault,
+    /// otherwise the oldest vault. The window starts on the same rule (`useVaultItems.loadVaults`), so the two
+    /// never disagree about which vault the list is reading.
+    pub fn opening_vault_id(&self) -> Result<String, VaultError> {
+        Ok(self
+            .connection
+            .query_row(
+                "SELECT id FROM vaults
+                 ORDER BY (id = ?1 AND archived = 0) DESC, archived ASC, created_at ASC LIMIT 1",
+                [DEFAULT_VAULT_ID],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?
+            .unwrap_or_else(|| DEFAULT_VAULT_ID.to_string()))
     }
 
     pub fn session_for_vault(
@@ -1199,6 +1249,272 @@ impl VaultService {
             self.record_event("purge_item", &format!("Permanently deleted item {item_id}"))?;
         }
         Ok(())
+    }
+
+    /// Selection actions (2026-10-25, owner: "没有办法批量删除"): every bulk command takes the ids the window
+    /// has selected — across vaults, since All, Favorites, a tag or a category list several — and works in one
+    /// transaction, with the ids in a temporary table so a list of thousands is a handful of statements
+    /// rather than one IPC call and one scan per item.
+    fn load_bulk_ids(&self, ids: &[String]) -> Result<(), VaultError> {
+        self.connection.execute_batch(
+            "CREATE TEMP TABLE IF NOT EXISTS bulk_ids (id TEXT PRIMARY KEY NOT NULL);
+             DELETE FROM temp.bulk_ids;",
+        )?;
+        let mut insert = self.connection.prepare("INSERT OR IGNORE INTO temp.bulk_ids (id) VALUES (?1)")?;
+        for id in ids {
+            insert.execute([id])?;
+        }
+        Ok(())
+    }
+
+    /// The selected ids that exist, grouped by the vault that holds them, with the given state filter.
+    fn bulk_ids_by_vault(&self, filter: &str) -> Result<HashMap<String, Vec<String>>, VaultError> {
+        let mut statement = self.connection.prepare(&format!(
+            "SELECT i.id, i.vault_id FROM items i JOIN temp.bulk_ids b ON b.id = i.id WHERE {filter}"
+        ))?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut grouped: HashMap<String, Vec<String>> = HashMap::new();
+        for (id, vault_id) in rows {
+            grouped.entry(vault_id).or_default().push(id);
+        }
+        Ok(grouped)
+    }
+
+    /// Which of `selected` (all in one vault) keep a link to an item outside the selection. Links count the way
+    /// `has_relations` counts them — only while the other end is an item of this vault outside the trash — so a
+    /// whole linked group can go together, while an item linked to something that stays is held back, exactly as
+    /// trashing or moving it alone would be refused. Repeated until stable: holding one back keeps its partners'
+    /// counterpart in place too.
+    fn linked_outside(
+        &self,
+        session: &Session,
+        selected: &[String],
+    ) -> Result<HashSet<String>, VaultError> {
+        let index = self.relation_index(session)?;
+        if index.is_empty() {
+            return Ok(HashSet::new());
+        }
+        let mut statement = self
+            .connection
+            .prepare("SELECT id FROM items WHERE vault_id = ?1 AND trashed = 0")?;
+        let resolvable = statement
+            .query_map([&session.vault_id], |row| row.get::<_, String>(0))?
+            .collect::<Result<HashSet<_>, _>>()?;
+        drop(statement);
+        let mut edges: Vec<(&str, &str)> = Vec::new();
+        for (owner, record) in &index {
+            if !resolvable.contains(owner) {
+                continue;
+            }
+            let targets = record
+                .parent
+                .iter()
+                .chain(record.related.iter())
+                .chain(record.sign_in.iter());
+            for target in targets {
+                if target != owner && resolvable.contains(target) {
+                    edges.push((owner.as_str(), target.as_str()));
+                }
+            }
+        }
+        let mut moving: HashSet<&str> = selected.iter().map(String::as_str).collect();
+        let mut held: HashSet<String> = HashSet::new();
+        loop {
+            let mut changed = false;
+            for (left, right) in &edges {
+                let (left_in, right_in) = (moving.contains(left), moving.contains(right));
+                if left_in != right_in {
+                    let inside = if left_in { *left } else { *right };
+                    moving.remove(inside);
+                    held.insert(inside.to_string());
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        Ok(held)
+    }
+
+    /// Moves the selection to the trash. Items still linked to something outside the selection stay where they
+    /// are and come back in `held`; the rest go in one statement per vault.
+    pub fn trash_items(&mut self, session: &Session, ids: &[String]) -> Result<BulkOutcome, VaultError> {
+        let transaction = self.connection.unchecked_transaction()?;
+        self.load_bulk_ids(ids)?;
+        let grouped = self.bulk_ids_by_vault("i.trashed = 0")?;
+        let mut outcome = BulkOutcome::default();
+        for (vault_id, vault_ids) in grouped {
+            let held = self.linked_outside(&session.for_vault(&vault_id), &vault_ids)?;
+            for id in &held {
+                self.connection.execute("DELETE FROM temp.bulk_ids WHERE id = ?1", [id])?;
+            }
+            outcome.held.extend(held);
+        }
+        let now = Utc::now().to_rfc3339();
+        outcome.done = self.connection.execute(
+            "UPDATE items SET trashed = 1, deleted_at = ?1, updated_at = ?1
+             WHERE trashed = 0 AND id IN (SELECT id FROM temp.bulk_ids)",
+            [&now],
+        )?;
+        if outcome.done > 0 {
+            self.record_event("trash_items", &format!("Trashed {} items", outcome.done))?;
+        }
+        outcome.held.sort();
+        transaction.commit()?;
+        Ok(outcome)
+    }
+
+    /// Archives the selection. Links are kept, as archiving one item keeps them, so nothing is held back. Only
+    /// items change: a vault is archived from its own row, never by a selection of what is in it.
+    pub fn archive_items(&mut self, _session: &Session, ids: &[String]) -> Result<BulkOutcome, VaultError> {
+        let transaction = self.connection.unchecked_transaction()?;
+        self.load_bulk_ids(ids)?;
+        let now = Utc::now().to_rfc3339();
+        let done = self.connection.execute(
+            "UPDATE items SET archived = 1, updated_at = ?1
+             WHERE archived = 0 AND trashed = 0 AND id IN (SELECT id FROM temp.bulk_ids)",
+            [&now],
+        )?;
+        if done > 0 {
+            self.record_event("archive_items", &format!("Archived {done} items"))?;
+        }
+        transaction.commit()?;
+        Ok(BulkOutcome { done, held: Vec::new() })
+    }
+
+    /// Puts archived items back. `archived_by_vault` is cleared with it: the item is the user's again, not the
+    /// vault's to give back.
+    pub fn restore_archived_items(
+        &mut self,
+        _session: &Session,
+        ids: &[String],
+    ) -> Result<BulkOutcome, VaultError> {
+        let transaction = self.connection.unchecked_transaction()?;
+        self.load_bulk_ids(ids)?;
+        let now = Utc::now().to_rfc3339();
+        let done = self.connection.execute(
+            "UPDATE items SET archived = 0, archived_by_vault = 0, updated_at = ?1
+             WHERE archived = 1 AND trashed = 0 AND id IN (SELECT id FROM temp.bulk_ids)",
+            [&now],
+        )?;
+        if done > 0 {
+            self.record_event("restore_items", &format!("Restored {done} archived items"))?;
+        }
+        transaction.commit()?;
+        Ok(BulkOutcome { done, held: Vec::new() })
+    }
+
+    pub fn restore_trashed_items(
+        &mut self,
+        _session: &Session,
+        ids: &[String],
+    ) -> Result<BulkOutcome, VaultError> {
+        let transaction = self.connection.unchecked_transaction()?;
+        self.load_bulk_ids(ids)?;
+        let now = Utc::now().to_rfc3339();
+        let done = self.connection.execute(
+            "UPDATE items SET trashed = 0, deleted_at = NULL, updated_at = ?1
+             WHERE trashed = 1 AND id IN (SELECT id FROM temp.bulk_ids)",
+            [&now],
+        )?;
+        if done > 0 {
+            self.record_event("restore_trashed_items", &format!("Restored {done} items from trash"))?;
+        }
+        transaction.commit()?;
+        Ok(BulkOutcome { done, held: Vec::new() })
+    }
+
+    /// Deletes trashed items for good (Delete Permanently, Empty Trash). Only items already in the trash are
+    /// touched. Every row hanging off them goes in the same transaction — fields, addresses, attachments, tag
+    /// links (also `ON DELETE CASCADE`, deleted by hand so it never depends on the pragma) — and every link that
+    /// still names one of them is taken out of the other item's encrypted record, so no parent, peer or "Sign in
+    /// with" account points at an item that no longer exists.
+    pub fn purge_items(&mut self, session: &Session, ids: &[String]) -> Result<BulkOutcome, VaultError> {
+        let transaction = self.connection.unchecked_transaction()?;
+        self.load_bulk_ids(ids)?;
+        let grouped = self.bulk_ids_by_vault("i.trashed = 1")?;
+        self.connection.execute(
+            "DELETE FROM temp.bulk_ids WHERE id NOT IN (SELECT id FROM items WHERE trashed = 1)",
+            [],
+        )?;
+        let purged: HashSet<String> = grouped.values().flatten().cloned().collect();
+        for vault_id in grouped.keys() {
+            let vault = session.for_vault(vault_id);
+            for (owner, mut record) in self.relation_index(&vault)? {
+                if purged.contains(&owner) {
+                    continue;
+                }
+                let before = record.clone();
+                if record.parent.as_ref().is_some_and(|id| purged.contains(id)) {
+                    record.parent = None;
+                }
+                if record.sign_in.as_ref().is_some_and(|id| purged.contains(id)) {
+                    record.sign_in = None;
+                }
+                record.related.retain(|id| !purged.contains(id));
+                if record != before {
+                    self.write_relation_record(&vault, &owner, &record)?;
+                }
+            }
+        }
+        for table in ["item_fields", "item_urls", "attachments", "item_tags"] {
+            self.connection.execute(
+                &format!("DELETE FROM {table} WHERE item_id IN (SELECT id FROM temp.bulk_ids)"),
+                [],
+            )?;
+        }
+        let done = self
+            .connection
+            .execute("DELETE FROM items WHERE trashed = 1 AND id IN (SELECT id FROM temp.bulk_ids)", [])?;
+        for vault_id in grouped.keys() {
+            self.prune_unused_tags(&session.for_vault(vault_id))?;
+        }
+        if done > 0 {
+            self.record_event("purge_items", &format!("Permanently deleted {done} items"))?;
+        }
+        transaction.commit()?;
+        Ok(BulkOutcome { done, held: Vec::new() })
+    }
+
+    /// Moves the selection into another vault, re-homing each item's tags the way a single move does. An item
+    /// linked to something that is not moving with it stays (links never cross a vault) and comes back in `held`.
+    pub fn move_items(
+        &mut self,
+        session: &Session,
+        ids: &[String],
+        vault_id: &str,
+    ) -> Result<BulkOutcome, VaultError> {
+        let target = self.session_for_vault(session, vault_id)?;
+        let transaction = self.connection.unchecked_transaction()?;
+        self.load_bulk_ids(ids)?;
+        let grouped = self.bulk_ids_by_vault("i.trashed = 0")?;
+        let mut outcome = BulkOutcome::default();
+        let now = Utc::now().to_rfc3339();
+        for (source_id, vault_ids) in grouped {
+            if source_id == target.vault_id {
+                continue;
+            }
+            let source = session.for_vault(&source_id);
+            let held = self.linked_outside(&source, &vault_ids)?;
+            for item_id in vault_ids.iter().filter(|id| !held.contains(*id)) {
+                self.rehome_item_tags(&target, item_id)?;
+                outcome.done += self.connection.execute(
+                    "UPDATE items SET vault_id = ?1, updated_at = ?2 WHERE id = ?3 AND vault_id = ?4",
+                    params![&target.vault_id, now, item_id, &source_id],
+                )?;
+            }
+            self.prune_unused_tags(&source)?;
+            outcome.held.extend(held);
+        }
+        if outcome.done > 0 {
+            self.record_event("move_items", &format!("Moved {} items to vault {vault_id}", outcome.done))?;
+        }
+        outcome.held.sort();
+        transaction.commit()?;
+        Ok(outcome)
     }
 
     pub fn archive_item(&mut self, session: &Session, item_id: &str) -> Result<(), VaultError> {
@@ -6073,6 +6389,163 @@ mod tests {
             Err(VaultError::ItemNotFound)
         ));
 
+        let _ = std::fs::remove_file(path);
+    }
+
+    fn bulk_service(name: &str) -> (VaultService, Session, std::path::PathBuf) {
+        let path = test_database_path(name);
+        initialize_database(&path).expect("database should initialize");
+        let mut service = VaultService::new(open_database(&path).expect("database should open"));
+        let session = service.setup_master_password("master-password").expect("setup");
+        (service, session, path)
+    }
+
+    fn live_ids(service: &VaultService, session: &Session) -> Vec<String> {
+        let mut ids: Vec<String> = service
+            .list_login_summaries(session, None)
+            .expect("list")
+            .into_iter()
+            .map(|item| item.id)
+            .collect();
+        ids.sort();
+        ids
+    }
+
+    #[test]
+    fn bulk_trash_takes_linked_groups_together_and_holds_items_linked_outside() {
+        let (mut service, session, path) = bulk_service("bulk-trash");
+        let mut ids = Vec::new();
+        for title in ["Account", "Uses it", "Peer", "Loose", "Stays"] {
+            ids.push(service.create_login_item(&session, login_input(title, vec![])).expect("create").id);
+        }
+        let (account, user, peer, loose, stays) = (&ids[0], &ids[1], &ids[2], &ids[3], &ids[4]);
+        service.set_item_sign_in(&session, user, Some(account)).expect("sign in");
+        service.link_related_items(&session, peer, stays).expect("relate");
+
+        // Account + its user go together; Peer is linked to Stays, which is not selected, so it is held.
+        let selected = vec![account.clone(), user.clone(), peer.clone(), loose.clone()];
+        let outcome = service.trash_items(&session, &selected).expect("bulk trash");
+        assert_eq!(outcome.done, 3);
+        assert_eq!(outcome.held, vec![peer.clone()]);
+        let mut left = vec![peer.clone(), stays.clone()];
+        left.sort();
+        assert_eq!(live_ids(&service, &session), left);
+        assert_eq!(service.list_trashed_login_summaries(&session).expect("trash").len(), 3);
+
+        // Restoring brings the links back with the items: they were never rewritten.
+        let restored = service
+            .restore_trashed_items(&session, &[account.clone(), user.clone()])
+            .expect("restore");
+        assert_eq!(restored.done, 2);
+        let detail = service.login_item_detail(&session, user).expect("detail");
+        assert_eq!(detail.relations.sign_in_with.map(|item| item.id), Some(account.clone()));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn bulk_purge_deletes_rows_and_every_link_that_named_them() {
+        let (mut service, session, path) = bulk_service("bulk-purge");
+        let mut input = login_input("Gone", vec!["work".into()]);
+        input.urls = vec![ItemUrl { label: String::new(), url: "https://a.example".into(), match_type: "domain".into() }];
+        let gone = service.create_login_item(&session, input).expect("create").id;
+        let child = service.create_login_item(&session, login_input("Child", vec![])).expect("create").id;
+        let kept = service.create_login_item(&session, login_input("Kept", vec!["work".into()])).expect("create").id;
+        service.add_attachment_bytes(&session, &gone, "a.txt", b"hello").expect("attach");
+        service.set_item_parent(&session, &child, Some(&gone)).expect("parent");
+        // Both in the trash together (the group rule), then the child is restored: it still names its parent.
+        service.trash_items(&session, &[gone.clone(), child.clone()]).expect("trash");
+        service.restore_trashed_items(&session, &[child.clone()]).expect("restore child");
+
+        // Only trashed items are purged: a live id in the selection is ignored.
+        let outcome = service.purge_items(&session, &[gone.clone(), kept.clone()]).expect("purge");
+        assert_eq!(outcome.done, 1);
+        for table in ["item_fields", "item_urls", "attachments", "item_tags"] {
+            let rows: i64 = service
+                .connection()
+                .query_row(&format!("SELECT count(*) FROM {table} WHERE item_id = ?1"), [&gone], |row| row.get(0))
+                .expect("count");
+            assert_eq!(rows, 0, "{table} rows of a purged item");
+        }
+        assert!(service.relation_record(&session, &child).expect("record").is_empty());
+        assert!(!service.list_login_summaries(&session, None).expect("list").iter().any(|item| item.has_relations));
+        // The tag the kept item still carries survives the prune.
+        assert_eq!(tag_row_count(&service), 1);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn bulk_archive_restore_and_move_touch_items_only() {
+        let (mut service, session, path) = bulk_service("bulk-archive");
+        let work = service.create_vault(&session, "Work").expect("vault");
+        let ids: Vec<String> = (0..4)
+            .map(|index| service.create_login_item(&session, login_input(&format!("I{index}"), vec!["t".into()])).expect("create").id)
+            .collect();
+        let archived = service.archive_items(&session, &ids[..2]).expect("archive");
+        assert_eq!(archived.done, 2);
+        assert_eq!(service.list_archived_login_summaries(&session).expect("archived").len(), 2);
+        // No vault was archived by a selection of what is in it.
+        assert!(service.list_vaults(&session).expect("vaults").iter().all(|vault| !vault.archived));
+        assert_eq!(service.restore_archived_items(&session, &ids[..2]).expect("restore").done, 2);
+
+        let moved = service.move_items(&session, &ids[2..], &work.id).expect("move");
+        assert_eq!(moved.done, 2);
+        let work_session = session.for_vault(&work.id);
+        assert_eq!(service.list_login_summaries(&work_session, None).expect("work list").len(), 2);
+        assert_eq!(service.list_tags(&work_session).expect("work tags").len(), 1);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn the_last_open_vault_cannot_be_archived_or_dissolved() {
+        let (mut service, session, path) = bulk_service("last-open-vault");
+        assert!(matches!(
+            service.set_vault_archived(&session, "personal", true),
+            Err(VaultError::VaultLastOpen)
+        ));
+        let work = service.create_vault(&session, "Work").expect("vault");
+        service.set_vault_archived(&session, &work.id, true).expect("archive work while personal is open");
+        // Two vaults, one open: the open one may neither be archived nor dissolved into the archived one.
+        assert!(matches!(
+            service.set_vault_archived(&session, "personal", true),
+            Err(VaultError::VaultLastOpen)
+        ));
+        assert!(matches!(
+            service.dissolve_vault(&session, "personal", Some(&work.id)),
+            Err(VaultError::VaultLastOpen)
+        ));
+        // Unarchiving keeps working, and with two open vaults either may go again.
+        service.set_vault_archived(&session, &work.id, false).expect("restore work");
+        service.set_vault_archived(&session, "personal", true).expect("archive personal");
+        // The unlock then opens an open vault, not the archived seeded one.
+        assert_eq!(service.opening_vault_id().expect("opening"), work.id);
+        let unlocked = service.unlock("master-password").expect("unlock");
+        assert_eq!(unlocked.vault_id(), work.id);
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// Rei 2026-10-25: "personal库显示838个items，但点击后，列表为空". A 1Password-sized mixed import (every
+    /// category, some archived, imported twice): the sidebar count, the vault's own list and All agree, and an unlock
+    /// opens a vault that exists and is open.
+    #[test]
+    fn the_vault_count_and_its_lists_agree_after_a_mixed_import() {
+        let (mut service, session, path) = bulk_service("count-agrees");
+        let types = ["login", "credit_card", "secure_note", "identity", "password", "bank_account", "server"];
+        for round in 0..2 {
+            for index in 0..431 {
+                let mut input = login_input(&format!("Item {round}-{index}"), vec![format!("t{}", index % 5)]);
+                input.item_type = types[index % types.len()].into();
+                let created = service.create_login_item(&session, input.clone()).expect("create");
+                service
+                    .finish_imported_item(&session, &created.id, &input, None, None, index % 37 == 0)
+                    .expect("finish");
+            }
+        }
+        let count = service.list_vaults(&session).expect("vaults")[0].item_count;
+        assert_eq!(count, 838);
+        assert_eq!(service.list_login_summaries(&session, None).expect("list").len(), 838);
+        let all = service.list_all_login_summaries(&session).expect("all");
+        assert_eq!(all.iter().filter(|item| item.vault_id == "personal").count(), 838);
+        assert_eq!(service.unlock("master-password").expect("unlock").vault_id(), "personal");
         let _ = std::fs::remove_file(path);
     }
 }

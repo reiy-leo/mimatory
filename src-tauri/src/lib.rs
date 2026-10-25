@@ -359,6 +359,58 @@ fn purge_login_item(id: String, state: State<AppState>) -> Result<(), String> {
     service.purge_item(&session, &id).map_err(String::from)
 }
 
+/// Selection actions (2026-10-25): one call and one transaction for the whole selection, however many items.
+fn with_service<T>(
+    state: &State<AppState>,
+    run: impl FnOnce(&mut VaultService, &vault::Session) -> Result<T, vault::VaultError>,
+) -> Result<T, String> {
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let mut service = VaultService::new(connection);
+    let session = current_session(state)?;
+    run(&mut service, &session).map_err(String::from)
+}
+
+#[tauri::command(async)]
+fn trash_login_items(ids: Vec<String>, state: State<AppState>) -> Result<vault::BulkOutcome, String> {
+    with_service(&state, |service, session| service.trash_items(session, &ids))
+}
+
+#[tauri::command(async)]
+fn archive_login_items(ids: Vec<String>, state: State<AppState>) -> Result<vault::BulkOutcome, String> {
+    with_service(&state, |service, session| service.archive_items(session, &ids))
+}
+
+#[tauri::command(async)]
+fn restore_archived_login_items(
+    ids: Vec<String>,
+    state: State<AppState>,
+) -> Result<vault::BulkOutcome, String> {
+    with_service(&state, |service, session| service.restore_archived_items(session, &ids))
+}
+
+#[tauri::command(async)]
+fn restore_trashed_login_items(
+    ids: Vec<String>,
+    state: State<AppState>,
+) -> Result<vault::BulkOutcome, String> {
+    with_service(&state, |service, session| service.restore_trashed_items(session, &ids))
+}
+
+/// Delete Permanently and Empty Trash: only items already in the trash, never undone.
+#[tauri::command(async)]
+fn purge_login_items(ids: Vec<String>, state: State<AppState>) -> Result<vault::BulkOutcome, String> {
+    with_service(&state, |service, session| service.purge_items(session, &ids))
+}
+
+#[tauri::command(async)]
+fn move_login_items(
+    ids: Vec<String>,
+    vault_id: String,
+    state: State<AppState>,
+) -> Result<vault::BulkOutcome, String> {
+    with_service(&state, |service, session| service.move_items(session, &ids, &vault_id))
+}
+
 /// Sets or clears the one parent an item belongs to; the frontend re-lists afterwards.
 #[tauri::command]
 fn set_item_parent(
@@ -772,10 +824,18 @@ async fn unlock_with_biometrics(
         .clone()
         .ok_or_else(|| "Unlock with master password once before using biometrics".to_string())?;
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
-    let service = VaultService::new(connection);
+    let mut service = VaultService::new(connection);
+    // The same vault a password unlock opens, never whichever one the session last followed: the window starts
+    // on that rule, and a session left on another vault made the vault row show that vault's list (2026-10-25).
+    let opening = service.opening_vault_id().map_err(String::from)?;
+    let session = service.session_for_vault(&session, &opening).map_err(String::from)?;
     let items = service
         .list_login_summaries(&session, None)
         .map_err(String::from)?;
+    *state
+        .biometric_session
+        .lock()
+        .map_err(|_| "biometric session lock poisoned".to_string())? = Some(session.clone());
     *state
         .session
         .lock()
@@ -969,6 +1029,12 @@ pub fn run() {
             list_trashed_login_items,
             restore_trashed_login_item,
             purge_login_item,
+            trash_login_items,
+            archive_login_items,
+            restore_archived_login_items,
+            restore_trashed_login_items,
+            purge_login_items,
+            move_login_items,
             archive_login_item,
             restore_login_item,
             list_archived_login_items,

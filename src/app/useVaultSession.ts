@@ -21,7 +21,7 @@ export function useVaultSession({
   handleLock: () => Promise<void>
   loadArchivedItems: () => Promise<void>
   loadTrashedItems: () => Promise<void>
-  loadVaults: () => Promise<void>
+  loadVaults: () => Promise<string>
   securityPreferences: SecurityPreferences
   setError: Dispatch<SetStateAction<string | null>>
   setItems: Dispatch<SetStateAction<LoginItemSummary[]>>
@@ -92,6 +92,15 @@ export function useVaultSession({
     return () => window.clearInterval(lockCheck)
   }, [mode, securityPreferences.autoLockIdleDuration])
 
+  // The vault rows, and the session pointed at the vault the window opens on. Rust opens the same vault by the same
+  // rule (`opening_vault_id`), so this is a no-op unless the two ever disagree — which once left the vault row
+  // showing another vault's list (2026-10-25: "personal库显示838个items，但点击后，列表为空").
+  async function followOpenedVault(nextItems: LoginItemSummary[]) {
+    const opened = await loadVaults()
+    if (nextItems.every((item) => !item.vault_id || item.vault_id === opened)) return
+    setItems(await vaultApi.switchVault(opened))
+  }
+
   async function handleUnlock(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (isUnlocking) return
@@ -103,7 +112,7 @@ export function useVaultSession({
       setSelectedId(nextItems[0]?.id ?? null)
       setMasterPassword('')
       setMode('unlocked')
-      await loadVaults()
+      await followOpenedVault(nextItems)
       loadArchivedItems().catch((nextError) => setError(String(nextError)))
       loadTrashedItems().catch((nextError) => setError(String(nextError)))
       setStatus((current) => (current ? { ...current, has_master_password: true, unlocked: true } : current))
@@ -121,7 +130,7 @@ export function useVaultSession({
       setItems(nextItems)
       setSelectedId(nextItems[0]?.id ?? null)
       setMode('unlocked')
-      await loadVaults()
+      await followOpenedVault(nextItems)
     } catch (nextError) {
       setError(String(nextError))
     }

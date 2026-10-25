@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { AlertCircle, Check, ChevronDown, Star } from 'lucide-react'
+import { AlertCircle, Check, ChevronDown, Star, Trash2 } from 'lucide-react'
 import {
   memo,
   type MouseEvent as ReactMouseEvent,
@@ -50,7 +50,7 @@ export type ItemListRowProps = {
   item: LoginItemSummary
   measureRef: (node: HTMLElement | null) => void
   onContextMenu: (event: ReactMouseEvent<HTMLButtonElement>, item: LoginItemSummary) => void
-  onSelect: (id: string) => void
+  onSelect: (id: string, event: ReactMouseEvent<HTMLButtonElement>) => void
   subtitle: string
 }
 
@@ -71,7 +71,7 @@ export const ItemListRow = memo(function ItemListRow({
       className={active ? 'item-row active' : 'item-row'}
       data-index={index}
       data-item-row={item.id}
-      onClick={() => onSelect(item.id)}
+      onClick={(event) => onSelect(item.id, event)}
       onContextMenu={(event) => onContextMenu(event, item)}
       ref={measureRef}
       type="button"
@@ -91,7 +91,6 @@ export const ItemListRow = memo(function ItemListRow({
 /** The item list column (sort menu, live rows or the archive / trash rows) and its resize gutter. */
 export function ItemList({ vw }: { vw: VaultWindowModel }) {
   const {
-    activeNavigation,
     beginItemListResize,
     chooseSort,
     error,
@@ -102,12 +101,12 @@ export function ItemList({ vw }: { vw: VaultWindowModel }) {
     listTitle,
     listScrollToItemRef,
     lockedRegion,
-    restoreStateItem,
-    selectedId,
-    setPurgeTarget,
+    requestEmptyTrash,
+    selection,
     setSortMenuOpen,
     sortMenuOpen,
     stateRows,
+    stateView,
     t,
     visibleItems,
   } = vw
@@ -185,6 +184,15 @@ export function ItemList({ vw }: { vw: VaultWindowModel }) {
 
         {/* Sort (owner 2026-10-18, after 1Password 8's "N items sorted by" menu): what to sort by, then which way.
             One choice for every list, remembered across launches. */}
+        {/* The trash's own command, where Finder keeps it: at the top of the list, beside nothing else. */}
+        {stateView === 'trash' && stateRows?.length ? (
+          <div className="list-sort">
+            <button className="list-sort-trigger" onClick={requestEmptyTrash} type="button">
+              <Trash2 aria-hidden="true" size={13} />
+              <span>{t('selection.emptyTrash')}</span>
+            </button>
+          </div>
+        ) : null}
         {stateRows ? null : (
           <div className="list-sort" data-sort-menu="">
             <button
@@ -235,48 +243,11 @@ export function ItemList({ vw }: { vw: VaultWindowModel }) {
           {virtualRows.map((virtualRow) => {
             const item = rows[virtualRow.index]
             if (!item) return null
-            return stateRows ? (
-              // A state row is not selectable: the detail pane only ever edits live items, so the
-              // row carries its own way back, and the trash carries the way out as well.
-              <div
-                className="item-row state-row"
-                data-index={virtualRow.index}
-                key={item.id}
-                ref={virtualizer.measureElement}
-              >
-                <ItemIcon item={item} />
-                <span className="item-row-text">
-                  <strong>{item.title}</strong>
-                  <small>
-                    <span className="row-subtitle">{itemSubtitle(item)}</span>
-                  </small>
-                  <span className="state-row-actions">
-                    <button
-                      aria-label={t('vault.restore', { title: item.title })}
-                      className="state-row-button"
-                      onClick={() => restoreStateItem(item.id)}
-                      title={t('vault.restore', { title: item.title })}
-                      type="button"
-                    >
-                      {t('vault.restoreAction')}
-                    </button>
-                    {activeNavigation === 'trash' ? (
-                      <button
-                        aria-label={t('vault.purgeItem', { title: item.title })}
-                        className="state-row-button danger"
-                        onClick={() => setPurgeTarget(item)}
-                        title={t('vault.purgeItem', { title: item.title })}
-                        type="button"
-                      >
-                        {t('vault.purge')}
-                      </button>
-                    ) : null}
-                  </span>
-                </span>
-              </div>
-            ) : (
+            // Trash and archive rows are selectable too (2026-10-25): their way back and their way out moved to the
+            // detail pane and the right-click menu, which act on the whole selection.
+            return (
               <ItemListRow
-                active={item.id === selectedId}
+                active={selection.ids.has(item.id)}
                 index={virtualRow.index}
                 item={item}
                 key={item.id}

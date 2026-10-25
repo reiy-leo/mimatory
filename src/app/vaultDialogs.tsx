@@ -1,4 +1,5 @@
 import { FileArchive, Loader2 } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { TextPreviewDialog } from './attachmentControls'
 import i18n from './i18n'
 import type { VaultWindowModel } from './useVaultWindow'
@@ -6,7 +7,9 @@ import type { VaultWindowModel } from './useVaultWindow'
 /** Text preview, permanent delete, 1Password import and the create-vault sheet. */
 export function VaultDialogs({ vw }: { vw: VaultWindowModel }) {
   const {
+    bulkConfirm,
     closeCreateVault,
+    confirmBulk,
     closeTextPreview,
     confirm1puxImport,
     copySecretText,
@@ -17,6 +20,7 @@ export function VaultDialogs({ vw }: { vw: VaultWindowModel }) {
     purgeTarget,
     purgeTrashedItem,
     setError,
+    setBulkConfirm,
     setOnePuxPreview,
     setPurgeTarget,
     setVaultNameDraft,
@@ -25,9 +29,74 @@ export function VaultDialogs({ vw }: { vw: VaultWindowModel }) {
     vaultNameDraft,
     vaultNameInputRef,
   } = vw
+  // An alert opens on its safe button for a destructive question (`alerts.md`: never make the destructive action the
+  // default), on its action for the trash, which can be walked back.
+  const bulkCancelRef = useRef<HTMLButtonElement>(null)
+  const bulkActionRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (bulkConfirm) (bulkConfirm.kind === 'trash' ? bulkActionRef : bulkCancelRef).current?.focus()
+  }, [bulkConfirm])
+  const bulkCount = bulkConfirm?.ids.length ?? 0
 
   return (
     <>
+      {/* Bulk alerts (2026-10-25): Move to Trash for several items is a light question — the trash gives them back;
+          Delete Permanently and Empty Trash say the count and that nothing brings the items back. */}
+      {bulkConfirm ? (
+        <div className="confirm-layer">
+          <button
+            aria-label={t('vault.cancelEditing')}
+            className="confirm-backdrop"
+            onClick={() => setBulkConfirm(null)}
+            tabIndex={-1}
+            type="button"
+          />
+          <div
+            aria-describedby="bulk-confirm-body"
+            aria-labelledby="bulk-confirm-title"
+            aria-modal="true"
+            className="confirm-dialog"
+            role="alertdialog"
+          >
+            <h2 id="bulk-confirm-title">
+              {bulkConfirm.kind === 'empty'
+                ? t('selection.emptyHeading')
+                : bulkConfirm.kind === 'purge'
+                  ? t('selection.purgeHeading', { count: bulkCount })
+                  : t('selection.trashHeading', { count: bulkCount })}
+            </h2>
+            <p id="bulk-confirm-body">
+              {bulkConfirm.kind === 'empty'
+                ? t('selection.emptyBody', { count: bulkCount })
+                : bulkConfirm.kind === 'purge'
+                  ? t('selection.purgeBody')
+                  : t('selection.trashBody')}
+            </p>
+            <div className="confirm-actions">
+              <button
+                className="secondary-button"
+                onClick={() => setBulkConfirm(null)}
+                ref={bulkCancelRef}
+                type="button"
+              >
+                {t('vault.cancelEditing')}
+              </button>
+              <button
+                className={bulkConfirm.kind === 'trash' ? 'primary-button' : 'danger-button'}
+                onClick={confirmBulk}
+                ref={bulkActionRef}
+                type="button"
+              >
+                {bulkConfirm.kind === 'empty'
+                  ? t('selection.emptyTrash')
+                  : bulkConfirm.kind === 'purge'
+                    ? t('selection.deletePermanently')
+                    : t('selection.moveToTrash')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {/* The only way to end a trashed row is here, and window.confirm() answers false without ever
           showing anything, so the question is drawn in the page. Its dismiss is a real button behind
           the card, not a click handler on a div: it stays keyboard reachable, and a click inside the
