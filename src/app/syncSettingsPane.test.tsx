@@ -115,7 +115,7 @@ describe('Settings ▸ Sync', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Sync Now/ }))
     })
-    expect(await screen.findByRole('alert')).toHaveTextContent('401 未授权: Wrong user name or app password.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('401 Unauthorized: Wrong user name or app password.')
   })
 
   it('confirms before disconnecting', async () => {

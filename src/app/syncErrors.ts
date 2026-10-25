@@ -1,4 +1,5 @@
 import type { TFunction } from 'i18next'
+import i18n from './i18n'
 import type { SyncErrorCode, SyncErrorInfo } from './syncApi'
 
 /**
@@ -30,36 +31,19 @@ export const syncErrorCodes: SyncErrorCode[] = [
 /** HTTP statuses that get their own explanation (`sync.httpHints.<status>`); the rest show the gloss alone. */
 export const syncHttpHintStatuses = [301, 302, 307, 308, 401, 403, 404, 405, 409, 412, 423, 507] as const
 
-/*
- * Owner rule (2026-10-13): a response code shown anywhere carries a short Chinese gloss, whatever the UI
- * language — "401 未授权". The same table as `http_gloss` in error.rs.
- */
-const httpGlosses: Record<number, string> = {
-  301: '重定向',
-  302: '重定向',
-  307: '重定向',
-  308: '重定向',
-  400: '请求错误',
-  401: '未授权',
-  403: '禁止访问',
-  404: '未找到',
-  405: '方法不允许',
-  408: '请求超时',
-  409: '冲突',
-  412: '前置条件失败',
-  413: '请求体过大',
-  423: '资源已锁定',
-  429: '请求过多',
-  500: '服务器内部错误',
-  501: '未实现',
-  502: '网关错误',
-  503: '服务不可用',
-  504: '网关超时',
-  507: '存储空间不足',
-}
+/* Statuses with a short meaning of their own (`http.<status>` in each bundle); the rest read `http.unknown`. */
+export const httpGlossStatuses = [
+  301, 302, 307, 308, 400, 401, 403, 404, 405, 408, 409, 412, 413, 423, 429, 500, 501, 502, 503, 504, 507,
+] as const
 
-export function httpStatusLabel(status: number): string {
-  return `${status} ${httpGlosses[status] ?? 'HTTP 错误'}`
+/*
+ * Owner rule (2026-10-13): a response code shown anywhere carries a short gloss — "401 未授权". Since the UI
+ * speaks more than Chinese (2026-10-25) the gloss is in the UI language: Chinese in zh, "401 Unauthorized" in en,
+ * "401 Не авторизован" in ru. Rust keeps its own Chinese table (`http_gloss` in error.rs) for log text only.
+ */
+export function httpStatusLabel(status: number, t: TFunction = i18n.t): string {
+  const known = (httpGlossStatuses as readonly number[]).includes(status)
+  return `${status} ${t(known ? `http.${status}` : 'http.unknown')}`
 }
 
 export function isSyncErrorCode(value: string): value is SyncErrorCode {
@@ -72,7 +56,7 @@ export function describeSyncError(t: TFunction, error: SyncErrorInfo): string {
   if (code === 'http' && typeof error.status === 'number') {
     const hinted = (syncHttpHintStatuses as readonly number[]).includes(error.status)
     const hint = hinted ? t(`sync.httpHints.${error.status}`) : t('sync.errors.http')
-    return t('sync.httpError', { hint, status: httpStatusLabel(error.status) })
+    return t('sync.httpError', { hint, status: httpStatusLabel(error.status, t) })
   }
   return t(`sync.errors.${code}`)
 }

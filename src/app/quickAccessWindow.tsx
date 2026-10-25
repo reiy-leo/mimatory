@@ -5,7 +5,7 @@ import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, u
 import { useTranslation } from 'react-i18next'
 import { usePlatformState } from '../skin/runtime'
 import { copyText } from './clipboard'
-import i18n, { getInitialLanguage, type SupportedLanguage } from './i18n'
+import { applyLanguagePreference, type LanguagePreference } from './i18n'
 import { ItemIcon } from './itemIcon'
 import { isPrimaryModifier, shortcutLabel } from './platformFeatures'
 import { loadSecurityPreferences } from './securityPreferences'
@@ -28,9 +28,6 @@ export function QuickAccessWindow() {
   const [locked, setLocked] = useState(true)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [language, setLanguage] = useState<SupportedLanguage>(() =>
-    getInitialLanguage(localStorage.getItem('mimatory-language')),
-  )
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const hideTimerRef = useRef<number | null>(null)
@@ -128,10 +125,6 @@ export function QuickAccessWindow() {
 
   useEffect(() => followSystemAppearance(), [])
 
-  useEffect(() => {
-    void i18n.changeLanguage(language)
-  }, [language])
-
   useEffect(() => setSelectedIndex(0), [query])
 
   useEffect(() => {
@@ -140,11 +133,12 @@ export function QuickAccessWindow() {
 
   useEffect(() => {
     let unlistenLanguage: (() => void) | undefined
-    listen<SupportedLanguage>('mimatory-language-changed', (event) => setLanguage(event.payload)).then(
-      (nextUnlisten) => {
-        unlistenLanguage = nextUnlisten
-      },
-    )
+    listen<LanguagePreference>(
+      'mimatory-language-changed',
+      (event) => void applyLanguagePreference(event.payload),
+    ).then((nextUnlisten) => {
+      unlistenLanguage = nextUnlisten
+    })
     return () => {
       unlistenLanguage?.()
     }

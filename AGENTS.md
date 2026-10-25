@@ -128,7 +128,7 @@ change, so the expensive bundle belongs once at the end. The one exception is in
 - **Errors carry a code, never prose** (2026-10-25). Every vault command rejects with `CommandError
   { code, message, detail?, status? }` (`src-tauri/src/command_error.rs`); the UI shows `describeError(error)`
   (`src/app/errors.ts`), which translates `errors.<code>`, appends `detail` for wrapper codes (SQLite / I/O text),
-  shows an HTTP `status` with its Chinese gloss in every language ("401 未授权"), sends sync codes through
+  shows an HTTP `status` with its gloss in the UI language ("401 未授权", "401 Unauthorized"), sends sync codes through
   `describeSyncError`, and reads anything unknown as the localized generic line plus the raw text. A new error
   variant needs: its code in the `From` impl, in `CODES`, in `errorCodes` and in `errors.*` of all three bundles —
   `hardcodedStrings.test.ts` and `command_error.rs`'s own test fail on any gap. `message` stays English on purpose
@@ -377,7 +377,7 @@ Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, id
   `sync/local.rs`, not `VaultService` — **a new synced column or table must be added to `sync/records.rs` +
   `local.rs` read and write**, or it silently stops syncing (and LWW will overwrite it with the remote's value).
   Errors cross the bridge as `SyncErrorInfo {code, status, message}`; the UI translates `code` (never shows
-  `message`) and prints an HTTP status with its Chinese gloss in every language. **Every vault write must reach
+  `message`) and prints an HTTP status with its gloss in the UI language. **Every vault write must reach
   `sync_request`**: in `vaultApi.ts` a synced write is declared with `write()` instead of `invoke()`, which calls
   `requestSync()` once the command succeeds — a new write command (bulk selection actions included) that uses
   plain `invoke()` is only picked up by the 15-minute round. Still no export and no backup file; a

@@ -900,7 +900,15 @@ fn is_autostart_enabled(app: tauri::AppHandle) -> Result<bool, CommandError> {
     }
 }
 
-/// The in-app language (`zh` / `en` / `ja`), reported by every window at startup and on each change, so the
+/// The OS's preferred languages, most preferred first (BCP 47 where the platform gives it), for the UI's
+/// "System Language" setting: a macOS WKWebView's `navigator.languages` lists the bundle's localizations, not
+/// the user's own order, so the frontend asks here.
+#[tauri::command]
+fn system_locales() -> Vec<String> {
+    sys_locale::get_locales().collect()
+}
+
+/// The in-app language (a `supportedLanguages` code from i18n.ts), reported by every window at startup and on each change, so the
 /// Rust-built UI — tray, macOS menu bar, native picker titles, the Touch ID prompt — speaks it too.
 #[tauri::command]
 fn set_native_locale(language: String, app: tauri::AppHandle) {
@@ -1079,6 +1087,7 @@ pub fn run() {
             set_autostart,
             is_autostart_enabled,
             set_native_locale,
+            system_locales,
             hide_quick_access,
             sync::commands::sync_status,
             sync::commands::sync_connect_webdav,

@@ -24,9 +24,11 @@ describe('describeError', () => {
     ).toBe('保险库文件读写出错。（disk I/O error）')
   })
 
-  it('shows an HTTP status with its Chinese gloss in every language', async () => {
+  it('shows an HTTP status with its gloss in the UI language', async () => {
     await i18n.changeLanguage('en')
-    expect(describeError({ code: 'http', message: 'http error', status: 401 })).toBe('The server answered 401 未授权.')
+    expect(describeError({ code: 'http', message: 'http error', status: 401 })).toBe(
+      'The server answered 401 Unauthorized.',
+    )
     await i18n.changeLanguage('zh')
     expect(describeError({ code: 'http', message: 'http error', status: 503 })).toBe('服务器返回 503 服务不可用。')
   })

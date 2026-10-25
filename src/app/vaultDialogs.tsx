@@ -180,9 +180,7 @@ export function VaultDialogs({ vw }: { vw: VaultWindowModel }) {
               {onePuxPreview.vaults.map((vault) => (
                 <li key={vault.name}>
                   <span className="import-vault-name">{vault.name}</span>
-                  <span className="import-vault-count">
-                    {t('vault.import1pux.items', { count: vault.item_count.toLocaleString(i18n.language) })}
-                  </span>
+                  <span className="import-vault-count">{t('vault.import1pux.items', { count: vault.item_count })}</span>
                   <span className={vault.exists ? 'import-vault-badge' : 'import-vault-badge is-new'}>
                     {t(vault.exists ? 'vault.import1pux.badgeExisting' : 'vault.import1pux.badgeNew')}
                   </span>

@@ -32,7 +32,7 @@ export type SyncErrorInfo = {
   code: SyncErrorCode
   /** HTTP status when `code` is `http` (412, 401, …). */
   status: number | null
-  /** Short Chinese message with the HTTP gloss, e.g. "412 前置条件失败". */
+  /** Short Chinese message from Rust (log text, never shown), e.g. "412 前置条件失败". */
   message: string
 }
 

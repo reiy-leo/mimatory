@@ -50,16 +50,18 @@ describe('sync errors', () => {
     }
   })
 
-  // Owner rule 2026-10-13: an HTTP status always carries its Chinese gloss, whatever the UI language.
-  it('shows an HTTP status with its Chinese gloss in every language', () => {
-    expect(httpStatusLabel(401)).toBe('401 未授权')
-    expect(httpStatusLabel(418)).toBe('418 HTTP 错误')
+  // Owner rule 2026-10-13: an HTTP status carries a short gloss; since 2026-10-25 it is in the UI language.
+  it('shows an HTTP status with its gloss in the UI language', () => {
+    expect(httpStatusLabel(401, i18n.getFixedT('zh'))).toBe('401 未授权')
+    expect(httpStatusLabel(418, i18n.getFixedT('zh'))).toBe('418 HTTP 错误')
+    expect(httpStatusLabel(401, i18n.getFixedT('en'))).toBe('401 Unauthorized')
+    expect(httpStatusLabel(418, i18n.getFixedT('en'))).toBe('418 HTTP Error')
     const error = { code: 'http' as const, message: '401 未授权：用户名或应用密码不对', status: 401 }
-    expect(describeSyncError(i18n.getFixedT('en'), error)).toBe('401 未授权: Wrong user name or app password.')
+    expect(describeSyncError(i18n.getFixedT('en'), error)).toBe('401 Unauthorized: Wrong user name or app password.')
     expect(describeSyncError(i18n.getFixedT('zh'), error)).toBe('401 未授权：用户名或应用密码不对。')
-    expect(describeSyncError(i18n.getFixedT('ja'), error)).toContain('401 未授权')
+    expect(describeSyncError(i18n.getFixedT('ja'), error)).toContain('401 認証が必要')
     expect(describeSyncError(i18n.getFixedT('en'), { code: 'http', message: '', status: 500 })).toBe(
-      '500 服务器内部错误: The server returned an error.',
+      '500 Internal Server Error: The server returned an error.',
     )
   })
 

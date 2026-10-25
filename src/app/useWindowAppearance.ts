@@ -1,6 +1,6 @@
 import { listen } from '@tauri-apps/api/event'
 import { useEffect, useState } from 'react'
-import i18n, { getInitialLanguage, type SupportedLanguage } from './i18n'
+import { applyLanguagePreference, getStoredLanguagePreference, type LanguagePreference } from './i18n'
 import { followLanguageInNativeUi } from './nativeLocale'
 import { loadSecurityPreferences, type SecurityPreferences, saveSecurityPreferences } from './securityPreferences'
 import { clearLegacyThemeOverride, followSystemAppearance } from './theme'
@@ -12,9 +12,7 @@ import { followLanguageInTitle } from './windowTitle'
  */
 export function useWindowAppearance() {
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
-  const [, setLanguage] = useState<SupportedLanguage>(() =>
-    getInitialLanguage(localStorage.getItem('mimatory-language')),
-  )
+  const [, setLanguage] = useState<LanguagePreference>(() => getStoredLanguagePreference())
 
   // The appearance is the system's, always; an override an older build stored is dropped on the way in.
   useEffect(() => {
@@ -29,10 +27,9 @@ export function useWindowAppearance() {
 
   useEffect(() => {
     let unlisten: (() => void) | undefined
-    listen<SupportedLanguage>('mimatory-language-changed', (event) => {
+    listen<LanguagePreference>('mimatory-language-changed', (event) => {
       setLanguage(event.payload)
-      localStorage.setItem('mimatory-language', event.payload)
-      void i18n.changeLanguage(event.payload)
+      void applyLanguagePreference(event.payload)
     }).then((nextUnlisten) => {
       unlisten = nextUnlisten
     })

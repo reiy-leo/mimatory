@@ -1,7 +1,15 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import i18n, { getInitialLanguage, supportedLanguages } from './i18n'
+import i18n, {
+  getInitialLanguage,
+  languageNames,
+  matchLanguage,
+  readLanguagePreference,
+  resolveLanguage,
+  resolveSystemLanguage,
+  supportedLanguages,
+} from './i18n'
 
 type Bundle = Record<string, unknown>
 
@@ -56,27 +64,131 @@ function missingFromSomeLocale(keys: string[]): string[] {
 }
 
 describe('i18n', () => {
-  it('defaults to Chinese when no supported language is stored', () => {
-    expect(getInitialLanguage(null)).toBe('zh')
-    expect(getInitialLanguage('fr')).toBe('zh')
+  it('follows the system when nothing is stored', () => {
+    expect(readLanguagePreference(null)).toBe('system')
+    expect(readLanguagePreference('klingon')).toBe('system')
+    expect(readLanguagePreference('ja')).toBe('ja')
+    expect(resolveLanguage('system', ['xx-YY', 'ja-JP', 'en-US'])).toBe('ja')
+    expect(resolveLanguage('zh', ['ja-JP'])).toBe('zh')
+    expect(resolveSystemLanguage([])).toBe('en')
+    expect(resolveSystemLanguage(['tlh'])).toBe('en')
   })
 
-  it('supports Chinese, English, and Japanese resources', async () => {
+  it('maps OS and browser tags onto the UI languages', () => {
+    for (const tag of ['zh', 'zh-CN', 'zh-Hans', 'zh-Hans-CN', 'zh-SG', 'zh_CN.UTF-8', 'zh-TW'])
+      expect(matchLanguage(tag)).toBe('zh')
+    expect(matchLanguage('en-GB')).toBe('en')
+    expect(matchLanguage('ja_JP')).toBe('ja')
+    expect(matchLanguage('')).toBeNull()
+    expect(matchLanguage('nl-NL')).toBeNull()
+    const expected: Record<string, string> = {
+      de: 'de-AT',
+      es: 'es-419',
+      fr: 'fr-CA',
+      id: 'id-ID',
+      pt: 'pt-PT',
+      ru: 'ru-RU',
+    }
+    for (const [language, tag] of Object.entries(expected)) {
+      if ((supportedLanguages as readonly string[]).includes(language)) expect(matchLanguage(tag)).toBe(language)
+    }
+    if ((supportedLanguages as readonly string[]).includes('pt')) {
+      expect(matchLanguage('pt-BR')).toBe('pt')
+      expect(matchLanguage('pt')).toBe('pt')
+    }
+    if ((supportedLanguages as readonly string[]).includes('id')) expect(matchLanguage('in-ID')).toBe('id')
+  })
+
+  it('keeps a language picked before follow-system existed', () => {
+    expect(getInitialLanguage('en')).toBe('en')
+    expect(getInitialLanguage('zh')).toBe('zh')
+  })
+
+  it('names every language in its own name', () => {
+    expect(Object.keys(languageNames).sort()).toEqual([...supportedLanguages].sort())
+    expect(languageNames.zh).toBe('简体中文')
+    expect(languageNames.en).toBe('English')
+  })
+
+  it('serves every bundle', async () => {
     await i18n.changeLanguage('zh')
     expect(i18n.t('settings.language')).toBe('语言')
-
     await i18n.changeLanguage('en')
     expect(i18n.t('settings.language')).toBe('Language')
-
     await i18n.changeLanguage('ja')
     expect(i18n.t('settings.language')).toBe('言語')
+    for (const language of supportedLanguages) {
+      expect(i18n.getFixedT(language)('settings.languageSystem')).not.toBe('settings.languageSystem')
+    }
   })
 
-  it('keeps every locale on the same translation keys', () => {
-    const [chinese, english, japanese] = supportedLanguages.map((language) => flattenKeys(bundle(language)).sort())
+  /*
+   * Parity with en, the reference bundle. A plural is the base key (the "other" form, which i18next falls back
+   * to) plus `_one` / `_few` / `_many` / `_two` / `_zero` variants where the language needs them: a locale that
+   * gives a key any variant gives it every category Intl.PluralRules lists for that language (ru: one, few,
+   * many). Variants aside, the keys are exactly en's, no string is empty, and the {{placeholders}} are en's.
+   */
+  const pluralSuffix = /_(zero|one|two|few|many)$/
 
-    expect(english).toEqual(chinese)
-    expect(japanese).toEqual(chinese)
+  function strings(language: string): Map<string, string> {
+    const t = i18n.getFixedT(language)
+    return new Map(flattenKeys(bundle(language)).map((key) => [key, t(key)]))
+  }
+
+  function baseKeys(map: Map<string, string>): string[] {
+    return [...map.keys()].filter((key) => !(pluralSuffix.test(key) && map.has(key.replace(pluralSuffix, '')))).sort()
+  }
+
+  const placeholders = (value: string) => [...new Set([...value.matchAll(/\{\{\s*([\w.]+)/g)].map((m) => m[1]))].sort()
+
+  it('keeps every locale on the same translation keys as en', () => {
+    const reference = baseKeys(strings('en'))
+    expect(reference.length).toBeGreaterThan(800)
+    for (const language of supportedLanguages) {
+      expect({ keys: baseKeys(strings(language)), language }).toEqual({ keys: reference, language })
+    }
+  })
+
+  it('leaves no string empty', () => {
+    for (const language of supportedLanguages) {
+      const empty = [...strings(language)].filter(([, value]) => !value.trim()).map(([key]) => key)
+      expect({ empty, language }).toEqual({ empty: [], language })
+    }
+  })
+
+  it('keeps the placeholders of en', () => {
+    const english = strings('en')
+    for (const language of supportedLanguages) {
+      const wrong = [...strings(language)]
+        .filter(([key, value]) => {
+          const base = english.has(key) ? key : key.replace(pluralSuffix, '')
+          return placeholders(value).join() !== placeholders(english.get(base) ?? '').join()
+        })
+        .map(([key]) => key)
+      expect({ language, wrong }).toEqual({ language, wrong: [] })
+    }
+  })
+
+  it('gives a plural every form the language needs', () => {
+    for (const language of supportedLanguages) {
+      const map = strings(language)
+      const categories: string[] = new Intl.PluralRules(language)
+        .resolvedOptions()
+        .pluralCategories.filter((c) => c !== 'other')
+      const plurals = new Set(
+        [...map.keys()]
+          .filter((key) => pluralSuffix.test(key) && map.has(key.replace(pluralSuffix, '')))
+          .map((key) => key.replace(pluralSuffix, '')),
+      )
+      const missing = [...plurals].flatMap((base) =>
+        categories.filter((category) => !map.has(`${base}_${category}`)).map((category) => `${base}_${category}`),
+      )
+      const stray = [...map.keys()].filter((key) => {
+        const match = key.match(pluralSuffix)
+        return match && map.has(key.replace(pluralSuffix, '')) && !categories.includes(match[1])
+      })
+      expect({ language, missing, stray }).toEqual({ language, missing: [], stray: [] })
+    }
   })
 
   /* Parity alone proves nothing about a key nobody defined: an absent one renders its own path, or

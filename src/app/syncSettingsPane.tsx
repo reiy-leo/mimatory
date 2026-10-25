@@ -12,7 +12,7 @@ type Confirm = 'disconnect' | 'switch' | null
  * Settings ▸ Sync (.agent/sync.md): Google Drive or WebDAV, one at a time. Disconnected it offers the two;
  * connected it shows where the data goes, when it last synced, Sync Now, Switch Provider and Disconnect (both
  * confirmed). A remote set up under another master password asks for that password in a sheet. Every error is
- * translated from its `code`; an HTTP one shows the status with its Chinese gloss ("401 未授权").
+ * translated from its `code`; an HTTP one shows the status with its gloss in the UI language ("401 未授权", "401 Unauthorized").
  *
  * `googleSync` comes from the platform table (desktop only); `google_available` from the build (the OAuth client id
  * is compiled in). Without either, the Google option stays visible but disabled, with the reason.

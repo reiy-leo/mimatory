@@ -1,10 +1,10 @@
 //! The one error shape every vault command rejects with: `{ code, message, detail, status }`.
 //!
-//! `code` is stable and the frontend translates it (`errors.<code>` in src/app/i18n.ts, en/zh/ja), so no
+//! `code` is stable and the frontend translates it (`errors.<code>` in src/app/locales/<language>.ts, every UI language), so no
 //! English `Display` text reaches the UI as the message. `message` is the English text, kept for logs and
 //! as the raw fallback the frontend shows after its generic line when it does not know a code. `detail`
 //! carries the inner error of a wrapper variant (the SQLite or I/O message) and `status` an HTTP status,
-//! which the UI always shows with its Chinese gloss ("401 未授权").
+//! which the UI shows with a gloss in its own language ("401 未授权", "401 Unauthorized").
 //!
 //! Adding a variant to one of the error enums below means adding its code here *and* to `errorCodes` in
 //! src/app/errors.ts — `every_code_is_known_to_the_frontend` reads that file and fails otherwise.

@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { usePlatformState } from '../skin/runtime'
 import { copyText } from './clipboard'
 import { describeError } from './errors'
-import i18n, { getInitialLanguage, languageOptions, type SupportedLanguage } from './i18n'
+import { applyLanguagePreference, getStoredLanguagePreference, type LanguagePreference, languageOptions } from './i18n'
 import { featuresFor, quickAccessKeys, shortcutLabel } from './platformFeatures'
 import {
   type AccountPasswordRequirement,
@@ -86,9 +86,7 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
   const [connection, setConnection] = useState<BrowserConnectionStatus | null>(null)
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
   const [autostartEnabled, setAutostartEnabled] = useState(false)
-  const [language, setLanguage] = useState<SupportedLanguage>(() =>
-    getInitialLanguage(localStorage.getItem('mimatory-language')),
-  )
+  const [language, setLanguage] = useState<LanguagePreference>(() => getStoredLanguagePreference())
 
   // Native messaging state while the Browser Extension pane is open: registration happens shortly after
   // startup and a host connects whenever the extension wakes, so it is re-read every few seconds.
@@ -116,10 +114,9 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
 
   useEffect(() => {
     let unlisten: (() => void) | undefined
-    listen<SupportedLanguage>('mimatory-language-changed', (event) => {
+    listen<LanguagePreference>('mimatory-language-changed', (event) => {
       setLanguage(event.payload)
-      localStorage.setItem('mimatory-language', event.payload)
-      void i18n.changeLanguage(event.payload)
+      void applyLanguagePreference(event.payload)
     }).then((nextUnlisten) => {
       unlisten = nextUnlisten
     })
@@ -210,10 +207,9 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
     setBrowserToken(await vaultApi.generateBrowserPairingToken())
   }
 
-  async function updateLanguage(nextLanguage: SupportedLanguage) {
+  async function updateLanguage(nextLanguage: LanguagePreference) {
     setLanguage(nextLanguage)
-    localStorage.setItem('mimatory-language', nextLanguage)
-    await i18n.changeLanguage(nextLanguage)
+    await applyLanguagePreference(nextLanguage)
     await emit('mimatory-language-changed', nextLanguage)
   }
 
@@ -304,7 +300,8 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
               <p>{t('settings.languageDescription')}</p>
               <label>
                 {t('settings.language')}
-                <select onChange={(event) => updateLanguage(event.target.value as SupportedLanguage)} value={language}>
+                <select onChange={(event) => updateLanguage(event.target.value as LanguagePreference)} value={language}>
+                  <option value="system">{t('settings.languageSystem')}</option>
                   {languageOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
