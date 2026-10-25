@@ -54,6 +54,8 @@ tiny_http = "0.12"
 uuid = { version = "1", features = ["v4"] }
 # File ▸ Import ▸ 1Password (import_1pux.rs): a .1pux is a zip of export.data + files/.
 zip = { version = "2", default-features = false, features = ["deflate"] }
+# Native menus / tray before the window reports its language (native_i18n.rs): the OS locale. Tiny, libc only.
+sys-locale = "0.3"
 
 # Desktop shell: tray, Quick Access window, autostart, single instance, the native file picker.
 # iOS and Android have none of these (and rfd does not build there), so they are desktop-only.
@@ -62,6 +64,23 @@ rfd = "0.15"
 tauri-plugin-autostart = "2.7.0"
 tauri-plugin-positioner = { version = "2.4.0", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2.5.2"
+
+# Browser native messaging (native_messaging.rs, native_ipc.rs): peer credentials on the Unix socket,
+# the Security.framework code-signature check of the browser on macOS, the named pipe and the per-user
+# NativeMessagingHosts registry keys on Windows. All already in Cargo.lock through other crates.
+[target.'cfg(all(unix, not(any(target_os = "android", target_os = "ios"))))'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_Pipes",
+  "Win32_System_Threading",
+] }
 
 # The global ⌘⇧Space / Ctrl+Shift+Space hotkey. Not on Linux: global-hotkey grabs keys through X11, which
 # a Wayland compositor never routes to it, so Hyprland binds `mimatory --quick-access` instead (shell.rs).
@@ -84,6 +103,8 @@ tauri-plugin-biometric = "2"
 # behind `cfg(target_os = "macos")`, so other targets (CI, a Linux box running `cargo test`) compile.
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6"
+# The browser code-signature check (native_ipc.rs) builds its CF dictionary/strings with these.
+core-foundation-sys = "0.8"
 objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-local-authentication = "0.3"

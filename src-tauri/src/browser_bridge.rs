@@ -1,4 +1,6 @@
+use crate::favicon;
 use crate::passkey::{self, PASSKEY_CREDENTIAL_FIELD};
+use crate::site_match;
 use crate::storage;
 use crate::vault::{
     default_match_type, sign_in_provider_of, ItemUrl, LoginItem, LoginItemInput, LoginItemUpdate,
@@ -15,6 +17,16 @@ pub type SharedBridgeToken = Arc<Mutex<Option<String>>>;
 
 #[derive(Deserialize)]
 struct FillRequest {
+    origin: String,
+    /// The one item the user picked in the float or the field menu. Absent (an old caller, the
+    /// popup's Fill, Open & Fill) means every match for the page, as before.
+    #[serde(default)]
+    item_id: Option<String>,
+}
+
+/// `/match`: the page's logins as summaries, for the one-click float and the field menu.
+#[derive(Deserialize)]
+struct MatchRequest {
     origin: String,
 }
 
@@ -59,6 +71,72 @@ impl From<LoginItem> for BridgeMatch {
         item.custom_fields.retain(|field| field.field_type != PASSKEY_CREDENTIAL_FIELD);
         Self { item, sign_in_with }
     }
+}
+
+/// One login the extension may offer on a page, without anything secret in it: no password, no
+/// one-time-code seed, no notes, no custom field. The extension asks `/fill` for the item only once
+/// the user picked it (2026-10-24, the one-click sign-in float). `icon` is the site's icon from the
+/// app's encrypted cache when one is there (never fetched for this), else the letter badge.
+#[derive(Debug, Serialize)]
+struct MatchSummary {
+    id: String,
+    title: String,
+    username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sign_in_with: Option<String>,
+    /// Whether there is a password to fill at all (a passkey-only login has none): a yes/no, never
+    /// the value.
+    has_password: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_used_at: Option<String>,
+    use_count: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    icon: Option<String>,
+}
+
+impl MatchSummary {
+    fn from_item(item: &LoginItem, icon: Option<String>) -> Self {
+        Self {
+            id: item.id.clone(),
+            title: item.title.clone(),
+            username: item.username.clone(),
+            sign_in_with: sign_in_provider_of(item),
+            has_password: !item.password.is_empty(),
+            last_used_at: item.last_used_at.clone(),
+            use_count: item.use_count,
+            icon,
+        }
+    }
+}
+
+/// Most recently used first (the float shows the first one); never-used items keep the bridge's
+/// order (open vault first, then most recently edited) after them. Stored stamps are all
+/// `Utc::now().to_rfc3339()`, so they order as strings.
+fn order_by_recent_use(items: &mut [LoginItem]) {
+    items.sort_by(|a, b| match (&a.last_used_at, &b.last_used_at) {
+        (Some(a), Some(b)) => b.cmp(a),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => std::cmp::Ordering::Equal,
+    });
+}
+
+/// The host whose cached icon an item's tile shows: its first address, unless the user chose the
+/// letter tile — the same rule as `itemIconDomain` in the window.
+fn icon_domain(item: &LoginItem) -> Option<String> {
+    if item.icon_mode == "letter" {
+        return None;
+    }
+    let first = if item.website.trim().is_empty() {
+        item.urls.first().map(|url| url.url.as_str()).unwrap_or("")
+    } else {
+        item.website.as_str()
+    };
+    let site = site_match::parse_site(first)?;
+    if site.is_ip {
+        return None;
+    }
+    favicon::normalize_domain(&site.host).ok()
 }
 
 /// `navigator.credentials.create()` handed to Mimatory (all binary values base64url).
@@ -116,6 +194,149 @@ struct BridgeError {
     error: String,
 }
 
+/// One bridge answer, whichever transport carried the request: an HTTP status and a JSON body.
+pub struct BridgeReply {
+    pub status: u16,
+    pub body: serde_json::Value,
+}
+
+impl BridgeReply {
+    fn ok<T: Serialize>(value: &T) -> Self {
+        Self { status: 200, body: serde_json::to_value(value).unwrap_or_else(|_| serde_json::json!({})) }
+    }
+
+    pub fn error(status: u16, error: impl Into<String>) -> Self {
+        Self { status, body: serde_json::json!({ "error": error.into() }) }
+    }
+}
+
+/// The paths the extension may call, on either transport. `/health` is answered by each
+/// transport itself (the HTTP one without a token, the native one with the app's lock state).
+pub const BRIDGE_PATHS: &[&str] = &[
+    "/fill",
+    "/match",
+    "/unlock",
+    "/save",
+    "/passkey-event",
+    "/passkey/create",
+    "/passkey/list",
+    "/passkey/get",
+];
+
+/// The one request → response function both transports share (2026-10-24): the HTTP bridge on
+/// 127.0.0.1:17891 calls it after the pairing token checked out, the native-messaging IPC server
+/// (`native_ipc`) after the peer check. `body` is the extension's JSON, the page's `origin` in it
+/// put there by the extension's background from `sender.origin` — never by the page.
+pub fn handle_request(session: &SharedSession, app: &AppHandle, path: &str, body: &str) -> BridgeReply {
+    let writes = matches!(path, "/save" | "/passkey-event" | "/passkey/create" | "/passkey/get");
+    let reply = match path {
+        "/fill" => match serde_json::from_str::<FillRequest>(body) {
+            Ok(input) => match input.item_id.as_deref() {
+                Some(item_id) => match picked_match(session, app, &input.origin, item_id) {
+                    Ok(items) => BridgeReply::ok(&items),
+                    Err(error) => BridgeReply::error(423, error),
+                },
+                None => match list_matches(session, &input.origin) {
+                    Ok(items) => BridgeReply::ok(&items),
+                    Err(error) => BridgeReply::error(423, error),
+                },
+            },
+            Err(error) => BridgeReply::error(400, error.to_string()),
+        },
+        "/match" => match serde_json::from_str::<MatchRequest>(body) {
+            Ok(input) => match list_match_summaries(session, &input.origin) {
+                Ok(items) => BridgeReply::ok(&items),
+                Err(error) => BridgeReply::error(423, error),
+            },
+            Err(error) => BridgeReply::error(400, error.to_string()),
+        },
+        // The float's "Unlock 密码库存": bring the main window (its lock screen) forward. The
+        // master password is only ever typed there, never in a page.
+        "/unlock" => {
+            let unlocked = current_session(session).is_ok();
+            if !unlocked {
+                show_main_window(app);
+            }
+            BridgeReply::ok(&serde_json::json!({ "unlocked": unlocked }))
+        }
+        "/save" => match serde_json::from_str::<SaveRequest>(body) {
+            Ok(input) => match save_login(session, input) {
+                Ok(item) => BridgeReply::ok(&item),
+                Err(error) => BridgeReply::error(423, error),
+            },
+            Err(error) => BridgeReply::error(400, error.to_string()),
+        },
+        "/passkey-event" => match serde_json::from_str::<PasskeyEventRequest>(body) {
+            Ok(input) => match save_passkey_event(session, input) {
+                Ok(item) => BridgeReply::ok(&item),
+                Err(error) => BridgeReply::error(423, error),
+            },
+            Err(error) => BridgeReply::error(400, error.to_string()),
+        },
+        "/passkey/create" => serde_json::from_str::<PasskeyCreateRequest>(body)
+            .map_err(|error| (StatusCode(400), error.to_string()))
+            .and_then(|input| create_passkey(session, input))
+            .map(|value| BridgeReply::ok(&value))
+            .unwrap_or_else(|(status, error)| BridgeReply::error(status.0, error)),
+        "/passkey/list" => serde_json::from_str::<PasskeyListRequest>(body)
+            .map_err(|error| (StatusCode(400), error.to_string()))
+            .and_then(|input| list_passkeys(session, input))
+            .map(|value| BridgeReply::ok(&value))
+            .unwrap_or_else(|(status, error)| BridgeReply::error(status.0, error)),
+        "/passkey/get" => serde_json::from_str::<PasskeyGetRequest>(body)
+            .map_err(|error| (StatusCode(400), error.to_string()))
+            .and_then(|input| sign_with_passkey(session, input))
+            .map(|value| BridgeReply::ok(&value))
+            .unwrap_or_else(|(status, error)| BridgeReply::error(status.0, error)),
+        _ => BridgeReply::error(404, "not found"),
+    };
+    // Anything the extension saved shows up in the open window without a manual refresh.
+    if writes && reply.status < 300 {
+        let _ = app.emit("vault:changed", ());
+    }
+    reply
+}
+
+/// Whether the vault is unlocked, for the native transport's `/health` (the popup's state line).
+#[cfg(desktop)]
+pub fn is_unlocked(session: &SharedSession) -> bool {
+    current_session(session).is_ok()
+}
+
+/// One native-messaging request, as the extension's background sends it through the host:
+/// `{ id, path, body }` with the page's origin already in `body`. Answered `{ id, status, data }` —
+/// the same status codes the HTTP bridge uses, so content.js reads both alike. The peer was verified
+/// by `native_ipc` before this runs; no pairing token is involved.
+#[cfg(desktop)]
+pub fn handle_native_message(session: &SharedSession, app: &AppHandle, message: &[u8]) -> Vec<u8> {
+    let request: serde_json::Value = serde_json::from_slice(message).unwrap_or_default();
+    let id = request.get("id").cloned().unwrap_or(serde_json::Value::Null);
+    let path = request.get("path").and_then(|path| path.as_str()).unwrap_or("");
+    let reply = if path == "/health" {
+        BridgeReply::ok(&serde_json::json!({ "ok": true, "unlocked": is_unlocked(session) }))
+    } else if BRIDGE_PATHS.contains(&path) {
+        let body = request.get("body").cloned().unwrap_or_else(|| serde_json::json!({}));
+        handle_request(session, app, path, &body.to_string())
+    } else {
+        BridgeReply::error(404, "not found")
+    };
+    serde_json::to_vec(&serde_json::json!({ "id": id, "status": reply.status, "data": reply.body }))
+        .unwrap_or_default()
+}
+
+/// The native-messaging transport (desktop startup): the IPC listener the browser-started host
+/// connects to. See `native_ipc` for the socket / pipe and the caller checks.
+#[cfg(desktop)]
+pub fn start_native_bridge(session: SharedSession, app: AppHandle) {
+    let handler: crate::native_ipc::Handler =
+        Arc::new(move |message, _peer| handle_native_message(&session, &app, message));
+    if let Err(error) = crate::native_ipc::start_server(handler) {
+        eprintln!("Mimatory: native messaging listener not started: {error}");
+    }
+}
+
+/// The fallback transport (kept for this release, see AGENTS.md "Extension connection"): HTTP on
+/// 127.0.0.1:17891 behind the in-memory pairing token.
 pub fn start_browser_bridge(session: SharedSession, bridge_token: SharedBridgeToken, app: AppHandle) {
     thread::spawn(move || {
         let Ok(server) = Server::http("127.0.0.1:17891") else {
@@ -125,80 +346,20 @@ pub fn start_browser_bridge(session: SharedSession, bridge_token: SharedBridgeTo
         for mut request in server.incoming_requests() {
             let method = request.method().clone();
             let path = request.url().to_string();
-            let writes = matches!(path.as_str(), "/save" | "/passkey-event" | "/passkey/create" | "/passkey/get");
             let response = match (method, path.as_str()) {
                 (Method::Get, "/health") => json_response(&serde_json::json!({ "ok": true })),
                 (Method::Options, _) => empty_response(),
-                (Method::Post, "/fill") => {
+                (Method::Post, route) if BRIDGE_PATHS.contains(&route) => {
                     if let Err(error) = authorize(&request, &bridge_token) {
                         let _ = request.respond(error_response(StatusCode(401), error));
                         continue;
                     }
                     let request_body = read_body(&mut request);
-                    match serde_json::from_str::<FillRequest>(&request_body) {
-                        Ok(input) => match list_matches(&session, &input.origin) {
-                            Ok(items) => json_response(&items),
-                            Err(error) => error_response(StatusCode(423), error),
-                        },
-                        Err(error) => error_response(StatusCode(400), error.to_string()),
-                    }
-                }
-                (Method::Post, "/save") => {
-                    if let Err(error) = authorize(&request, &bridge_token) {
-                        let _ = request.respond(error_response(StatusCode(401), error));
-                        continue;
-                    }
-                    let request_body = read_body(&mut request);
-                    match serde_json::from_str::<SaveRequest>(&request_body) {
-                        Ok(input) => match save_login(&session, input) {
-                            Ok(item) => json_response(&item),
-                            Err(error) => error_response(StatusCode(423), error),
-                        },
-                        Err(error) => error_response(StatusCode(400), error.to_string()),
-                    }
-                }
-                (Method::Post, "/passkey-event") => {
-                    if let Err(error) = authorize(&request, &bridge_token) {
-                        let _ = request.respond(error_response(StatusCode(401), error));
-                        continue;
-                    }
-                    let request_body = read_body(&mut request);
-                    match serde_json::from_str::<PasskeyEventRequest>(&request_body) {
-                        Ok(input) => match save_passkey_event(&session, input) {
-                            Ok(item) => json_response(&item),
-                            Err(error) => error_response(StatusCode(423), error),
-                        },
-                        Err(error) => error_response(StatusCode(400), error.to_string()),
-                    }
-                }
-                (Method::Post, "/passkey/create" | "/passkey/list" | "/passkey/get") => {
-                    if let Err(error) = authorize(&request, &bridge_token) {
-                        let _ = request.respond(error_response(StatusCode(401), error));
-                        continue;
-                    }
-                    let request_body = read_body(&mut request);
-                    let result = match path.as_str() {
-                        "/passkey/create" => serde_json::from_str::<PasskeyCreateRequest>(&request_body)
-                            .map_err(|error| (StatusCode(400), error.to_string()))
-                            .and_then(|input| create_passkey(&session, input))
-                            .map(|value| json_response(&value)),
-                        "/passkey/list" => serde_json::from_str::<PasskeyListRequest>(&request_body)
-                            .map_err(|error| (StatusCode(400), error.to_string()))
-                            .and_then(|input| list_passkeys(&session, input))
-                            .map(|value| json_response(&value)),
-                        _ => serde_json::from_str::<PasskeyGetRequest>(&request_body)
-                            .map_err(|error| (StatusCode(400), error.to_string()))
-                            .and_then(|input| sign_with_passkey(&session, input))
-                            .map(|value| json_response(&value)),
-                    };
-                    result.unwrap_or_else(|(status, error)| error_response(status, error))
+                    let reply = handle_request(&session, &app, route, &request_body);
+                    json_response(&reply.body).with_status_code(StatusCode(reply.status))
                 }
                 _ => error_response(StatusCode(404), "not found".to_string()),
             };
-            // Anything the extension saved shows up in the open window without a manual refresh.
-            if writes && response.status_code().0 < 300 {
-                let _ = app.emit("vault:changed", ());
-            }
             let _ = request.respond(response);
         }
     });
@@ -361,10 +522,79 @@ fn list_matches(session: &SharedSession, origin: &str) -> Result<Vec<BridgeMatch
     let session = current_session(session)?;
     let connection = storage::open_default_database().map_err(|error| error.to_string())?;
     let service = VaultService::new(connection);
-    service
+    let items = service
         .list_login_items_for_origin_everywhere(&session, origin)
-        .map(|items| items.into_iter().map(BridgeMatch::from).collect())
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    Ok(items.into_iter().map(BridgeMatch::from).collect())
+}
+
+/// `/fill` with `item_id` (2026-10-24, the pick path the field menu and the float wait on): reads and
+/// decrypts that one item only, still under the page's origin rules (an id from another site finds
+/// nothing). The pick counts as a use — it orders the next float — but recording it is a write that
+/// can wait on the window's own connection (busy timeout 5s), so it runs on its own thread after the
+/// answer is on its way; the window re-lists once it is written.
+fn picked_match(
+    session: &SharedSession,
+    app: &AppHandle,
+    origin: &str,
+    item_id: &str,
+) -> Result<Vec<BridgeMatch>, String> {
+    let session = current_session(session)?;
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let service = VaultService::new(connection);
+    let Some(item) = service
+        .login_item_for_origin_everywhere(&session, origin, item_id)
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(Vec::new());
+    };
+    let vault = session.for_vault(&item.vault_id);
+    let used = item.id.clone();
+    let app = app.clone();
+    thread::spawn(move || {
+        let Ok(connection) = storage::open_default_database() else {
+            return;
+        };
+        if VaultService::new(connection).record_item_use(&vault, &used).is_ok() {
+            let _ = app.emit("vault:changed", ());
+        }
+    });
+    Ok(vec![BridgeMatch::from(item)])
+}
+
+/// The same matches as `/fill` (same origin rules, "never" addresses excluded), as summaries.
+fn list_match_summaries(session: &SharedSession, origin: &str) -> Result<Vec<MatchSummary>, String> {
+    let session = current_session(session)?;
+    let connection = storage::open_default_database().map_err(|error| error.to_string())?;
+    let service = VaultService::new(connection);
+    let mut items = service
+        .list_login_items_for_origin_everywhere(&session, origin)
+        .map_err(|error| error.to_string())?;
+    order_by_recent_use(&mut items);
+    let domains = items.iter().filter_map(icon_domain).collect::<Vec<_>>();
+    // Cache only; a failure just means letter badges.
+    let icons = service.cached_site_icons(&session, &domains).unwrap_or_default();
+    Ok(items
+        .iter()
+        .map(|item| {
+            let icon = icon_domain(item)
+                .and_then(|domain| icons.get(&domain))
+                .and_then(|cached| cached.icon.clone());
+            MatchSummary::from_item(item, icon)
+        })
+        .collect())
+}
+
+fn show_main_window(app: &AppHandle) {
+    use tauri::Manager;
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let Some(window) = handle.get_webview_window("main") {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    });
 }
 
 fn save_login(session: &SharedSession, input: SaveRequest) -> Result<LoginItem, String> {
@@ -479,7 +709,7 @@ fn with_cors(response: Response<std::io::Cursor<Vec<u8>>>) -> Response<std::io::
 
 #[cfg(test)]
 mod tests {
-    use super::{tokens_match, BridgeMatch};
+    use super::{order_by_recent_use, tokens_match, BridgeMatch, MatchSummary};
     use crate::vault::{CustomField, LoginItem};
 
     fn item(fields: Vec<CustomField>) -> LoginItem {
@@ -516,6 +746,42 @@ mod tests {
 
         let plain = serde_json::to_value(BridgeMatch::from(item(vec![]))).unwrap();
         assert!(plain.get("sign_in_with").is_none());
+    }
+
+    #[test]
+    fn a_match_summary_carries_nothing_secret() {
+        let otp = CustomField { label: "otp".into(), value: "JBSWY3DPEHPK3PXP".into(), field_type: "otp".into() };
+        let mut login = item(vec![otp]);
+        login.password = "hunter2-secret".into();
+        login.notes = "the notes".into();
+        let json = serde_json::to_value(MatchSummary::from_item(&login, None)).unwrap();
+        let object = json.as_object().unwrap();
+        for key in ["password", "notes", "custom_fields", "urls", "totp", "relations"] {
+            assert!(!object.contains_key(key), "{key} must not cross /match");
+        }
+        let text = json.to_string();
+        assert!(!text.contains("hunter2-secret"));
+        assert!(!text.contains("JBSWY3DPEHPK3PXP"));
+        assert_eq!(json["title"], "Figma");
+        assert_eq!(json["username"], "rei@example.com");
+        assert_eq!(json["has_password"], true);
+        assert!(object.get("icon").is_none());
+    }
+
+    #[test]
+    fn matches_are_ordered_by_most_recent_use() {
+        let mut never = item(vec![]);
+        never.id = "never".into();
+        let mut old = item(vec![]);
+        old.id = "old".into();
+        old.last_used_at = Some("2026-01-01T00:00:00+00:00".into());
+        let mut new = item(vec![]);
+        new.id = "new".into();
+        new.last_used_at = Some("2026-10-01T00:00:00+00:00".into());
+        let mut items = vec![never, old, new];
+        order_by_recent_use(&mut items);
+        let ids = items.iter().map(|item| item.id.as_str()).collect::<Vec<_>>();
+        assert_eq!(ids, ["new", "old", "never"]);
     }
 
     #[test]

@@ -23,7 +23,14 @@ import { forgetSiteIcons, readSiteIconsEnabled, writeSiteIconsEnabled } from './
 import { SyncSettingsPane } from './syncSettingsPane'
 import { followSystemAppearance } from './theme'
 import { Toast, toastPositions, useToastPosition, writeToastPosition } from './toast'
-import { type AppStatus, type BreachCheckResult, vaultApi, type WatchtowerReport } from './vaultApi'
+import {
+  type AppStatus,
+  type BreachCheckResult,
+  type BrowserConnectionStatus,
+  vaultApi,
+  type WatchtowerReport,
+} from './vaultApi'
+import { followLanguageInTitle } from './windowTitle'
 
 /**
  * Settings: its own window on desktop, a tab of the one window on phones (`embedded`). What a pane offers
@@ -75,11 +82,33 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
   const [breachResult, setBreachResult] = useState<BreachCheckResult | null>(null)
   const [browserToken, setBrowserToken] = useState('')
   const [tokenCopied, setTokenCopied] = useState(false)
+  const [connection, setConnection] = useState<BrowserConnectionStatus | null>(null)
   const [securityPreferences, setSecurityPreferences] = useState<SecurityPreferences>(() => loadSecurityPreferences())
   const [autostartEnabled, setAutostartEnabled] = useState(false)
   const [language, setLanguage] = useState<SupportedLanguage>(() =>
     getInitialLanguage(localStorage.getItem('mimatory-language')),
   )
+
+  // Native messaging state while the Browser Extension pane is open: registration happens shortly after
+  // startup and a host connects whenever the extension wakes, so it is re-read every few seconds.
+  useEffect(() => {
+    if (activeTab !== 'browser' || !features.browserExtension) return
+    let cancelled = false
+    const read = () => {
+      vaultApi
+        .browserConnectionStatus()
+        .then((next) => {
+          if (!cancelled) setConnection(next)
+        })
+        .catch(() => {})
+    }
+    read()
+    const timer = window.setInterval(read, 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [activeTab, features.browserExtension])
 
   // Light and dark follow the system only (owner 2026-10-23); there is no setting for it.
   useEffect(() => followSystemAppearance(), [])
@@ -205,6 +234,9 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
   // button and Escape.
   const ownCloseButton = features.undecoratedWindows && !embedded
 
+  // Its own window (not the pane embedded on phones) is titled in the UI language: 密码库存设置 in zh.
+  useEffect(() => (embedded ? undefined : followLanguageInTitle('settings.windowTitle')), [embedded])
+
   useEffect(() => {
     if (!ownCloseButton) return
     const onKeyDown = (event: KeyboardEvent) => {
@@ -320,7 +352,7 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
                   {t('settings.session')}: {status?.unlocked ? t('settings.unlocked') : t('settings.locked')}
                 </span>
                 <span>
-                  {t('settings.app')}: {status?.name ?? 'Mimatory'}
+                  {t('settings.app')}: {t('settings.appName')}
                 </span>
               </div>
             </div>
@@ -356,6 +388,26 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
             <div className="integration-card">
               <h2>{t('integrations.browserExtension')}</h2>
               <p>{t('integrations.browserDescription')}</p>
+              <p>{t('integrations.nativeDescription')}</p>
+              {connection ? (
+                <>
+                  <p aria-live="polite" role="status">
+                    {connection.connected > 0 ? t('integrations.nativeConnected') : t('integrations.nativeWaiting')}
+                  </p>
+                  <p>
+                    {connection.registeredBrowsers.length > 0
+                      ? t('integrations.nativeRegistered', { browsers: connection.registeredBrowsers.join(', ') })
+                      : t('integrations.nativeNotRegistered')}
+                  </p>
+                  <p>
+                    {t('integrations.extensionId')} <code>{connection.extensionId}</code>
+                  </p>
+                </>
+              ) : null}
+            </div>
+            <div className="integration-card">
+              <h2>{t('integrations.pairingFallback')}</h2>
+              <p>{t('integrations.pairingFallbackDescription')}</p>
               <code>http://127.0.0.1:17891</code>
               <button className="secondary-button" disabled={locked} onClick={generatePairingToken} type="button">
                 {t('integrations.generatePairingToken')}

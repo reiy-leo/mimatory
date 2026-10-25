@@ -106,6 +106,15 @@ function stubBridge() {
           return []
         case 'password_strength':
           return { bits: 60, level: 'strong' }
+        case 'set_native_locale':
+          return null
+        case 'browser_connection_status':
+          return {
+            connected: 0,
+            extensionId: 'pjcffbogeilnkbmnlegjdciggbfbekfb',
+            lastBrowser: null,
+            registeredBrowsers: [],
+          }
         case 'sync_request':
           syncRequests.push('request')
           return null

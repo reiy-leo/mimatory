@@ -86,7 +86,7 @@ mod platform {
         can_authenticate(app)?;
         let options = AuthOptions {
             allow_device_credential: false,
-            title: Some("Mimatory".to_string()),
+            title: Some(crate::native_i18n::tr(crate::native_i18n::Text::AppName).to_string()),
             ..AuthOptions::default()
         };
         app.biometric()

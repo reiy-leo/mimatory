@@ -9,15 +9,27 @@
   <body class="m-0 bg-window font-sans text-body text-text">
     <main class="grid gap-150 p-200">
       <header class="grid gap-025">
-        <h1 class="m-0 text-headline">Mimatory</h1>
+        <h1 class="m-0 text-headline" data-i18n="appName">Mimatory</h1>
         <span aria-live="polite" class="text-callout text-text-subtle" data-i18n="statusChecking" id="status" role="status">Checking app…</span>
       </header>
-      <label class="grid gap-050 text-callout text-text-subtle">
-        <span data-i18n="pairingTokenLabel">Pairing token</span>
-        <input data-i18n-placeholder="tokenPlaceholder" id="token" placeholder="Paste token from app" />
-      </label>
-      <button class="push-button is-default" data-i18n="saveToken" id="save-token" type="button">Save Token</button>
+      <section hidden id="pairing">
+        <div class="grid gap-150">
+          <p class="m-0 text-callout text-text-subtle" data-i18n="pairingFallbackHint">
+            Only needed when the native connection is unavailable: paste the pairing code from Mimatory Settings.
+          </p>
+          <label class="grid gap-050 text-callout text-text-subtle">
+            <span data-i18n="pairingTokenLabel">Pairing token</span>
+            <input data-i18n-placeholder="tokenPlaceholder" id="token" placeholder="Paste token from app" />
+          </label>
+          <button class="push-button is-default" data-i18n="saveToken" id="save-token" type="button">Save Token</button>
+        </div>
+      </section>
       <button class="push-button is-bezeled" data-i18n="fillPage" id="fill" type="button">Fill Current Page</button>
+      <label class="checkbox-row">
+        <input checked id="float-enabled" type="checkbox" />
+        <span data-i18n="popupFloatToggle">Show one-click sign-in on login pages</span>
+      </label>
+      <button class="push-button is-bezeled" data-i18n="popupFloatClearNever" disabled id="float-clear-never" type="button">Show Again on Hidden Sites</button>
       <p class="m-0 text-callout text-text-subtle" data-i18n="footerHint">
         Keep the Mimatory desktop app unlocked for autofill and save prompts.
       </p>

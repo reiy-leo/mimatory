@@ -1,28 +1,77 @@
 {
+	"appName": {
+		"description": "弹出窗口标题中的应用名称",
+		"message": "密码库存"
+	},
 	"extensionDescription": {
-		"message": "通过本地 Mimatory 桌面应用自动填充并保存登录信息。"
+		"message": "通过本地的密码库存桌面应用自动填充并保存登录信息。"
 	},
 	"extensionName": {
-		"message": "Mimatory 自动填充"
+		"message": "密码库存自动填充"
+	},
+	"fillErrorFailed": {
+		"message": "无法填充此登录信息。"
+	},
+	"fillErrorLocked": {
+		"message": "密码库存已锁定，解锁后再试。"
+	},
+	"fillErrorTimeout": {
+		"message": "密码库存没有及时响应，请再试一次。"
 	},
 	"filledPage": {
 		"message": "已填充此页面的登录信息。"
 	},
+	"fillLoading": {
+		"message": "正在填充密码…"
+	},
 	"fillPage": {
 		"message": "填充当前页面"
 	},
+	"floatClose": {
+		"message": "关闭"
+	},
+	"floatLabel": {
+		"message": "一键登录"
+	},
+	"floatLockedTitle": {
+		"message": "密码库存已锁定"
+	},
+	"floatMore": {
+		"message": "更多选项"
+	},
+	"floatNever": {
+		"message": "在此网站不再显示"
+	},
+	"floatOtherAccounts": {
+		"message": "其他账户"
+	},
+	"floatSignIn": {
+		"message": "登录"
+	},
+	"floatSigningIn": {
+		"message": "正在登录…"
+	},
+	"floatUnlock": {
+		"message": "解锁密码库存"
+	},
+	"floatWaitingUnlock": {
+		"message": "请在密码库存中解锁…"
+	},
 	"footerHint": {
-		"message": "请保持 Mimatory 桌面应用处于解锁状态，才能使用自动填充和保存提示。"
+		"message": "请保持密码库存桌面应用处于解锁状态，才能使用自动填充和保存提示。"
 	},
 	"inlineMenuLabel": {
-		"description": "Mimatory 中保存的此网站登录项",
-		"message": "Mimatory"
+		"description": "密码库存中保存的此网站登录项",
+		"message": "密码库存"
 	},
 	"noLoginForm": {
 		"message": "此页面上未找到登录表单。"
 	},
 	"noMatch": {
 		"message": "此网站没有已保存的登录信息。"
+	},
+	"pairingFallbackHint": {
+		"message": "仅在原生连接不可用时需要：粘贴密码库存“设置 ▸ 浏览器插件”中的配对码。"
 	},
 	"pairingTokenLabel": {
 		"message": "配对令牌"
@@ -49,7 +98,7 @@
 		"message": "新建项目"
 	},
 	"passkeyNote": {
-		"message": "Mimatory 会创建这个通行密钥，私钥加密保存在你的保险库中。"
+		"message": "密码库存会创建这个通行密钥，私钥加密保存在你的保险库中。"
 	},
 	"passkeyNotNow": {
 		"message": "以后再说"
@@ -71,13 +120,13 @@
 		}
 	},
 	"passkeySaved": {
-		"message": "已保存到 Mimatory。"
+		"message": "已保存到密码库存。"
 	},
 	"passkeySaveFailed": {
-		"message": "无法连接 Mimatory。请解锁应用后重试。"
+		"message": "无法连接密码库存。请解锁应用后重试。"
 	},
 	"passkeySaveTitle": {
-		"message": "保存通行密钥到 Mimatory？"
+		"message": "保存通行密钥到密码库存？"
 	},
 	"passkeySignInTitle": {
 		"message": "使用通行密钥登录"
@@ -87,6 +136,15 @@
 	},
 	"passkeyUseOther": {
 		"message": "使用其他设备"
+	},
+	"popupFloatClearNever": {
+		"message": "在已隐藏的网站上恢复显示"
+	},
+	"popupFloatNeverCleared": {
+		"message": "一键登录已在所有网站上恢复显示。"
+	},
+	"popupFloatToggle": {
+		"message": "在登录页面显示一键登录"
 	},
 	"providerButtonFound": {
 		"message": "已在此页面上突出显示 $PROVIDER$ 按钮。",
@@ -118,11 +176,26 @@
 			}
 		}
 	},
+	"statusAppNotRunning": {
+		"message": "密码库存未运行。请打开应用以使用自动填充。"
+	},
 	"statusChecking": {
 		"message": "正在检查应用…"
 	},
 	"statusConnected": {
 		"message": "桌面应用已连接"
+	},
+	"statusNativeConnected": {
+		"message": "已连接密码库存"
+	},
+	"statusNativeLocked": {
+		"message": "已连接密码库存——解锁后即可自动填充"
+	},
+	"statusNotVerified": {
+		"message": "密码库存拒绝了此浏览器：无法验证其签名。"
+	},
+	"statusPairingNeeded": {
+		"message": "需要配对：原生连接不可用。"
 	},
 	"statusUnavailable": {
 		"message": "桌面应用不可用"

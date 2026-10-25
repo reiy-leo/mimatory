@@ -124,16 +124,25 @@ const resources = {
       },
       integrations: {
         breachedResult: '{{count}} passwords found in breach corpus.',
-        browserDescription:
-          'Install the unpacked extension from browser-extension. Generate a token and paste it into the extension popup.',
+        browserDescription: 'Install the unpacked extension from browser-extension.',
         browserExtension: 'Browser Extension',
         checkBreaches: 'Check Breached Passwords',
         expiring: '{{count}} expiring',
+        extensionId: 'Extension ID',
         generatePairingToken: 'Generate Pairing Token',
         generateTotp: 'Generate TOTP',
         items: '{{count}} items',
         missingTotp: '{{count}} missing TOTP',
         missingWebsites: '{{count}} missing websites',
+        nativeConnected: 'Extension connected',
+        nativeDescription:
+          'The extension talks to Mimatory directly through the browser (native messaging), so there is nothing to pair. After installing or updating the extension, reload it in the browser.',
+        nativeNotRegistered: 'No supported browser found yet. Open your browser once, then restart Mimatory.',
+        nativeRegistered: 'Registered with: {{browsers}}',
+        nativeWaiting: 'Waiting for the extension — open a web page or the extension popup.',
+        pairingFallback: 'Pairing Code (Fallback)',
+        pairingFallbackDescription:
+          'Only needed when the browser cannot start Mimatory’s native connection. Generate a code and paste it into the extension popup.',
         reused: '{{count}} reused',
         runWatchtower: 'Run Watchtower',
         score: 'Score {{score}}',
@@ -466,6 +475,7 @@ const resources = {
       },
       settings: {
         app: 'App',
+        appName: 'Mimatory',
         autostart: 'Open Mimatory at Login',
         autostartDescription: 'Registers a macOS LaunchAgent. The vault stays locked until you unlock it.',
         configured: 'configured',
@@ -508,6 +518,7 @@ const resources = {
         unlocked: 'unlocked',
         unlockedHint: 'Manage local vault behavior and integrations.',
         vaultStatus: 'Vault Status',
+        windowTitle: 'Mimatory Settings',
       },
       shortcuts: {
         copyOtp: 'Copy One-Time Password',
@@ -1060,16 +1071,26 @@ const resources = {
       },
       integrations: {
         breachedResult: '漏えいデータ内で {{count}} 個のパスワードが見つかりました。',
-        browserDescription:
-          'browser-extension から未パッケージ拡張をインストールします。Token を生成して拡張ポップアップへ貼り付けます。',
+        browserDescription: 'browser-extension から未パッケージ拡張をインストールします。',
         browserExtension: 'ブラウザ拡張',
         checkBreaches: '漏えいパスワードを確認',
         expiring: '{{count}} 期限切れ間近',
+        extensionId: '拡張機能 ID',
         generatePairingToken: 'ペアリング token を生成',
         generateTotp: 'TOTP を生成',
         items: '{{count}} 項目',
         missingTotp: '{{count}} TOTP なし',
         missingWebsites: '{{count}} Web サイトなし',
+        nativeConnected: '拡張機能に接続済み',
+        nativeDescription:
+          '拡張機能はブラウザのネイティブメッセージングで Mimatory に直接接続するため、ペアリングは不要です。拡張機能をインストールまたは更新したら、ブラウザで再読み込みしてください。',
+        nativeNotRegistered:
+          '対応ブラウザがまだ見つかりません。ブラウザを一度起動してから Mimatory を再起動してください。',
+        nativeRegistered: '登録先：{{browsers}}',
+        nativeWaiting: '拡張機能の接続を待っています。Web ページか拡張機能のポップアップを開いてください。',
+        pairingFallback: 'ペアリングコード（予備）',
+        pairingFallbackDescription:
+          'ブラウザが Mimatory のネイティブ接続を起動できない場合にのみ必要です。コードを生成して拡張機能のポップアップに貼り付けます。',
         reused: '{{count}} 再利用',
         runWatchtower: 'ウォッチタワーを実行',
         score: 'スコア {{score}}',
@@ -1402,6 +1423,7 @@ const resources = {
       },
       settings: {
         app: 'アプリ',
+        appName: 'Mimatory',
         autostart: 'ログイン時に Mimatory を起動',
         autostartDescription: 'macOS LaunchAgent を登録します。ロック解除するまで保管庫はロックされたままです。',
         configured: '設定済み',
@@ -1443,6 +1465,7 @@ const resources = {
         unlocked: '解除済み',
         unlockedHint: 'ローカル保管庫の動作と連携を管理します。',
         vaultStatus: '保管庫の状態',
+        windowTitle: 'Mimatory 設定',
       },
       shortcuts: {
         copyOtp: 'ワンタイムパスワードをコピー',
@@ -1993,15 +2016,24 @@ const resources = {
       },
       integrations: {
         breachedResult: '在泄露语料中发现 {{count}} 个密码。',
-        browserDescription: '从 browser-extension 安装未打包扩展。生成 token 后粘贴到扩展弹窗中。',
+        browserDescription: '从 browser-extension 安装未打包扩展。',
         browserExtension: '浏览器插件',
         checkBreaches: '检查泄露密码',
         expiring: '{{count}} 个即将过期',
+        extensionId: '扩展 ID',
         generatePairingToken: '生成配对 token',
         generateTotp: '生成 TOTP',
         items: '{{count}} 个项目',
         missingTotp: '{{count}} 个缺少 TOTP',
         missingWebsites: '{{count}} 个缺少网站',
+        nativeConnected: '扩展已连接',
+        nativeDescription:
+          '扩展通过浏览器的原生消息（Native Messaging）直接连接密码库存，无需配对。安装或更新扩展后，请在浏览器中重新加载它。',
+        nativeNotRegistered: '尚未找到支持的浏览器。请先打开一次浏览器，然后重新启动密码库存。',
+        nativeRegistered: '已注册到：{{browsers}}',
+        nativeWaiting: '正在等待扩展连接——请打开任意网页或扩展弹窗。',
+        pairingFallback: '配对码（备用）',
+        pairingFallbackDescription: '仅当浏览器无法启动密码库存的原生连接时才需要。生成配对码后粘贴到扩展弹窗中。',
         reused: '{{count}} 个重复密码',
         runWatchtower: '运行瞭望塔',
         score: '评分 {{score}}',
@@ -2221,7 +2253,7 @@ const resources = {
         vaults: '个人',
       },
       lock: {
-        appName: '密码通',
+        appName: '密码库存',
         createDescription: '此密码会加密你的本地 SQLite 保险库。它不会被存储。',
         createTitle: '创建主密码',
         createVault: '创建保险库',
@@ -2254,7 +2286,7 @@ const resources = {
         iconRefreshed: '图标已更新。',
         imported1pux: '已从 1Password 导入 {{count}} 个项目。',
         movedItem: '已移动到{{vault}}',
-        openedToFill: '已打开 {{host}}，已配对的 Mimatory 扩展会在页面上填充登录信息。',
+        openedToFill: '已打开 {{host}}，已配对的密码库存扩展会在页面上填充登录信息。',
         renamedTag: '已将标签重命名为 {{name}}',
         restoredVault: '已恢复保险库 {{name}}',
         settingsWindowFailed: '设置窗口失败：{{error}}',
@@ -2281,10 +2313,10 @@ const resources = {
         empty: '没有匹配的项目。',
         searchPlaceholder: '搜索登录项…',
         title: '快速访问',
-        unlockPrompt: '解锁 Mimatory 后即可搜索。',
+        unlockPrompt: '解锁密码库存后即可搜索。',
       },
       security: {
-        accountPasswordHelp: 'Mimatory 不会重置密码。为了更好地保护主密码，你可以选择定期重新输入账户密码。',
+        accountPasswordHelp: '密码库存不会重置密码。为了更好地保护主密码，你可以选择定期重新输入账户密码。',
         accountPasswordOptions: {
           '1d': '1 天后',
           '7d': '7 天后',
@@ -2333,7 +2365,8 @@ const resources = {
       },
       settings: {
         app: '应用',
-        autostart: '登录时启动 Mimatory',
+        appName: '密码库存',
+        autostart: '登录时启动密码库存',
         autostartDescription: '注册 macOS LaunchAgent。解锁前保险库始终保持锁定。',
         configured: '已配置',
         database: '数据库',
@@ -2351,7 +2384,7 @@ const resources = {
         siteIcons: '网站图标',
         siteIconsDescription:
           '先通过 Google 的网站图标服务、再向网站本身获取各网站的图标，并加密保存在保险库中。Google 会看到被查询的网站地址。关闭后将停止所有查询并删除已保存的图标。',
-        subtitle: 'Mimatory 偏好设置',
+        subtitle: '密码库存偏好设置',
         tabs: {
           appearance: '外观',
           browser: '浏览器插件',
@@ -2374,6 +2407,7 @@ const resources = {
         unlocked: '已解锁',
         unlockedHint: '管理本地保险库行为和集成。',
         vaultStatus: '保险库状态',
+        windowTitle: '密码库存设置',
       },
       shortcuts: {
         copyOtp: '复制一次性密码',

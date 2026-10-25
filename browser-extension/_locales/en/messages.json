@@ -1,15 +1,61 @@
 {
+	"appName": {
+		"description": "The app name shown as the popup heading",
+		"message": "Mimatory"
+	},
 	"extensionDescription": {
 		"message": "Autofill and save logins through the local Mimatory desktop app."
 	},
 	"extensionName": {
 		"message": "Mimatory Autofill"
 	},
+	"fillErrorFailed": {
+		"message": "Couldn’t fill this login."
+	},
+	"fillErrorLocked": {
+		"message": "Mimatory is locked. Unlock it, then try again."
+	},
+	"fillErrorTimeout": {
+		"message": "Mimatory didn’t answer in time. Try again."
+	},
 	"filledPage": {
 		"message": "Filled the login on this page."
 	},
+	"fillLoading": {
+		"message": "Filling password…"
+	},
 	"fillPage": {
 		"message": "Fill Current Page"
+	},
+	"floatClose": {
+		"message": "Close"
+	},
+	"floatLabel": {
+		"message": "One-click sign-in"
+	},
+	"floatLockedTitle": {
+		"message": "Mimatory is locked"
+	},
+	"floatMore": {
+		"message": "More Options"
+	},
+	"floatNever": {
+		"message": "Never Show on This Site"
+	},
+	"floatOtherAccounts": {
+		"message": "Other Accounts"
+	},
+	"floatSignIn": {
+		"message": "Sign In"
+	},
+	"floatSigningIn": {
+		"message": "Signing In…"
+	},
+	"floatUnlock": {
+		"message": "Unlock Mimatory"
+	},
+	"floatWaitingUnlock": {
+		"message": "Unlock in the Mimatory app…"
 	},
 	"footerHint": {
 		"message": "Keep the Mimatory desktop app unlocked for autofill and save prompts."
@@ -23,6 +69,9 @@
 	},
 	"noMatch": {
 		"message": "No saved login for this site."
+	},
+	"pairingFallbackHint": {
+		"message": "Only needed when the native connection is unavailable: paste the pairing code from Mimatory Settings ▸ Browser Extension."
 	},
 	"pairingTokenLabel": {
 		"message": "Pairing token"
@@ -88,6 +137,15 @@
 	"passkeyUseOther": {
 		"message": "Use Another Device"
 	},
+	"popupFloatClearNever": {
+		"message": "Show Again on Hidden Sites"
+	},
+	"popupFloatNeverCleared": {
+		"message": "One-click sign-in shows on every site again."
+	},
+	"popupFloatToggle": {
+		"message": "Show one-click sign-in on login pages"
+	},
 	"providerButtonFound": {
 		"message": "The $PROVIDER$ button on this page is highlighted.",
 		"placeholders": {
@@ -118,11 +176,26 @@
 			}
 		}
 	},
+	"statusAppNotRunning": {
+		"message": "Mimatory isn’t running. Open the app to autofill."
+	},
 	"statusChecking": {
 		"message": "Checking app…"
 	},
 	"statusConnected": {
 		"message": "Desktop app connected"
+	},
+	"statusNativeConnected": {
+		"message": "Connected to Mimatory"
+	},
+	"statusNativeLocked": {
+		"message": "Connected to Mimatory — unlock it to autofill"
+	},
+	"statusNotVerified": {
+		"message": "Mimatory refused this browser: its signature could not be verified."
+	},
+	"statusPairingNeeded": {
+		"message": "Pairing needed: the native connection is unavailable."
 	},
 	"statusUnavailable": {
 		"message": "Desktop app unavailable"

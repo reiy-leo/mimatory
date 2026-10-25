@@ -125,4 +125,31 @@ describe('i18n', () => {
     ]
     expect(missingFromSomeLocale(derived)).toEqual([])
   })
+
+  /* The app is Mimatory, and 密码库存 in Chinese (owner, 2026-10-24): every zh string that names the app — the
+     app's own and the extension's — says 密码库存, while en and ja keep Mimatory. */
+  it('names the app 密码库存 in Chinese and Mimatory elsewhere', () => {
+    expect(i18n.getFixedT('zh')('settings.appName')).toBe('密码库存')
+    expect(i18n.getFixedT('zh')('lock.appName')).toBe('密码库存')
+    expect(i18n.getFixedT('zh')('settings.windowTitle')).toBe('密码库存设置')
+    expect(i18n.getFixedT('en')('settings.appName')).toBe('Mimatory')
+    expect(i18n.getFixedT('ja')('settings.appName')).toBe('Mimatory')
+
+    const zhValues = flattenKeys(bundle('zh')).map((key) => i18n.getFixedT('zh')(key))
+    expect(zhValues.filter((value) => /mimatory|密码通/i.test(value))).toEqual([])
+
+    const extension = (locale: string) =>
+      JSON.parse(
+        readFileSync(join(process.cwd(), 'browser-extension/_locales', locale, 'messages.json'), 'utf8'),
+      ) as Record<string, { description?: string; message: string }>
+    const zhExtension = Object.values(extension('zh')).flatMap(({ description, message }) => [
+      message,
+      description ?? '',
+    ])
+    expect(zhExtension.filter((value) => /mimatory/i.test(value))).toEqual([])
+    expect(extension('zh').appName.message).toBe('密码库存')
+    expect(extension('zh').extensionName.message).toContain('密码库存')
+    expect(extension('en').appName.message).toBe('Mimatory')
+    expect(extension('ja').appName.message).toBe('Mimatory')
+  })
 })

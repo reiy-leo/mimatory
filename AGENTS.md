@@ -8,7 +8,38 @@ reintroduce the old name; see "The Passless → Mimatory rename" below for the f
 "和mindough项目一样支持macOS、Windows、iOS、Android、Linux（hyprland，不支持X11）"). React 18 + TypeScript frontend,
 Rust backend with encrypted SQLite vault. Each OS wears its own skin, the same mapping as the Mindough project —
 see "Platforms" below.
-Also ships a Manifest V3 browser extension (autofill via a local HTTP bridge on `127.0.0.1:17891`).
+Also ships a Manifest V3 browser extension (autofill through browser native messaging since 2026-10-24, the local
+HTTP bridge on `127.0.0.1:17891` + pairing token only as a fallback — see "Extension connection").
+
+**Chinese name: 密码库存** (owner, 2026-10-24: "软件的名称是“Mimatory”，中文“密码库存”"). Every zh string that names the
+app says 密码库存 — the app bundle (`lock.appName`, `settings.appName`, `settings.windowTitle`, …) and the extension's
+`_locales/zh` — while en and ja say Mimatory (the lock screen / sidebar wordmark `lock.appName` is lowercase
+`mimatory` there, on purpose since 2026-10-08). `i18n.test.ts` fails on a zh string containing "Mimatory". Identifiers,
+the binary, paths, `productName` and the bundle id stay `mimatory`/`Mimatory`. Where the name reaches the OS:
+- The main and settings windows retitle themselves from i18n (`windowTitle.ts`, needs `core:window:allow-set-title`)
+  and follow a language change. **Quick Access keeps the fixed English title `Mimatory Quick Access`** (shell.rs)
+  because Hyprland float rules match it; a Hyprland rule for the main window should match its class (as
+  `hyprctl clients` reports it), not its title, which reads 密码库存 in zh.
+- macOS bundle: `src-tauri/macos/Info.plist` (merged via `bundle.macOS.infoPlist`: development region en,
+  `CFBundleLocalizations`, `LSHasLocalizedDisplayName`) + `macos/zh-Hans.lproj/InfoPlist.strings` copied in by
+  `bundle.macOS.files` — Finder, Dock, Launchpad and the menu-bar app title read 密码库存 on a zh-Hans system. Only in
+  a packaged build, never in `tauri dev`.
+- Linux: `linux/mimatory.desktop` (the bundler's default template + `Name[zh_CN]=密码库存`), used by deb and AppImage.
+- Rust-built UI (since 2026-10-24): `src-tauri/src/native_i18n.rs` holds every string Rust shows itself — the tray
+  menu (Open Quick Access / Show / Quit) and tooltip, the macOS menu bar (app menu About/Services/Hide/Hide
+  Others/Show All/Quit, File ▸ Import, Edit, View, Window; the predefined items get custom text, their AppKit
+  actions are unchanged), the `.1pux` picker title + filter, the Touch ID reason and the phone biometric title —
+  as one `(en, zh, ja)` row each. **It follows the in-app language, not the OS**: the main window calls
+  `set_native_locale` (`nativeLocale.ts`, via `vaultApi.setNativeLocale`) at startup and on every
+  `languageChanged` (a Settings change reaches main through `mimatory-language-changed`), and Rust rebuilds the
+  tray menu and the menu bar (same item ids, so the global menu listeners stay valid — which is why
+  `app.on_menu_event` is registered once in `shell::setup`, never inside `build_app_menu`). Before that first
+  report it uses the OS locale (`sys-locale`: zh* → zh, ja* → ja, else en). A new Rust-shown string goes in that
+  table, never as a literal. Left English on purpose: terminal/stderr messages (the Wayland refusal, migration
+  logs), the breach-check user agent, the `Mimatory Quick Access` title. AppKit itself may retitle the
+  full-screen item ("Exit Full Screen") in the system language. Windows Start menu / installer name =
+  `productName`. iOS/Android home-screen name: `src-tauri/gen/` is generated in CI, so an
+  `InfoPlist.strings` / `values-zh/strings.xml` has to be injected after `tauri ios|android init` — not done yet.
 
 ## Where the rules live
 
@@ -139,6 +170,7 @@ src/                  # React frontend
   app/signInProviders.ts signInControls.tsx providerMarks.tsx  # "Sign in with…": field rules, sheet + row, bundled marks
   app/designContract.test.ts  # executable guard for the .agent/design.md rules (incl. the skin stylesheets)
   app/platformFeatures.ts  # what exists on which platform (bridge, Quick Access, biometrics, shortcuts…)
+  app/windowTitle.ts nativeLocale.ts  # window titles and the Rust-built UI (set_native_locale) follow the UI language
   app/windowChrome.ts vibrancy.ts  # settings-window chrome per platform, window theme sync, native material flag
   skin/platform.ts runtime.ts  # platform/skin/layout detection (+ ?platform= overrides) → <html data-*>
   skin/tokens.css skins.css mobile.css  # WinUI 3 / Material 3 token values, skin shapes, the phone layout
@@ -154,8 +186,11 @@ src-tauri/src/        # Rust backend
   sync/               # Cloud sync (Google Drive appDataFolder or WebDAV): records, merge, local, cipher, engine, providers, commands — see .agent/sync.md
   favicon.rs          # Website icon fetch: https-only, SSRF guard, caps, decode + re-encode as a 64px PNG
   biometric.rs        # Touch ID (objc2) on macOS, tauri-plugin-biometric on iOS/Android, none elsewhere
-  browser_bridge.rs   # HTTP server on 127.0.0.1:17891 for the extension
+  browser_bridge.rs   # The extension's request → response handler (`handle_request`), shared by the native IPC and the fallback HTTP server on 127.0.0.1:17891
+  native_messaging.rs # Native-messaging host mode (`mimatory chrome-extension://…`), stdio framing, host manifests + registration
+  native_ipc.rs       # Host ↔ app channel: 0600 Unix socket / per-user named pipe, peer checks, macOS browser code-signature check
   site_match.rs       # Autofill behaviour: registrable-domain / exact-host / never matching (psl crate), describe_website
+  native_i18n.rs      # en/zh/ja table for every string Rust shows (menus, tray, pickers, Touch ID) + the native locale
   shell.rs            # Desktop only: tray, Quick Access (hotkey on macOS/Windows, `--quick-access` on Linux), autostart, single instance
   totp.rs             # TOTP code generation
   breach_check.rs     # Have I Been Pwned k-anonymity check
@@ -298,7 +333,7 @@ Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, id
   there is no export. An install of the old identifier keeps its vault in the old app.
 - **No Keychain / Touch ID entries exist** (no `keyring` since 2026-10-09; Touch ID only gates `biometric_session`
   in memory), so nothing there needed moving.
-- **Extension pairing**: the token is in app memory only (re-paired after every app restart anyway); the
+- **Extension pairing** (now the fallback transport only): the token is in app memory only (re-paired after every app restart anyway); the
   extension moves a saved `passlessToken` to `mimatoryToken`, and the bridge still accepts `X-Passless-Token`
   from an un-updated extension.
 - **Not migrated, by design**: an autostart entry registered by the old app (re-enable Open at Login), Hyprland
@@ -335,15 +370,98 @@ Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, id
   those two must be listed by hand because Tauri's `set_csp` only injects script/style hashes. It applies
   **only to packaged builds** (`PROXY_DEV_SERVER = cfg!(all(dev, mobile))`, so on macOS `tauri dev` loads
   `http://localhost:1430` with no CSP). Verify with `npm run tauri build`.
-- **Browser bridge**: the pairing token is compared in constant time (`tokens_match`). The server is
+- **Browser bridge**: both transports (native messaging, HTTP fallback) end in the one `handle_request`; see
+  "Extension connection" for who may reach it. The pairing token is compared in constant time (`tokens_match`). The server is
   `Access-Control-Allow-Origin: *` on `127.0.0.1:17891` and returns plaintext credentials to a paired client —
-  do not widen its reach or add an endpoint that exposes more.
+  do not widen its reach or add an endpoint that exposes more. **Showing is summaries, filling is one item**
+  (2026-10-24): `/match` answers id, title, username, `sign_in_with`, `has_password`, last use and a cached icon —
+  never a password, OTP seed, note or custom field (`a_match_summary_carries_nothing_secret`); the extension asks
+  `/fill` with `item_id` only after the user picked that login with a trusted click. Keep it that way: anything that
+  merely *displays* logins reads `/match`. **The pick path is one item** (2026-10-24, Rei: "选了之后会有很长时间，
+  inputs中没有内容…突然就登录上了"): `/fill` with `item_id` reads and decrypts only that item
+  (`login_item_for_origin_everywhere`: live, in an open vault, one of its addresses covering the page — an id from
+  another site still finds nothing), and the use it records is written on its own thread after the answer (a write
+  can wait up to the 5s busy timeout behind the window's connection — measured 830ms behind one 800ms read). `/match`
+  and plain `/fill` decrypt only each item's **addresses** to decide (`live_items_whose_address`), the whole item
+  only for the matches.
+- **Every per-item query needs its index** (2026-10-24). `apply_schema` creates `item_fields_by_item`,
+  `item_urls_by_item`, `attachments_by_item`, `items_by_vault`, `item_tags_by_tag` (`IF NOT EXISTS`, no schema bump —
+  ids only, no data change). Before them every `get_login_item` scanned whole tables, so a list of N items was
+  O(N²): measured (scratch `work/vaultbench`, the real `vault.rs` by `#[path]`, debug build) /match 4.8s and /fill
+  pick 4.7s at 1,500 items; after, /match 0.22s and the pick 0.8ms. A new child table keyed by `item_id` gets its
+  index in the same change; `initialize_database_creates_vault_tables` checks the plan for `item_fields`.
 - **The TOTP seed rests masked**: `fieldValueInputProps` gives an `otp` input `type="password"` unless it is
   the focused field (`focusedOtpField` in `useVaultWindow.tsx`), so a saved key is legible only while being typed. Import
   runs the other way: the QR button in `OtpFieldActions` reads an image **off the clipboard**
   (`src/app/otpQrImport.ts`, decoded with `jsqr`) and stores the `secret` of an `otpauth://` link or a bare
   base32 key, and nothing else. The app never renders a seed as a QR image and there is no screen-region
   capture.
+
+## Extension connection (native messaging, 2026-10-24)
+
+Owner-approved 2026-10-24 (incl. the macOS browser code-signature check): the extension reaches the app the way
+1Password's does — no pairing code. Chain: content script → `background.js` (adds the page's `origin` from
+`sender.origin`, never from the page) → `chrome.runtime.connectNative('app.mimatory.native')` (one persistent port,
+request ids, 20s timeout, reconnect on the next call) → the browser starts **the app's own binary** as the host →
+the host relays each `{ id, path, body }` over local IPC to the running app → `browser_bridge::handle_request` → back
+as `{ id, status, data }` with the HTTP bridge's status codes (content.js reads both transports alike).
+
+- **Fixed extension ID `pjcffbogeilnkbmnlegjdciggbfbekfb`**, from the public `key` in `browser-extension/manifest.json`
+  (SHA-256 of the DER key, first 16 bytes, 0–f → a–p). **The private key is `/workspace/.keys/mimatory_extension.pem`,
+  outside the repo** (2048-bit RSA, 0600) — it is what a Chrome Web Store / CRX package must be signed with to
+  keep this ID. Never commit it; a new key means a new ID, new host manifests and every user re-adding the
+  extension. `CHROME_EXTENSION_ID` in `native_messaging.rs` must match the key (a test checks the shape only).
+  Firefox: `browser_specific_settings.gecko.id = extension@mimatory.app` (Chrome warns about the unknown key and
+  loads; the extension still has a Chrome-only `background.service_worker`, so Firefox is not actually supported yet).
+- **Host mode** is detected first thing in `run()` (before the Wayland check, the rename migration, single
+  instance or any window): an argument `chrome-extension://…` (Chrome passes the caller origin as argv[1], plus
+  `--parent-window=` on Windows), `extension@mimatory.app` (Firefox passes the manifest path + the id) or
+  `--native-host`. `validate_caller` then accepts only our own origin / gecko id. Framing: 4-byte native-endian
+  length + JSON; the host refuses to hand Chrome more than 1 MB (`413 response_too_large`). **The app is never
+  launched by the host**: no running app → `503 app_not_running`, and the popup says 密码库存未运行.
+- **IPC endpoint**: macOS `~/Library/Application Support/Mimatory/native-messaging.sock` (the vault folder, 0700);
+  Linux `$XDG_RUNTIME_DIR/mimatory/native-messaging.sock` (folder 0700; vault folder if unset); socket 0600, a stale
+  one replaced at startup. Windows `\\.\pipe\mimatory-native-messaging-<USERNAME>` with the default ACL,
+  `FILE_FLAG_FIRST_PIPE_INSTANCE` + `PIPE_REJECT_REMOTE_CLIENTS`.
+- **Who may connect** (`native_ipc`): the peer (SO_PEERCRED / LOCAL_PEERPID + getpeereid /
+  GetNamedPipeClientProcessId) must be the same user and run **our own executable** — same canonical path, or a
+  byte-identical file (SHA-256; an AppImage remounts on every launch, so its manifests name `$APPIMAGE`). The host
+  checks the server the same way before sending anything. **macOS only**: the host's parent process (the browser)
+  must pass `SecCodeCheckValidity` against `anchor apple generic and certificate leaf[subject.OU] = "<team>"` for one
+  of `BROWSER_TEAMS`: Chrome `EQHXZ8M8AV`, Edge `UBF8T346G9`, Brave `KL8N8XSYF4`, Arc `S6N382Y83G`, Vivaldi
+  `4XF3XNRN6Y`, Firefox `43AQ936H96`, Opera `A2P9LX4JPN` (verified 2026-10-24 against Installomator labels and vendor
+  pages; sources in the const's comment). Unsigned Chromium / Playwright builds are refused in a release build; a
+  **debug build logs and accepts** them. A refused caller gets `403 caller_not_verified` for every request.
+  Linux and Windows check only the executable (no browser signature; on Windows Chrome starts hosts via `cmd.exe`).
+  Residual risk, accepted: a same-user process can start a signed browser with its own unpacked extension carrying
+  our public key (same ID) — branded Chrome ≥137 ignores `--load-extension`, but Chromium forks may not.
+- **Registration** (`register_hosts`, a thread at desktop startup): the manifest (`path` = `current_exe()`, inside the
+  `.app` on macOS, the dev binary under `tauri dev`) is written into `<browser>/NativeMessagingHosts/` only where the
+  browser's own folder already exists (never creates a profile), and only when the content differs. macOS: Google
+  Chrome (+ Beta, Canary), Chromium, Microsoft Edge, BraveSoftware/Brave-Browser, `Arc/User Data`, Vivaldi,
+  com.operasoftware.Opera, Mozilla; Linux: google-chrome, chromium, microsoft-edge, BraveSoftware/Brave-Browser,
+  vivaldi, `~/.mozilla/native-messaging-hosts`; Windows: manifests in `%APPDATA%\Mimatory\NativeMessagingHosts\`
+  and `HKCU\Software\{Google\Chrome, Microsoft\Edge, BraveSoftware\Brave-Browser, Chromium, Mozilla}\NativeMessagingHosts\app.mimatory.native`.
+  Settings ▸ Browser Extension shows the registered browsers, whether a host is connected and the ID
+  (`browser_connection_status`); the pairing code moved under "Pairing Code (Fallback)".
+- **Warm-up** (2026-10-24): a content script that sees a sign-in form (scan) or a focused login field sends
+  `MIMATORY_WARM`; `background.js` opens the port and sends one `/health` unless the port already answered. The
+  first request on a port pays for starting the host (the app's own binary — under `tauri dev` the large debug
+  build), its socket connect and the app's caller checks (same executable; on macOS `SecCodeCheckValidity` of the
+  browser) — once per connection (`verify_client` runs at accept, never per request), so the warm-up takes it off
+  the user's pick. The open port keeps the MV3 worker alive (Chrome ≥ 105); a worker restart re-warms on the next
+  form. Stand-in measurement on Linux (8 MB host): 2ms cold vs 0.2ms warm — the Mac's cold cost (big binary +
+  signature check) was not measurable here. `work/nmcheck/warm-check.mjs` proves a form page sends `/health` with no
+  `/match` and the menu's `/match` rides the same host process.
+- **Fallback, this release only**: when `connectNative` cannot start a host at all (an older app, an unregistered
+  browser) `background.js` uses the HTTP bridge + token as before, and only then does the popup show the pairing
+  field. A native `403`/`503` does not fall back. Removing 17891 is a `needs-owner-decision` in `.agent/todo.md`.
+- **Tests**: `native_messaging.rs` / `native_ipc.rs` depend only on serde_json, sha2, dirs, libc,
+  core-foundation-sys, windows-sys and winreg, so `work/nmcheck` (project scratch, outside the repo) includes them by
+  `#[path]` to run their unit tests (incl. a real 0600 socket round trip) and `cargo check` them for
+  `aarch64-apple-darwin` and `x86_64-pc-windows-msvc`; its `nmhost` binary + `e2e.mjs` drive apt Chromium with the
+  unpacked extension through the real host code (fixed ID, popup states, content script → `/match` with the page
+  origin, app restart, HTTP fallback).
 
 ## UI structure and its traps
 
@@ -581,8 +699,8 @@ Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, id
   key; a NULL icon is a remembered miss; fresh 30 days (a miss 3). **Schema 5 deletes every cached row once** (the
   64px ones) — bump the schema the same way if the stored format changes again. `cached_site_icons` never touches
   the network; `fetch_site_icon` (async, at most 2 in flight from `siteIcons.ts`) does. Per item `items.icon_mode`
-  (`auto`/`letter`) and the item menu's Refresh Icon / Use Letter Icon. The bridge exposes no icon endpoint; Quick
-  Access only reads the cache. Tests: `favicon.rs` runs against a local tiny_http server standing in for both
+  (`auto`/`letter`) and the item menu's Refresh Icon / Use Letter Icon. The bridge has no icon endpoint; `/match`
+  attaches an item's cached icon (cache only, never a fetch; none for `letter`). Quick Access only reads the cache. Tests: `favicon.rs` runs against a local tiny_http server standing in for both
   Google (`FetchPolicy.icon_service`) and the site, through the same code path with a relaxed policy.
 
 - **Attachments** (2026-10-18, owner): an attachment is never replaced once added — a stored row offers Export
@@ -615,7 +733,8 @@ Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, id
   (CC0, bundled, `currentColor`), Microsoft drawn as four squares. **Extension**: `/fill` matches carry
   `sign_in_with` (provider only — never the account item); the popup says "Sign in with Google" and the content
   script outlines and focuses the page's provider button **without clicking it** (a provider sign-in can create an
-  account or share profile data).
+  account or share profile data). The one exception is the one-click float's own button, labelled "使用 Google 登录"
+  (owner 2026-10-24): pressing it is the user asking for exactly that click, so it highlights **and** clicks.
 
 - **Item templates and typed fields** (2026-10-14). Every category's default fields are data in
   `src/app/itemTemplates.ts` (key, `field_type`, label key, options, rules); the editor and the read-only view
@@ -712,6 +831,47 @@ Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, id
   `/passkey-event` with `item_id` / `new_item` (`VaultService::save_passkey`, `PasskeyTarget`). A content script's
   isolated world cannot see the page's `navigator.credentials` calls — the old observer there never fired. Mimatory
   stores metadata only; the private key stays with the platform authenticator.
+
+- **Field menu fills, the float signs in** (2026-10-24, as 1Password: its inline menu never submits). Picking in the
+  field menu fills the username from the `/match` summary at once, puts a spinner chip at the password field's
+  trailing edge (closed shadow root, `[data-mimatory-feedback]`), fills the password when `/fill` answers and **does
+  not submit**; a value the user typed meanwhile is left alone. No answer in 10s (`PICK_TIMEOUT_MS`), `423`, `503` or
+  a missing item → a short note under the field (`fillErrorLocked` / `fillErrorTimeout` / `statusAppNotRunning` /
+  `fillErrorFailed`), never silence. Identifier-first: the username is filled and the item stays pending for a
+  minute in mode `fill` (`rememberPendingStep(id, 'fill')`); the user presses Next, and focus on the password step's
+  field fills it (spinner, no submit) instead of opening the menu. The float's pending mode stays `submit` (the
+  password step is filled and submitted as soon as it shows). Old pending entries without a mode read as `submit`.
+- **One-click sign-in float** (owner 2026-10-24, 1Password's sign-in pill; `content.js`, last section). A pill at the
+  **top centre** of the viewport (closed shadow root, `z-index` max, `position: fixed` on a zero-size host so the
+  page never reflows) offers the **most recently used** login (`/match` order; a pick through `/fill` with
+  `item_id` records a use) for a page that shows a sign-in form (password, or an identifier-first username).
+  登录 = `/fill` with `item_id` → `fillLogin(item, { submit: true })`, so an identifier-first page continues on its
+  password step through the existing pending-step machinery; a chevron opens the other logins **downward inside the
+  same card** (5 rows, then scroll) and a row signs in with that login; "Sign in with…" logins click the provider
+  (see above). Locked (`423 已锁定`) → 解锁密码库存 → `POST /unlock` (the bridge brings the main window, i.e. its
+  lock screen, forward; the master password is never typed in a page) → `/match` every 2s for up to 2 min while the
+  tab is visible. `401 未授权` / app not running → nothing. Never shown while the user is in a login field or the
+  field menu, during a pending identifier-first step, after Open & Fill, after a pick or × / Escape (dismissed per
+  tab + origin in `sessionStorage`), on a "never on this site" origin (`chrome.storage.local` `mimatoryFloatNever`)
+  or with the popup switch off (`mimatoryFloatEnabled`, default on; the popup also clears the never-list). Scans
+  run debounced on load and for 5s after load / a URL change (MutationObserver + popstate/hashchange), so
+  late-rendered SPA forms are caught without watching forever.
+  **Frames**: `content.js` is `all_frames` since this (the field menu now works inside iframes too); a frame only
+  *reports* its form through `background.js`, which adds the frame's real origin and forwards to frame 0, and the
+  top frame's float asks that frame (`MIMATORY_FRAME_CALL` match / pick) — never another. A frame from another site
+  is ignored (`sameSite`, a PSL-less heuristic: same host, or same last two labels, three under `co.uk`-style
+  suffixes). The popup's Fill, Open & Fill and the passkey handler answer in the top frame only, as before.
+  Tokens are the field menu's (`MENU_TOKENS` / `MENU_TOKENS_DARK`), following `prefers-color-scheme`.
+  **Feedback on 登录** (2026-10-24): the username goes in at once, the action turns into a spinner + 正在登录… (every
+  control disabled) until the page is filled and submitted, then the float leaves; a failure shows the same note as
+  the field menu under where the float was. `floatPicking` keeps the float's own username fill (a focus in a login
+  field, or the frame's "no form now" report) from hiding it mid-sign-in. A frame's pick answers `{ ok, status }`.
+  **Background** (owner 2026-10-24: "背景最好有一点动画效果"): a macOS material — `--material` = surface at 86% +
+  `backdrop-filter: blur(30px) saturate(180%)` (opaque where unsupported) — with an accent/purple radial glow drifting
+  on `::before` (9s alternate) and one light sweep on `::after` as it appears; transform/opacity only on
+  pseudo-elements behind the content (`overflow: hidden; isolation: isolate` on `.float`), paused (`.is-paused`) while
+  `document.hidden`, and none of it under `prefers-reduced-motion` (static material). 78%/74% material was tried and
+  read muddy on black / low-contrast for the blue action in dark on white — keep ≥ 86%.
 
 ## Testing and verification
 

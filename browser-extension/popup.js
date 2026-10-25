@@ -1,12 +1,13 @@
-const bridge = 'http://127.0.0.1:17891'
 const statusEl = document.getElementById('status')
 const tokenInput = document.getElementById('token')
+const pairingSection = document.getElementById('pairing')
 
 const text = (key, substitutions) => chrome.i18n.getMessage(key, substitutions)
 
 /* The popup has no in-app language switch: it follows the browser UI language, which is what
    chrome.i18n resolves messages against. Assistive tech reads this value for the whole document. */
 document.documentElement.lang = chrome.i18n.getUILanguage()
+document.title = text('appName') || document.title
 for (const element of document.querySelectorAll('[data-i18n]')) {
   element.textContent = text(element.dataset.i18n) || element.textContent
 }
@@ -24,11 +25,29 @@ chrome.storage.local.get(['mimatoryToken', 'passlessToken']).then(async (result)
   }
 })
 
-fetch(`${bridge}/health`)
-  .then((response) => {
-    statusEl.textContent = text(response.ok ? 'statusConnected' : 'statusUnavailable')
+/* Native messaging needs no pairing, so the pairing code is shown only when the extension had to fall back to the
+   HTTP bridge (the native host could not be started at all). */
+chrome.runtime
+  .sendMessage({ type: 'MIMATORY_STATUS' })
+  .then((answer) => {
+    if (answer?.transport === 'native') {
+      pairingSection.hidden = true
+      if (answer.status === 200) {
+        statusEl.textContent = text(answer.data?.unlocked ? 'statusNativeConnected' : 'statusNativeLocked')
+      } else if (answer.status === 503) {
+        statusEl.textContent = text('statusAppNotRunning')
+      } else if (answer.status === 403) {
+        statusEl.textContent = text('statusNotVerified')
+      } else {
+        statusEl.textContent = text('statusUnavailable')
+      }
+      return
+    }
+    pairingSection.hidden = false
+    statusEl.textContent = text(answer?.reachable ? 'statusPairingNeeded' : 'statusUnavailable')
   })
   .catch(() => {
+    pairingSection.hidden = false
     statusEl.textContent = text('statusUnavailable')
   })
 
@@ -69,4 +88,21 @@ document.getElementById('fill').addEventListener('click', async () => {
 document.getElementById('save-token').addEventListener('click', async () => {
   await chrome.storage.local.set({ mimatoryToken: tokenInput.value.trim() })
   statusEl.textContent = text('tokenSaved')
+})
+
+/* The one-click sign-in float (content.js): on by default; "never on this site" choices are kept by origin and
+   cleared here all at once. */
+const floatToggle = document.getElementById('float-enabled')
+const clearNever = document.getElementById('float-clear-never')
+chrome.storage.local.get(['mimatoryFloatEnabled', 'mimatoryFloatNever']).then((stored) => {
+  floatToggle.checked = stored.mimatoryFloatEnabled !== false
+  clearNever.disabled = !(Array.isArray(stored.mimatoryFloatNever) && stored.mimatoryFloatNever.length)
+})
+floatToggle.addEventListener('change', async () => {
+  await chrome.storage.local.set({ mimatoryFloatEnabled: floatToggle.checked })
+})
+clearNever.addEventListener('click', async () => {
+  await chrome.storage.local.remove('mimatoryFloatNever')
+  clearNever.disabled = true
+  statusEl.textContent = text('popupFloatNeverCleared')
 })

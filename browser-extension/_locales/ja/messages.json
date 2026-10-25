@@ -1,15 +1,61 @@
 {
+	"appName": {
+		"description": "The app name shown as the popup heading",
+		"message": "Mimatory"
+	},
 	"extensionDescription": {
 		"message": "ローカルの Mimatory デスクトップアプリでログインの自動入力と保存を行います。"
 	},
 	"extensionName": {
 		"message": "Mimatory 自動入力"
 	},
+	"fillErrorFailed": {
+		"message": "このログイン情報を入力できませんでした。"
+	},
+	"fillErrorLocked": {
+		"message": "Mimatory はロックされています。ロックを解除してからもう一度お試しください。"
+	},
+	"fillErrorTimeout": {
+		"message": "Mimatory から応答がありません。もう一度お試しください。"
+	},
 	"filledPage": {
 		"message": "このページのログインを入力しました。"
 	},
+	"fillLoading": {
+		"message": "パスワードを入力しています…"
+	},
 	"fillPage": {
 		"message": "現在のページに入力"
+	},
+	"floatClose": {
+		"message": "閉じる"
+	},
+	"floatLabel": {
+		"message": "ワンクリックサインイン"
+	},
+	"floatLockedTitle": {
+		"message": "Mimatory はロックされています"
+	},
+	"floatMore": {
+		"message": "その他のオプション"
+	},
+	"floatNever": {
+		"message": "このサイトでは表示しない"
+	},
+	"floatOtherAccounts": {
+		"message": "ほかのアカウント"
+	},
+	"floatSignIn": {
+		"message": "サインイン"
+	},
+	"floatSigningIn": {
+		"message": "サインインしています…"
+	},
+	"floatUnlock": {
+		"message": "Mimatory のロックを解除"
+	},
+	"floatWaitingUnlock": {
+		"message": "Mimatory アプリでロックを解除してください…"
 	},
 	"footerHint": {
 		"message": "自動入力と保存プロンプトを使うには、Mimatory デスクトップアプリのロックを解除したままにしてください。"
@@ -23,6 +69,9 @@
 	},
 	"noMatch": {
 		"message": "このサイトに保存されたログインはありません。"
+	},
+	"pairingFallbackHint": {
+		"message": "ネイティブ接続を利用できない場合のみ必要です：Mimatory の「設定 ▸ ブラウザ拡張」のペアリングコードを貼り付けてください。"
 	},
 	"pairingTokenLabel": {
 		"message": "ペアリングトークン"
@@ -88,6 +137,15 @@
 	"passkeyUseOther": {
 		"message": "別のデバイスを使用"
 	},
+	"popupFloatClearNever": {
+		"message": "非表示にしたサイトで再表示"
+	},
+	"popupFloatNeverCleared": {
+		"message": "すべてのサイトでワンクリックサインインが再び表示されます。"
+	},
+	"popupFloatToggle": {
+		"message": "ログインページにワンクリックサインインを表示"
+	},
 	"providerButtonFound": {
 		"message": "このページの $PROVIDER$ ボタンを強調表示しました。",
 		"placeholders": {
@@ -118,11 +176,26 @@
 			}
 		}
 	},
+	"statusAppNotRunning": {
+		"message": "Mimatory が起動していません。自動入力するにはアプリを開いてください。"
+	},
 	"statusChecking": {
 		"message": "アプリを確認中…"
 	},
 	"statusConnected": {
 		"message": "デスクトップアプリに接続済み"
+	},
+	"statusNativeConnected": {
+		"message": "Mimatory に接続済み"
+	},
+	"statusNativeLocked": {
+		"message": "Mimatory に接続済み — ロックを解除すると自動入力できます"
+	},
+	"statusNotVerified": {
+		"message": "Mimatory がこのブラウザを拒否しました：署名を確認できません。"
+	},
+	"statusPairingNeeded": {
+		"message": "ペアリングが必要です：ネイティブ接続を利用できません。"
 	},
 	"statusUnavailable": {
 		"message": "デスクトップアプリを利用できません"

@@ -1,4 +1,5 @@
 import { type InvokeArgs, invoke } from '@tauri-apps/api/core'
+import type { SupportedLanguage } from './i18n'
 import { requestSync } from './syncApi'
 
 export type AppStatus = {
@@ -6,6 +7,14 @@ export type AppStatus = {
   database_ready: boolean
   has_master_password: boolean
   unlocked: boolean
+}
+
+/** Settings ▸ Browser Extension: native-messaging registration and live host connections (Rust `browser_connection_status`). */
+export type BrowserConnectionStatus = {
+  connected: number
+  extensionId: string
+  lastBrowser: string | null
+  registeredBrowsers: string[]
 }
 
 export type OnePuxPreview = {
@@ -279,6 +288,8 @@ export const vaultApi = {
   archive: (id: string) => write<void>('archive_login_item', { id }),
   archived: () => invoke<LoginItemSummary[]>('list_archived_login_items'),
   attachFileToItem: (id: string, path: string) => write<CustomField>('attach_file_to_item', { id, path }),
+  // Native messaging (primary since 2026-10-24): which browsers have the host manifest, and live connections.
+  browserConnectionStatus: () => invoke<BrowserConnectionStatus>('browser_connection_status'),
   // Website icons the vault already holds, for these sites. Never touches the network.
   cachedSiteIcons: (domains: string[]) => invoke<Record<string, CachedSiteIcon>>('cached_site_icons', { domains }),
   canUseBiometrics: () => invoke<boolean>('can_use_biometrics'),
@@ -328,6 +339,7 @@ export const vaultApi = {
   setAutostart: (enabled: boolean) => invoke<void>('set_autostart', { enabled }),
   // `parentId: null` clears the parent. Rust refuses itself, a cycle, and an item in the trash.
   setIconMode: (id: string, mode: ItemIconMode) => write<void>('set_item_icon_mode', { id, mode }),
+  setNativeLocale: (language: SupportedLanguage) => invoke<void>('set_native_locale', { language }),
   setParent: (id: string, parentId: string | null) => write<void>('set_item_parent', { id, parentId }),
   // `accountId: null` clears it. Rust refuses itself and an item outside this vault or in the trash.
   setSignIn: (id: string, accountId: string | null) => write<void>('set_item_sign_in', { accountId, id }),

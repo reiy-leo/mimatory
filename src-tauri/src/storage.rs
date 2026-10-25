@@ -349,6 +349,19 @@ fn apply_schema(connection: &Connection) -> Result<(), StorageError> {
         connection.execute("ALTER TABLE items ADD COLUMN last_used_at TEXT", [])?;
     }
 
+    // Lookup indexes (2026-10-24). Every item read asks item_fields, item_urls and attachments by
+    // `item_id`, and every list asks items by `vault_id`; without these each per-item query scanned
+    // the whole table, so reading N items cost O(N²) — measured 4.7s for 1,500 items, which is what
+    // the browser extension's /match and /fill waited on. They index ids only (plaintext already)
+    // and change no data, so they need no schema version; `IF NOT EXISTS` builds them once.
+    connection.execute_batch(
+        "CREATE INDEX IF NOT EXISTS item_fields_by_item ON item_fields (item_id);
+         CREATE INDEX IF NOT EXISTS item_urls_by_item ON item_urls (item_id, position);
+         CREATE INDEX IF NOT EXISTS attachments_by_item ON attachments (item_id);
+         CREATE INDEX IF NOT EXISTS items_by_vault ON items (vault_id);
+         CREATE INDEX IF NOT EXISTS item_tags_by_tag ON item_tags (tag_id);",
+    )?;
+
     // Schema 5 (2026-10-18): icons are now looked up through Google first and stored at their own
     // resolution (up to 192px) instead of a fixed 64px PNG. The cached 64px icons are dropped once,
     // so every tile refetches a sharp one without the user doing anything.
@@ -458,6 +471,16 @@ mod tests {
             .expect("schema version should exist");
 
         assert_eq!(schema_version, CURRENT_SCHEMA_VERSION.to_string());
+
+        // Per-item reads go through an index, not a table scan (the O(N²) list the extension waited on).
+        let plan: String = connection
+            .query_row(
+                "EXPLAIN QUERY PLAN SELECT field_key FROM item_fields WHERE item_id = 'x'",
+                [],
+                |row| row.get(3),
+            )
+            .expect("query plan");
+        assert!(plan.contains("item_fields_by_item"), "item_fields scanned: {plan}");
 
         let _ = fs::remove_dir_all(temp_dir);
     }

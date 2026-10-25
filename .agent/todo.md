@@ -7,6 +7,28 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 
 ## Open
 
+- **Native messaging (2026-10-24) — never run on a real Mac or Windows.** Proven on Linux only: the host/IPC unit
+  tests and a real 0600-socket round trip (`work/nmcheck`), and apt Chromium driving the unpacked extension through
+  the real host code against a stand-in app (fixed ID, popup states, `/match` with the page origin, app restart,
+  HTTP fallback). The full app binary was not built here (link OOM), so the app's own registration at startup and
+  `handle_native_message` ran only as `cargo check --tests`. On Rei's Mac check: the manifests land in each installed
+  browser's `NativeMessagingHosts/` (Chrome, Edge, Brave, Arc, Vivaldi, Opera, Firefox), the `.app` path in them, the
+  socket in `~/Library/Application Support/Mimatory/` (0600), and above all the **code-signature check** — that the
+  host's parent really is the browser's main process for Chrome/Arc/Edge/Brave (a helper or launcher in between
+  would fail `SecCodeCheckValidity` against the team requirement), and that a release build refuses an unsigned
+  Chromium while `tauri dev` logs and accepts it. The macOS and Windows code compiled only as a standalone crate
+  (`cargo check --target aarch64-apple-darwin / x86_64-pc-windows-msvc`), never linked or run. Windows unknowns:
+  a GUI-subsystem exe as a host started through `cmd.exe` (stdio inheritance), the pipe's default ACL, the
+  registry keys being read by Brave/Vivaldi/Opera. Firefox is untested anywhere (the extension still has a
+  Chrome-only `background.service_worker`).
+- **needs-owner-decision — Remove the HTTP bridge on 127.0.0.1:17891 (2026-10-24).** Kept for this release as the
+  fallback when no native host can be started (pairing code in the popup and Settings). Once native messaging is
+  confirmed on Rei's machines, deleting `start_browser_bridge`, the token, `tiny_http` and the pairing UI removes
+  the `Access-Control-Allow-Origin: *` listener entirely. Not to be done without the owner.
+
+- **密码库存 not yet native everywhere (2026-10-24).** Still English: the iOS home-screen name (inject `zh-Hans.lproj/InfoPlist.strings` into
+  `gen/apple` after `tauri ios init` in `ios.yml`), the Android launcher label (`values-zh/strings.xml` `app_name`
+  after `tauri android init` in `build.yml`), the Windows Start menu / installer (`productName`). See AGENTS.md.
 - **Native vibrancy — needs a look on a real Mac (2026-10-14).** Owner asked for it; wired as described in AGENTS.md "Native vibrancy (macOS)". Never seen in a running app yet: check the sidebar material under the traffic lights, settings sidebar, Quick Access corners, and that the material follows the system appearance in both light and dark (the in-app Light/Dark override was removed 2026-10-23).
 - **HIG notes not acted on (owner layout).** `sidebars.md` › Desktop: "Avoid putting critical information or
   actions at the bottom of a sidebar" — Archive and Trash are pinned to the foot by design. `settings.md`:
@@ -64,14 +86,20 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 - **Linux autostart** writes an XDG autostart entry, which Hyprland ignores unless the user runs something like
   `dex`/uwsm; `exec-once = mimatory` is the Hyprland way. Not changed.
 
+- **One-click sign-in float (2026-10-24) — never run in a real browser against the real app.** Seen only in apt
+  Chromium (headless) with a mock bridge: check on a real Mac in Chrome with the app running — the pill over real
+  sites (z-index fights, sites whose CSP blocks `data:` icons → letter tile), `/unlock` bringing the lock screen
+  forward and the float turning into the account, the most-recently-used order after a few picks, real
+  identifier-first flows (Google, Microsoft), cross-origin iframe logins (ignored by design unless same site), and the
+  popup switch / never-list. Rust `/match` / `/unlock` compiled only (`cargo check --tests`, Linux).
 - **Website icons / Sign in with… (2026-10-17) — unverified parts.** Never fetched a real site from the app:
   the network path is proven only against a local HTTP server (TLS, real redirects, proxies, rustls on Android,
   WKWebView rendering of the data URLs and the packaged CSP `img-src data:` are unseen). `cargo test` of the whole
   crate was not run here (scratch crate with crypto/storage/vault/favicon/bridge: 68 tests green; full crate
   `cargo check --tests` on Linux only). The extension's provider-button highlight was never run in a browser.
 - **needs-owner-decision — Sign in with: one per item.** 1Password allows several sign-in methods on one login;
-  this allows one provider + one account. Also: auto-click the provider button in the extension (deliberately
-  not done), and whether the Quick Access row of a sign-in item should do something other than copy an empty
+  this allows one provider + one account. Also: auto-click the provider button in the extension (not done from
+  the field menu or popup; the one-click float's "使用 Google 登录" button does click it — owner 2026-10-24), and whether the Quick Access row of a sign-in item should do something other than copy an empty
   password.
 - **Owner decision (2026-10-18): website icons are looked up through Google first.** `favicon.rs` asks
   `t1.gstatic.com/faviconV2` (128px, `fallback_opts` so a miss is a 404, never the globe), then the site itself
@@ -159,6 +187,16 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 
 ## Never yet seen in a running app
 
+- **Fill latency + feedback (2026-10-24)**: index/one-item `/fill`/off-path use recording measured only in the
+  scratch `work/vaultbench` (Linux, debug build of the real `vault.rs`), the warm-up and the menu/float feedback
+  only in apt Chromium (`work/pwt/signin-float` with a 1.5s artificial `/fill` delay, `work/nmcheck/warm-check.mjs`).
+  On Rei's Mac (Chrome, `tauri dev`): how long the first host start + `SecCodeCheckValidity` really takes, that the
+  warm-up hides it, the pick feeling instant with his real vault size, the spinner chip on real sites' password
+  fields (padding, RTL, fields inside scrolling containers), identifier-first fill-on-focus on Google/Microsoft,
+  and the float's material/glow on a real GPU (headless showed the backdrop blur weaker than Chrome on macOS does).
+
+- **The localized app name (2026-10-24)**: 密码库存 in Finder/Dock/menu bar on a zh-Hans Mac (packaged build only),
+  the zh `.desktop` name in a Hyprland launcher, and the main/settings windows retitling on a language switch.
 - **The Passless → Mimatory data migration (2026-10-23)** has only run in `cargo test` (temp dirs). Never seen:
   a real macOS/Windows/Linux install with a Passless vault launching the renamed app (vault copied, unlocks with
   the same master password, preferences carried over through the WebKit / WebView2 / WebKitGTK profile copy),
@@ -207,6 +245,10 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-24 | Slow pick → instant: per-item indexes (O(N²) → O(N)), `/fill` item_id reads one item, `/match` decrypts addresses first, use recorded off the response path, native port warmed when a form shows; field menu fills only (username at once, spinner on the password field, inline error note), float keeps fill+submit with 正在登录… feedback; float background = animated macOS material | AGENTS.md "Vault security" (bridge, indexes), "Extension connection" (warm-up), "UI structure and its traps" (field menu / float) |
+| 2026-10-24 | Native messaging between the extension and the app (owner-approved incl. the macOS browser code-signature check): fixed extension ID from a manifest `key` (private key outside the repo), `mimatory` as its own native host relaying over a 0600 Unix socket / per-user pipe, peer = our executable (+ signed browser parent on macOS), host manifests registered at startup, popup/Settings show the native state, HTTP + pairing only as fallback | AGENTS.md "Extension connection" |
+| 2026-10-24 | One-click sign-in float in the extension (top-centre pill, most recently used login, list below the pill, 解锁密码库存 while locked, × / Escape per tab, never-on-this-site, popup switch) + bridge `POST /match` (summaries, cached icon, no secrets) and `POST /unlock`; the field menu reads `/match` and fetches `/fill` with `item_id` only on a pick; `content.js` runs in all frames (iframe forms report to the top frame). **Unverified**: never run against the real app or in an everyday browser profile — proven only in apt Chromium 156 (headless=new, unpacked extension) against a mock bridge and local test pages (39 checks; screenshots light/dark); `cargo check --tests` on Linux only, the Rust tests were not run (link OOMs); `/unlock` raising the window on macOS/Windows never seen | `AGENTS.md` One-click sign-in float |
+| 2026-10-24 | Rust-built UI localized en/zh/ja (`native_i18n.rs`): tray menu + tooltip, macOS menu bar, `.1pux` picker, Touch ID reason; follows the in-app language via `set_native_locale`, OS locale until the first report. Never seen in a running app (Linux `cargo check --tests` only) | `AGENTS.md` Chinese name |
 | 2026-10-23 | Renamed Passless → Mimatory everywhere (owner: "名称以后都统一成mimatory，不再使用passless"); identifier `app.mimatory.desktop`; one-time copy of the old vault + webview profile, localStorage key rename, extension token move | `AGENTS.md` The Passless → Mimatory rename |
 | 2026-10-23 | Theme follows the system only (owner decision 2026-10-23: drop the override, System only; closes the needs-owner-decision item). Settings ▸ Appearance lost its Light/Dark/System control; a stored `passless-theme` is deleted on launch so existing installs return to System | `.agent/design.md` Appearance follows the system |
 | 2026-10-23 | Item list virtualized with `@tanstack/react-virtual` (rows near the viewport only; screenshots pixel-identical to the full list on macOS light/dark, Windows, iOS, Android at top, mid-scroll and bottom) | `AGENTS.md` The item list is virtualized |

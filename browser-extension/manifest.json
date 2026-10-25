@@ -6,6 +6,11 @@
 	"background": {
 		"service_worker": "background.js"
 	},
+	"browser_specific_settings": {
+		"gecko": {
+			"id": "extension@mimatory.app"
+		}
+	},
 	"content_scripts": [
 		{
 			"js": ["passkey-provider.js"],
@@ -14,6 +19,7 @@
 			"world": "MAIN"
 		},
 		{
+			"all_frames": true,
 			"js": ["content.js"],
 			"matches": ["<all_urls>"],
 			"run_at": "document_idle"
@@ -22,8 +28,9 @@
 	"default_locale": "en",
 	"description": "__MSG_extensionDescription__",
 	"host_permissions": ["http://127.0.0.1:17891/*", "<all_urls>"],
+	"key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAi9vA/60s1po3fdkTqv/8IdNz9XP/px3UzlfZVOUUkLucVbd1FCxQ49jPEzb7gc5Xlkxy61fBnoUSK4dt2TfrY4hx44n4WKglbC09sjtEoHeOxIAHCvH846cVAtBiQCKT7rpbM8JCFXaFe/iOyhbPOdmXCCxzi1pTLVTUsbkths7fkQuRhVJwBttxRC0JvIK+W9gZQ4+UtLUyQep8ybTAtLVn1Cg4orD0Q9dJHfZBbpD8E3ID9ij63+oP4KAdXjYUiEwoIW7QHUM7CyaoiermRFmIOX1O6TRpkjRI13reIxtLsAEzZ2uBJ9NMPGIR22yWUwR9/hjexBtEfHT/hM6HWQIDAQAB",
 	"manifest_version": 3,
 	"name": "__MSG_extensionName__",
-	"permissions": ["activeTab", "scripting", "storage"],
+	"permissions": ["activeTab", "nativeMessaging", "scripting", "storage"],
 	"version": "0.1.0"
 }
