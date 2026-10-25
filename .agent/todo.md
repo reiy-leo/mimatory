@@ -187,6 +187,15 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 
 ## Never yet seen in a running app
 
+- **Multi-selection, bulk actions, first-row-on-scope, the vault-row fix (2026-10-25)**: proven by vitest (jsdom +
+  mockIPC), Playwright screenshots in Chromium (`work/screens/multiselect/`, `work/pwt/shoot-multiselect.mjs`) and the
+  Rust commands in `work/vaultbench` (the real `vault.rs`); the app binary was not built here. On the Mac check:
+  ⌘A in the list vs in a text field; **Edit ▸ Select All** from the menu bar (relies on WKWebView dispatching
+  `selectstart` on the document for `selectAll:`); ⌘-click / ⇧-click in WKWebView; ⌘⌫; Empty Trash on a real
+  vault of ~800 duplicated import items and a re-import after it; that Personal now lists its items after a Touch ID
+  unlock. The 838-items root cause is inferred from code (several paths let session and window disagree) — Rust was
+  verified to count and list alike; if the empty list ever comes back, note whether an error line showed above it.
+
 - **Fill latency + feedback (2026-10-24)**: index/one-item `/fill`/off-path use recording measured only in the
   scratch `work/vaultbench` (Linux, debug build of the real `vault.rs`), the warm-up and the menu/float feedback
   only in apt Chromium (`work/pwt/signin-float` with a 1.5s artificial `/fill` delay, `work/nmcheck/warm-check.mjs`).
@@ -245,6 +254,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 | Date | Landed | Where it is described |
 |---|---|---|
+| 2026-10-25 | Finder/1Password multi-selection (⌘A, ⌘/⇧-click, ⇧↑↓, Esc, Edit ▸ Select All) with bulk Archive / Move To / Move to Trash and, in Trash, Restore / Delete Permanently / Empty Trash — one Rust transaction each; first row selected on every sidebar scope; the vault row lists from the same live items as its count (838-items-empty bug); the last open vault cannot be archived or dissolved | AGENTS.md "Data model" (Multi-selection and bulk actions, first row, vault row, last open vault) |
 | 2026-10-24 | Slow pick → instant: per-item indexes (O(N²) → O(N)), `/fill` item_id reads one item, `/match` decrypts addresses first, use recorded off the response path, native port warmed when a form shows; field menu fills only (username at once, spinner on the password field, inline error note), float keeps fill+submit with 正在登录… feedback; float background = animated macOS material | AGENTS.md "Vault security" (bridge, indexes), "Extension connection" (warm-up), "UI structure and its traps" (field menu / float) |
 | 2026-10-24 | Native messaging between the extension and the app (owner-approved incl. the macOS browser code-signature check): fixed extension ID from a manifest `key` (private key outside the repo), `mimatory` as its own native host relaying over a 0600 Unix socket / per-user pipe, peer = our executable (+ signed browser parent on macOS), host manifests registered at startup, popup/Settings show the native state, HTTP + pairing only as fallback | AGENTS.md "Extension connection" |
 | 2026-10-24 | One-click sign-in float in the extension (top-centre pill, most recently used login, list below the pill, 解锁密码库存 while locked, × / Escape per tab, never-on-this-site, popup switch) + bridge `POST /match` (summaries, cached icon, no secrets) and `POST /unlock`; the field menu reads `/match` and fetches `/fill` with `item_id` only on a pick; `content.js` runs in all frames (iframe forms report to the top frame). **Unverified**: never run against the real app or in an everyday browser profile — proven only in apt Chromium 156 (headless=new, unpacked extension) against a mock bridge and local test pages (39 checks; screenshots light/dark); `cargo check --tests` on Linux only, the Rust tests were not run (link OOMs); `/unlock` raising the window on macOS/Windows never seen | `AGENTS.md` One-click sign-in float |

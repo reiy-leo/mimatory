@@ -160,6 +160,7 @@ src/                  # React frontend
   app/theme.ts        # Appearance follows the system only (no in-app override since 2026-10-23); deletes the legacy `passless-theme` key
   app/i18n.ts         # zh (fallback) / en / ja bundles, one flat object per locale; parity is tested
   app/tagIcons.ts     # 43 pickable lucide glyphs + the 11 colour options, written out as full class pairs
+  app/listSelection.ts selectionPane.tsx  # the list's multi-selection (Finder rules) and the "N Items Selected" / trash-row pane
   app/itemTags.ts sidebarHighlights.ts securityPreferences.ts lockScreen.ts totpDisplay.ts
   app/relativeTime.ts menuPlacement.ts itemDrafts.ts itemTemplates.ts windowPlacement.ts otpQrImport.ts
   app/itemFields.ts fieldFormats.ts fieldControls.tsx  # typed item fields: template bridge, rules, view/edit components
@@ -572,8 +573,10 @@ as `{ id, status, data }` with the HTTP bridge's status codes (content.js reads 
 - **Two kinds of soft delete**: `items.archived` and `items.trashed` + `deleted_at`, each a nav row at the foot of
   the sidebar carrying its own count. Neither view reads the live items — `visibleItems` returns nothing for them,
   and the rows come from `vaultApi.trashed()` / `vaultApi.archived()` — because the detail pane only ever edits
-  live items, so a state row is not selectable and carries its own way back instead: 恢复 inline, plus 永久删除
-  through the purge confirm in the trash only. `updated_at` doubles as the deletion timestamp (`trash_item` writes
+  live items. Since 2026-10-25 their rows are selectable like live rows (see "Multi-selection and bulk actions"):
+  the detail pane never opens a trashed or archived item — one selected row shows `SelectionPane`'s "In the Trash"
+  card with 恢复 / 永久删除 (archive: 恢复 / 移到废纸篓), several show "N 个项目" with the same actions, and the
+  trash list carries 清倒废纸篓 at its top. `updated_at` doubles as the deletion timestamp (`trash_item` writes
   both), which is why `LoginItem` needs no `deleted_at` field. Restore, the count and the empty state all update
   live.
 - **`nav.*` names the state, `listTitle.*` names the place** ("已归档" vs "归档"), and `vault.noItems`
@@ -652,8 +655,9 @@ as `{ id, status, data }` with the HTTP bridge's status codes (content.js reads 
   Child Item… / Related Item…, each opening the picker sheet (search field, ↑/↓, Return picks a single match),
   whose candidates exclude self, already-linked items, anything that would close a loop, and — for a child —
   items that already have another parent. In the item menu, Delete and Move To stay visible but disabled with a
-  one-line reason while the item has links; Archive sits right above. There is no bulk delete anywhere, so
-  there is no bulk path to guard.
+  one-line reason while the item has links; Archive sits right above. The bulk paths apply the same rule to a
+  whole selection (`linked_outside`, below): a linked group selected together moves or trashes together, an item
+  linked to something outside the selection stays and comes back in `held`.
 
 - **The list carries summaries; one item is decrypted when it is opened** (owner 2026-10-23: "列表只返回摘要，选中条目时再解密详情").
   Every list command the window calls (`unlock_vault`, `setup_master_password`, `unlock_with_biometrics`,
@@ -673,6 +677,53 @@ as `{ id, status, data }` with the HTTP bridge's status codes (content.js reads 
   (`list_live_items`, `export_login_items`) and are unchanged. The full-item list methods in vault.rs are
   `#[cfg(test)]` now.
 
+- **Multi-selection and bulk actions** (2026-10-25, Rei: "⌘A 不能全选 … 没有办法批量删除", to redo a duplicated `.1pux`
+  import). The selection is one `ListSelection` (`listSelection.ts`: `ids` Set + `anchor` + `lead`) in
+  `useVaultItems`; **`selectedId` is derived** — the one id when exactly one row is selected, else `null` — and
+  `setSelectedId(x)` collapses the selection to `x`, so every single-item path (detail read, item menu, shortcuts,
+  vault follow) keeps working and nothing single-item runs on a multi-selection. A functional `setSelectedId(cur =>
+  cur ?? first)` (a re-list) leaves a multi-selection alone. Finder rules: click = one, ⌘-click (Ctrl elsewhere)
+  toggles, ⇧-click = range from the anchor, ⇧↑/⇧↓ extend, ⌘A = every row of the list on screen (current scope,
+  filter and sort), Escape clears a multi-selection, ⌘⌫ = Move to Trash (trash view: Delete Permanently). The
+  keyboard handler ignores text fields (`isTextEntryTarget`: ⌘A keeps selecting text), menus, dialogs, the edit
+  lock and the phone layout. **Edit ▸ Select All** is the predefined AppKit item (`selectAll:` to the webview); the
+  page sees it only as a `selectstart` whose target is the document/body/html, which the window turns into ⌘A
+  (a drag-start is told apart by a pointer being down). Proven with `document.execCommand('selectAll')` in
+  Chromium; never clicked in WKWebView. A multi-selection is pruned when rows leave the list; a single selection is
+  not (the pane may show a just-saved item from another list on purpose). **Bulk commands are Rust, one IPC call
+  and one transaction each** (`trash_items`, `archive_items`, `restore_archived_items`, `restore_trashed_items`,
+  `purge_items`, `move_items` → `*_login_items` in lib.rs, `vaultApi.*Many`, all through `write()` so sync is
+  asked): the ids go into a `temp.bulk_ids` table, grouped by vault (a selection from All spans vaults), and
+  every statement joins it — never an IPC call or a scan per item (10,000 items in the debug scratch crate: trash
+  0.12s, restore 0.04s, purge 0.32s). Archive touches items only, never a vault row. **Purge** only deletes
+  items already in the trash, deletes their `item_fields`/`item_urls`/`attachments`/`item_tags` rows by hand
+  (not trusting the cascade pragma), strips their ids out of every other item's encrypted relation record
+  (parent, related, sign-in), prunes tags, and sync turns it into tombstones like a single purge. Archived items can
+  be moved to the trash too (so "delete everything" reaches them); a trashed archived item restores to the archive.
+  Confirmations: several items to the trash = a light alert focused on its action; Delete Permanently and Empty
+  Trash = destructive alerts stating the count and "can't be undone", focused on Cancel (`alerts.md`).
+- **Every sidebar scope opens on its first row** (Rei 2026-10-25: "切换分类，则默认focus这个分类中的第一个项目，如果分类中
+  没有items，则详情页为空" / "标签同理"): a change of `navigationKey` (the nav id, or `vault:<id>` for a vault row)
+  selects the first row of the new list in the current sort and scrolls it into view, replacing any selection;
+  an empty list leaves the pane empty. Skipped while editing or composing (a new item's draft switches category
+  itself). DOM focus is not moved — a search field keeps the caret.
+- **The vault row lists from `allItems`, not `items`** (bug 2026-10-25, Rei: "personal库显示838个items，但点击后，列表
+  为空"). Root cause: the row's count is `list_vaults`' live-item count, but its list was `items` — whatever the Rust
+  session last listed — and a click only called `switch_vault` when the clicked id differed from the window's
+  `activeVaultId`. Nothing kept those two in step: `handleLock` reset `activeVaultId` to `personal` while the
+  biometric session kept the last vault the session had followed (Touch ID unlock then listed *that* vault), a
+  failed or slow `switch_vault` left the previous vault's rows under the new title, and the unlock always opened
+  `personal` even when it was archived or dissolved. Rust's counts and lists were verified to agree (838 counted =
+  838 listed = 838 in All, import twice, first switch included — `work/vaultbench/src/repro.rs`). Fix: the vault
+  view is `allItems` filtered by `activeVaultId` (same rows as the count; `items` only before All loads or for an
+  archived vault); a click from another row always switches; `handleSwitchVault` names the vault at once and puts
+  it back if the switch fails; `opening_vault_id` (Rust) and `openingVaultId` (TS) share one rule (the seeded vault
+  while open, else the oldest open one) and both unlock paths use it; after an unlock the window switches the
+  session if its list came from another vault. The cross-vault follow effect is off on the vault row (it
+  ping-ponged with the switch).
+- **The last open vault stays** (Rei 2026-10-25: "如果只剩下一个保险库了，这个保险库不能archive，不能删，只能编辑"):
+  `set_vault_archived(true)` and `dissolve_vault` return `VaultLastOpen` for it; its menu keeps 归档保险库 and 解散保险库
+  disabled with 至少要保留一个保险库 under them (`isLastOpenVaultIn`). Restoring an archived vault always works.
 - **The item list is virtualized** (`@tanstack/react-virtual`, `itemList.tsx`, 2026-10-23): only the rows near the
   viewport exist. The rows stay in the normal flow of `.rows` and the off-screen ones are stood in for by the
   container's inline `paddingTop`/`paddingBottom` (a grid adds no gap to padding), so every skin's row rules, the
