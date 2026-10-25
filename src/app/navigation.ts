@@ -3,13 +3,12 @@ export type NavigationItem = {
   // rather than next to the two views that show what is in it.
   group: 'vault' | 'footer'
   id: 'vaults' | 'favorites' | 'archived' | 'trash'
-  label: string
   route: string
 }
 
 export const navigationItems: NavigationItem[] = [
-  { group: 'vault', id: 'vaults', label: 'Personal', route: '#vaults' },
-  { group: 'vault', id: 'favorites', label: 'Favorites', route: '#favorites' },
-  { group: 'footer', id: 'archived', label: 'Archived', route: '#archived' },
-  { group: 'footer', id: 'trash', label: 'Trash', route: '#trash' },
+  { group: 'vault', id: 'vaults', route: '#vaults' },
+  { group: 'vault', id: 'favorites', route: '#favorites' },
+  { group: 'footer', id: 'archived', route: '#archived' },
+  { group: 'footer', id: 'trash', route: '#trash' },
 ]

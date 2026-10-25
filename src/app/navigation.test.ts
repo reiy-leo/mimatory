@@ -5,7 +5,6 @@ describe('navigationItems', () => {
   it('lists the vault views and the two states an item can be held in', () => {
     expect(navigationItems[0]).toMatchObject({
       id: 'vaults',
-      label: 'Personal',
       route: '#vaults',
     })
     /* Tags and categories are collapsible sidebar sections, the generator and Watchtower live in
