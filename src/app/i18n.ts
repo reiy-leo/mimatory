@@ -179,11 +179,24 @@ if (typeof window !== 'undefined') {
   void refreshNativeSystemTags()
 }
 
+/* The BCP 47 tag each bundle is written in: `pt` is Brazilian, `zh` Simplified. */
+const documentLanguageTags: Record<SupportedLanguage, string> = {
+  de: 'de',
+  en: 'en',
+  es: 'es',
+  fr: 'fr',
+  id: 'id',
+  ja: 'ja',
+  pt: 'pt-BR',
+  ru: 'ru',
+  zh: 'zh-Hans',
+}
+
 /* Assistive tech pronounces the whole window in `documentElement.lang`; the static value in
    index.html is only correct for one locale, so it has to follow the in-app language. */
 function applyDocumentLanguage(language: string): void {
   if (typeof document !== 'undefined') {
-    document.documentElement.lang = isSupported(language) ? language : 'en'
+    document.documentElement.lang = isSupported(language) ? documentLanguageTags[language] : 'en'
   }
 }
 

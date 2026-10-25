@@ -4,7 +4,8 @@
 <dict>
 	<!-- Merged into the bundle's Info.plist (tauri.macos.conf.json bundle.macOS.infoPlist). The app is Mimatory,
 	     密码库存 in Chinese (owner, 2026-10-24): Finder, the Dock, Launchpad and the menu bar read the localized
-	     name from Resources/zh-Hans.lproj/InfoPlist.strings. -->
+	     name from Resources/zh-Hans.lproj/InfoPlist.strings. CFBundleLocalizations lists every UI language
+	     (src/app/i18n.ts supportedLanguages) so AppKit's own items and the system language report agree. -->
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
@@ -14,6 +15,13 @@
 		<string>en</string>
 		<string>zh-Hans</string>
 		<string>ja</string>
+		<string>es</string>
+		<string>pt-BR</string>
+		<string>pt-PT</string>
+		<string>ru</string>
+		<string>de</string>
+		<string>fr</string>
+		<string>id</string>
 	</array>
 	<key>CFBundleAllowMixedLocalizations</key>
 	<true/>

@@ -104,6 +104,23 @@ describe('i18n', () => {
     expect(getInitialLanguage('zh')).toBe('zh')
   })
 
+  /* A language added here also needs its Rust row (tray, menu bar, Touch ID prompt) and its place in the macOS
+     bundle's CFBundleLocalizations; see AGENTS.md "Adding a language". */
+  it('reaches the Rust-built UI and the macOS bundle in every language', () => {
+    const rust = readFileSync('src-tauri/src/native_i18n.rs', 'utf8')
+    const matched = [...rust.matchAll(/"([a-z]{2})"(?: \| "[a-z]{2}")* => Locale::/g)].map((match) => match[1])
+    expect(matched.sort()).toEqual([...supportedLanguages].filter((language) => language !== 'en').sort())
+    const plist = readFileSync('src-tauri/macos/Info.plist', 'utf8')
+    const bundled = [
+      ...(plist.match(/<key>CFBundleLocalizations<\/key>\s*<array>([\s\S]*?)<\/array>/)?.[1] ?? '').matchAll(
+        /<string>([^<]+)<\/string>/g,
+      ),
+    ].map((match) => match[1])
+    for (const language of supportedLanguages) {
+      expect(bundled.some((tag) => matchLanguage(tag) === language)).toBe(true)
+    }
+  })
+
   it('names every language in its own name', () => {
     expect(Object.keys(languageNames).sort()).toEqual([...supportedLanguages].sort())
     expect(languageNames.zh).toBe('简体中文')
