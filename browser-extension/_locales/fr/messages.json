@@ -1,0 +1,209 @@
+{
+	"appName": {
+		"description": "The app name shown as the popup heading",
+		"message": "Mimatory"
+	},
+	"extensionDescription": {
+		"message": "Remplissez et enregistrez vos identifiants avec l’app Mimatory installée sur votre ordinateur."
+	},
+	"extensionName": {
+		"message": "Mimatory Remplissage"
+	},
+	"fillErrorFailed": {
+		"message": "Impossible de remplir cet identifiant."
+	},
+	"fillErrorLocked": {
+		"message": "Mimatory est verrouillé. Déverrouillez-le, puis réessayez."
+	},
+	"fillErrorTimeout": {
+		"message": "Mimatory n’a pas répondu à temps. Réessayez."
+	},
+	"filledPage": {
+		"message": "Identifiant rempli sur cette page."
+	},
+	"fillLoading": {
+		"message": "Remplissage du mot de passe…"
+	},
+	"fillPage": {
+		"message": "Remplir cette page"
+	},
+	"floatClose": {
+		"message": "Fermer"
+	},
+	"floatLabel": {
+		"message": "Connexion en un clic"
+	},
+	"floatLockedTitle": {
+		"message": "Mimatory est verrouillé"
+	},
+	"floatMore": {
+		"message": "Plus d’options"
+	},
+	"floatNever": {
+		"message": "Ne jamais afficher sur ce site"
+	},
+	"floatOtherAccounts": {
+		"message": "Autres comptes"
+	},
+	"floatSignIn": {
+		"message": "Se connecter"
+	},
+	"floatSigningIn": {
+		"message": "Connexion…"
+	},
+	"floatUnlock": {
+		"message": "Déverrouiller Mimatory"
+	},
+	"floatWaitingUnlock": {
+		"message": "Déverrouillez dans l’app Mimatory…"
+	},
+	"footerHint": {
+		"message": "Gardez l’app Mimatory déverrouillée pour le remplissage et l’enregistrement."
+	},
+	"inlineMenuLabel": {
+		"description": "Logins saved in Mimatory for this site",
+		"message": "Mimatory"
+	},
+	"noLoginForm": {
+		"message": "Aucun formulaire de connexion sur cette page."
+	},
+	"noMatch": {
+		"message": "Aucun identifiant enregistré pour ce site."
+	},
+	"pairingFallbackHint": {
+		"message": "Nécessaire uniquement si la connexion native est indisponible : collez le code de jumelage depuis Réglages de Mimatory ▸ Extension de navigateur."
+	},
+	"pairingTokenLabel": {
+		"message": "Code de jumelage"
+	},
+	"passkeyAddToItem": {
+		"message": "Ajouter à « $TITLE$ »",
+		"placeholders": {
+			"title": {
+				"content": "$1",
+				"example": "GitHub"
+			}
+		}
+	},
+	"passkeyCancel": {
+		"message": "Annuler"
+	},
+	"passkeyDone": {
+		"message": "OK"
+	},
+	"passkeyMenuSub": {
+		"message": "Clé d’accès"
+	},
+	"passkeyNewItem": {
+		"message": "Nouvel élément"
+	},
+	"passkeyNote": {
+		"message": "Mimatory crée la clé d’accès et conserve sa clé privée chiffrée dans votre coffre."
+	},
+	"passkeyNotNow": {
+		"message": "Plus tard"
+	},
+	"passkeySave": {
+		"message": "Enregistrer"
+	},
+	"passkeySaveDetail": {
+		"message": "$ACCOUNT$ sur $SITE$",
+		"placeholders": {
+			"account": {
+				"content": "$1",
+				"example": "rei@example.com"
+			},
+			"site": {
+				"content": "$2",
+				"example": "example.com"
+			}
+		}
+	},
+	"passkeySaved": {
+		"message": "Enregistrée dans Mimatory."
+	},
+	"passkeySaveFailed": {
+		"message": "Impossible de joindre Mimatory. Déverrouillez l’app, puis réessayez."
+	},
+	"passkeySaveTitle": {
+		"message": "Enregistrer la clé d’accès dans Mimatory ?"
+	},
+	"passkeySignInTitle": {
+		"message": "Se connecter avec une clé d’accès"
+	},
+	"passkeyUnknownAccount": {
+		"message": "Ce compte"
+	},
+	"passkeyUseOther": {
+		"message": "Utiliser un autre appareil"
+	},
+	"popupFloatClearNever": {
+		"message": "Réafficher sur les sites masqués"
+	},
+	"popupFloatNeverCleared": {
+		"message": "La connexion en un clic s’affiche de nouveau sur tous les sites."
+	},
+	"popupFloatToggle": {
+		"message": "Afficher la connexion en un clic sur les pages de connexion"
+	},
+	"providerButtonFound": {
+		"message": "Le bouton $PROVIDER$ de cette page est mis en évidence.",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"providerButtonMissing": {
+		"message": "Aucun bouton $PROVIDER$ sur cette page.",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"saveToken": {
+		"message": "Enregistrer le code"
+	},
+	"signInWithProvider": {
+		"message": "Se connecter avec $PROVIDER$",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"statusAppNotRunning": {
+		"message": "Mimatory n’est pas ouvert. Ouvrez l’app pour le remplissage."
+	},
+	"statusChecking": {
+		"message": "Vérification de l’app…"
+	},
+	"statusConnected": {
+		"message": "App connectée"
+	},
+	"statusNativeConnected": {
+		"message": "Connecté à Mimatory"
+	},
+	"statusNativeLocked": {
+		"message": "Connecté à Mimatory — déverrouillez-le pour remplir"
+	},
+	"statusNotVerified": {
+		"message": "Mimatory a refusé ce navigateur : sa signature n’a pas pu être vérifiée."
+	},
+	"statusPairingNeeded": {
+		"message": "Jumelage nécessaire : la connexion native est indisponible."
+	},
+	"statusUnavailable": {
+		"message": "App indisponible"
+	},
+	"tokenPlaceholder": {
+		"message": "Collez le code de jumelage de l’app"
+	},
+	"tokenSaved": {
+		"message": "Code de jumelage enregistré"
+	}
+}

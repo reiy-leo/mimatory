@@ -1,0 +1,209 @@
+{
+	"appName": {
+		"description": "The app name shown as the popup heading",
+		"message": "Mimatory"
+	},
+	"extensionDescription": {
+		"message": "Preencha e salve logins pelo app de desktop Mimatory."
+	},
+	"extensionName": {
+		"message": "Mimatory Preenchimento"
+	},
+	"fillErrorFailed": {
+		"message": "Não foi possível preencher este login."
+	},
+	"fillErrorLocked": {
+		"message": "O Mimatory está bloqueado. Desbloqueie-o e tente novamente."
+	},
+	"fillErrorTimeout": {
+		"message": "O Mimatory não respondeu a tempo. Tente novamente."
+	},
+	"filledPage": {
+		"message": "Login preenchido nesta página."
+	},
+	"fillLoading": {
+		"message": "Preenchendo senha…"
+	},
+	"fillPage": {
+		"message": "Preencher Esta Página"
+	},
+	"floatClose": {
+		"message": "Fechar"
+	},
+	"floatLabel": {
+		"message": "Login com um clique"
+	},
+	"floatLockedTitle": {
+		"message": "O Mimatory está bloqueado"
+	},
+	"floatMore": {
+		"message": "Mais Opções"
+	},
+	"floatNever": {
+		"message": "Nunca Mostrar Neste Site"
+	},
+	"floatOtherAccounts": {
+		"message": "Outras Contas"
+	},
+	"floatSignIn": {
+		"message": "Entrar"
+	},
+	"floatSigningIn": {
+		"message": "Entrando…"
+	},
+	"floatUnlock": {
+		"message": "Desbloquear o Mimatory"
+	},
+	"floatWaitingUnlock": {
+		"message": "Desbloqueie no app Mimatory…"
+	},
+	"footerHint": {
+		"message": "Mantenha o app Mimatory desbloqueado para preencher e salvar."
+	},
+	"inlineMenuLabel": {
+		"description": "Logins saved in Mimatory for this site",
+		"message": "Mimatory"
+	},
+	"noLoginForm": {
+		"message": "Nenhum formulário de login encontrado nesta página."
+	},
+	"noMatch": {
+		"message": "Nenhum login salvo para este site."
+	},
+	"pairingFallbackHint": {
+		"message": "Só é necessário quando a conexão nativa não está disponível: cole o código de pareamento de Ajustes do Mimatory ▸ Extensão do Navegador."
+	},
+	"pairingTokenLabel": {
+		"message": "Código de pareamento"
+	},
+	"passkeyAddToItem": {
+		"message": "Adicionar a “$TITLE$”",
+		"placeholders": {
+			"title": {
+				"content": "$1",
+				"example": "GitHub"
+			}
+		}
+	},
+	"passkeyCancel": {
+		"message": "Cancelar"
+	},
+	"passkeyDone": {
+		"message": "OK"
+	},
+	"passkeyMenuSub": {
+		"message": "Chave-senha"
+	},
+	"passkeyNewItem": {
+		"message": "Novo Item"
+	},
+	"passkeyNote": {
+		"message": "O Mimatory cria a chave-senha e guarda a chave privada criptografada no seu cofre."
+	},
+	"passkeyNotNow": {
+		"message": "Agora Não"
+	},
+	"passkeySave": {
+		"message": "Salvar"
+	},
+	"passkeySaveDetail": {
+		"message": "$ACCOUNT$ em $SITE$",
+		"placeholders": {
+			"account": {
+				"content": "$1",
+				"example": "rei@example.com"
+			},
+			"site": {
+				"content": "$2",
+				"example": "example.com"
+			}
+		}
+	},
+	"passkeySaved": {
+		"message": "Salva no Mimatory."
+	},
+	"passkeySaveFailed": {
+		"message": "Não foi possível acessar o Mimatory. Desbloqueie o app e tente novamente."
+	},
+	"passkeySaveTitle": {
+		"message": "Salvar a chave-senha no Mimatory?"
+	},
+	"passkeySignInTitle": {
+		"message": "Entrar com uma chave-senha"
+	},
+	"passkeyUnknownAccount": {
+		"message": "Esta conta"
+	},
+	"passkeyUseOther": {
+		"message": "Usar Outro Dispositivo"
+	},
+	"popupFloatClearNever": {
+		"message": "Mostrar de Novo nos Sites Ocultos"
+	},
+	"popupFloatNeverCleared": {
+		"message": "O login com um clique volta a aparecer em todos os sites."
+	},
+	"popupFloatToggle": {
+		"message": "Mostrar login com um clique nas páginas de login"
+	},
+	"providerButtonFound": {
+		"message": "O botão $PROVIDER$ desta página está destacado.",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"providerButtonMissing": {
+		"message": "Nenhum botão $PROVIDER$ encontrado nesta página.",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"saveToken": {
+		"message": "Salvar Código"
+	},
+	"signInWithProvider": {
+		"message": "Entrar com $PROVIDER$",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"statusAppNotRunning": {
+		"message": "O Mimatory não está aberto. Abra o app para preencher."
+	},
+	"statusChecking": {
+		"message": "Verificando o app…"
+	},
+	"statusConnected": {
+		"message": "App de desktop conectado"
+	},
+	"statusNativeConnected": {
+		"message": "Conectado ao Mimatory"
+	},
+	"statusNativeLocked": {
+		"message": "Conectado ao Mimatory — desbloqueie para preencher"
+	},
+	"statusNotVerified": {
+		"message": "O Mimatory recusou este navegador: não foi possível verificar a assinatura dele."
+	},
+	"statusPairingNeeded": {
+		"message": "Pareamento necessário: a conexão nativa não está disponível."
+	},
+	"statusUnavailable": {
+		"message": "App de desktop indisponível"
+	},
+	"tokenPlaceholder": {
+		"message": "Cole o código de pareamento do app"
+	},
+	"tokenSaved": {
+		"message": "Código de pareamento salvo"
+	}
+}

@@ -1,0 +1,209 @@
+{
+	"appName": {
+		"description": "The app name shown as the popup heading",
+		"message": "Mimatory"
+	},
+	"extensionDescription": {
+		"message": "Автозаполнение и сохранение данных для входа через приложение Mimatory на компьютере."
+	},
+	"extensionName": {
+		"message": "Mimatory: автозаполнение"
+	},
+	"fillErrorFailed": {
+		"message": "Не удалось заполнить данные для входа."
+	},
+	"fillErrorLocked": {
+		"message": "Mimatory заблокирован. Разблокируйте его и повторите попытку."
+	},
+	"fillErrorTimeout": {
+		"message": "Mimatory не ответил вовремя. Повторите попытку."
+	},
+	"filledPage": {
+		"message": "Данные для входа на этой странице заполнены."
+	},
+	"fillLoading": {
+		"message": "Заполнение пароля…"
+	},
+	"fillPage": {
+		"message": "Заполнить страницу"
+	},
+	"floatClose": {
+		"message": "Закрыть"
+	},
+	"floatLabel": {
+		"message": "Вход в один клик"
+	},
+	"floatLockedTitle": {
+		"message": "Mimatory заблокирован"
+	},
+	"floatMore": {
+		"message": "Другие параметры"
+	},
+	"floatNever": {
+		"message": "Никогда не показывать на этом сайте"
+	},
+	"floatOtherAccounts": {
+		"message": "Другие учётные записи"
+	},
+	"floatSignIn": {
+		"message": "Войти"
+	},
+	"floatSigningIn": {
+		"message": "Вход…"
+	},
+	"floatUnlock": {
+		"message": "Разблокировать Mimatory"
+	},
+	"floatWaitingUnlock": {
+		"message": "Разблокируйте в приложении Mimatory…"
+	},
+	"footerHint": {
+		"message": "Держите приложение Mimatory разблокированным, чтобы работали заполнение и сохранение."
+	},
+	"inlineMenuLabel": {
+		"description": "Logins saved in Mimatory for this site",
+		"message": "Mimatory"
+	},
+	"noLoginForm": {
+		"message": "На этой странице нет формы входа."
+	},
+	"noMatch": {
+		"message": "Для этого сайта нет сохранённых данных для входа."
+	},
+	"pairingFallbackHint": {
+		"message": "Нужен, только если прямое подключение недоступно: вставьте код связи из Настройки Mimatory ▸ Расширение браузера."
+	},
+	"pairingTokenLabel": {
+		"message": "Код связи"
+	},
+	"passkeyAddToItem": {
+		"message": "Добавить в «$TITLE$»",
+		"placeholders": {
+			"title": {
+				"content": "$1",
+				"example": "GitHub"
+			}
+		}
+	},
+	"passkeyCancel": {
+		"message": "Отменить"
+	},
+	"passkeyDone": {
+		"message": "Готово"
+	},
+	"passkeyMenuSub": {
+		"message": "Ключ входа"
+	},
+	"passkeyNewItem": {
+		"message": "Новый объект"
+	},
+	"passkeyNote": {
+		"message": "Mimatory создаёт ключ входа и хранит его закрытый ключ в сейфе в зашифрованном виде."
+	},
+	"passkeyNotNow": {
+		"message": "Не сейчас"
+	},
+	"passkeySave": {
+		"message": "Сохранить"
+	},
+	"passkeySaveDetail": {
+		"message": "$ACCOUNT$ на $SITE$",
+		"placeholders": {
+			"account": {
+				"content": "$1",
+				"example": "rei@example.com"
+			},
+			"site": {
+				"content": "$2",
+				"example": "example.com"
+			}
+		}
+	},
+	"passkeySaved": {
+		"message": "Сохранено в Mimatory."
+	},
+	"passkeySaveFailed": {
+		"message": "Не удалось связаться с Mimatory. Разблокируйте приложение и повторите попытку."
+	},
+	"passkeySaveTitle": {
+		"message": "Сохранить ключ входа в Mimatory?"
+	},
+	"passkeySignInTitle": {
+		"message": "Вход с ключом входа"
+	},
+	"passkeyUnknownAccount": {
+		"message": "Эта учётная запись"
+	},
+	"passkeyUseOther": {
+		"message": "Другое устройство"
+	},
+	"popupFloatClearNever": {
+		"message": "Снова показывать на скрытых сайтах"
+	},
+	"popupFloatNeverCleared": {
+		"message": "Вход в один клик снова показывается на всех сайтах."
+	},
+	"popupFloatToggle": {
+		"message": "Показывать вход в один клик на страницах входа"
+	},
+	"providerButtonFound": {
+		"message": "Кнопка $PROVIDER$ на этой странице выделена.",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"providerButtonMissing": {
+		"message": "На этой странице нет кнопки $PROVIDER$.",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"saveToken": {
+		"message": "Сохранить код"
+	},
+	"signInWithProvider": {
+		"message": "Войти через $PROVIDER$",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"statusAppNotRunning": {
+		"message": "Mimatory не запущен. Откройте приложение для автозаполнения."
+	},
+	"statusChecking": {
+		"message": "Проверка приложения…"
+	},
+	"statusConnected": {
+		"message": "Приложение подключено"
+	},
+	"statusNativeConnected": {
+		"message": "Подключено к Mimatory"
+	},
+	"statusNativeLocked": {
+		"message": "Подключено к Mimatory — разблокируйте для заполнения"
+	},
+	"statusNotVerified": {
+		"message": "Mimatory отклонил этот браузер: не удалось проверить его подпись."
+	},
+	"statusPairingNeeded": {
+		"message": "Нужна связь: прямое подключение недоступно."
+	},
+	"statusUnavailable": {
+		"message": "Приложение недоступно"
+	},
+	"tokenPlaceholder": {
+		"message": "Вставьте код связи из приложения"
+	},
+	"tokenSaved": {
+		"message": "Код связи сохранён"
+	}
+}

@@ -1,0 +1,209 @@
+{
+	"appName": {
+		"description": "The app name shown as the popup heading",
+		"message": "Mimatory"
+	},
+	"extensionDescription": {
+		"message": "Isi otomatis dan simpan login melalui app desktop Mimatory."
+	},
+	"extensionName": {
+		"message": "Mimatory Isi Otomatis"
+	},
+	"fillErrorFailed": {
+		"message": "Tidak dapat mengisi login ini."
+	},
+	"fillErrorLocked": {
+		"message": "Mimatory terkunci. Buka kuncinya, lalu coba lagi."
+	},
+	"fillErrorTimeout": {
+		"message": "Mimatory tidak menjawab tepat waktu. Coba lagi."
+	},
+	"filledPage": {
+		"message": "Login di halaman ini sudah diisi."
+	},
+	"fillLoading": {
+		"message": "Mengisi kata sandi…"
+	},
+	"fillPage": {
+		"message": "Isi Halaman Ini"
+	},
+	"floatClose": {
+		"message": "Tutup"
+	},
+	"floatLabel": {
+		"message": "Masuk sekali klik"
+	},
+	"floatLockedTitle": {
+		"message": "Mimatory terkunci"
+	},
+	"floatMore": {
+		"message": "Opsi Lain"
+	},
+	"floatNever": {
+		"message": "Jangan Tampilkan di Situs Ini"
+	},
+	"floatOtherAccounts": {
+		"message": "Akun Lain"
+	},
+	"floatSignIn": {
+		"message": "Masuk"
+	},
+	"floatSigningIn": {
+		"message": "Sedang masuk…"
+	},
+	"floatUnlock": {
+		"message": "Buka Kunci Mimatory"
+	},
+	"floatWaitingUnlock": {
+		"message": "Buka kunci di app Mimatory…"
+	},
+	"footerHint": {
+		"message": "Biarkan app desktop Mimatory tidak terkunci agar isi otomatis dan penyimpanan berfungsi."
+	},
+	"inlineMenuLabel": {
+		"description": "Logins saved in Mimatory for this site",
+		"message": "Mimatory"
+	},
+	"noLoginForm": {
+		"message": "Tidak ditemukan formulir login di halaman ini."
+	},
+	"noMatch": {
+		"message": "Tidak ada login tersimpan untuk situs ini."
+	},
+	"pairingFallbackHint": {
+		"message": "Hanya diperlukan jika koneksi native tidak tersedia: tempel kode pemasangan dari Pengaturan Mimatory ▸ Ekstensi Browser."
+	},
+	"pairingTokenLabel": {
+		"message": "Kode pemasangan"
+	},
+	"passkeyAddToItem": {
+		"message": "Tambahkan ke “$TITLE$”",
+		"placeholders": {
+			"title": {
+				"content": "$1",
+				"example": "GitHub"
+			}
+		}
+	},
+	"passkeyCancel": {
+		"message": "Batalkan"
+	},
+	"passkeyDone": {
+		"message": "Selesai"
+	},
+	"passkeyMenuSub": {
+		"message": "Kunci Sandi"
+	},
+	"passkeyNewItem": {
+		"message": "Item Baru"
+	},
+	"passkeyNote": {
+		"message": "Mimatory membuat kunci sandi dan menyimpan kunci privatnya secara terenkripsi di brankas Anda."
+	},
+	"passkeyNotNow": {
+		"message": "Nanti Saja"
+	},
+	"passkeySave": {
+		"message": "Simpan"
+	},
+	"passkeySaveDetail": {
+		"message": "$ACCOUNT$ di $SITE$",
+		"placeholders": {
+			"account": {
+				"content": "$1",
+				"example": "rei@example.com"
+			},
+			"site": {
+				"content": "$2",
+				"example": "example.com"
+			}
+		}
+	},
+	"passkeySaved": {
+		"message": "Disimpan ke Mimatory."
+	},
+	"passkeySaveFailed": {
+		"message": "Tidak dapat menghubungi Mimatory. Buka kunci app lalu coba lagi."
+	},
+	"passkeySaveTitle": {
+		"message": "Simpan kunci sandi ke Mimatory?"
+	},
+	"passkeySignInTitle": {
+		"message": "Masuk dengan kunci sandi"
+	},
+	"passkeyUnknownAccount": {
+		"message": "Akun ini"
+	},
+	"passkeyUseOther": {
+		"message": "Gunakan Perangkat Lain"
+	},
+	"popupFloatClearNever": {
+		"message": "Tampilkan Lagi di Situs yang Disembunyikan"
+	},
+	"popupFloatNeverCleared": {
+		"message": "Masuk sekali klik kembali muncul di semua situs."
+	},
+	"popupFloatToggle": {
+		"message": "Tampilkan masuk sekali klik di halaman login"
+	},
+	"providerButtonFound": {
+		"message": "Tombol $PROVIDER$ di halaman ini disorot.",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"providerButtonMissing": {
+		"message": "Tidak ditemukan tombol $PROVIDER$ di halaman ini.",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"saveToken": {
+		"message": "Simpan Kode"
+	},
+	"signInWithProvider": {
+		"message": "Masuk dengan $PROVIDER$",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"statusAppNotRunning": {
+		"message": "Mimatory tidak berjalan. Buka app untuk mengisi otomatis."
+	},
+	"statusChecking": {
+		"message": "Memeriksa app…"
+	},
+	"statusConnected": {
+		"message": "App desktop terhubung"
+	},
+	"statusNativeConnected": {
+		"message": "Terhubung ke Mimatory"
+	},
+	"statusNativeLocked": {
+		"message": "Terhubung ke Mimatory — buka kunci untuk mengisi"
+	},
+	"statusNotVerified": {
+		"message": "Mimatory menolak browser ini: tanda tangannya tidak dapat diverifikasi."
+	},
+	"statusPairingNeeded": {
+		"message": "Perlu dipasangkan: koneksi native tidak tersedia."
+	},
+	"statusUnavailable": {
+		"message": "App desktop tidak tersedia"
+	},
+	"tokenPlaceholder": {
+		"message": "Tempel kode pemasangan dari app"
+	},
+	"tokenSaved": {
+		"message": "Kode pemasangan disimpan"
+	}
+}

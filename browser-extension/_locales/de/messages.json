@@ -1,0 +1,209 @@
+{
+	"appName": {
+		"description": "The app name shown as the popup heading",
+		"message": "Mimatory"
+	},
+	"extensionDescription": {
+		"message": "Anmeldungen über die lokale Mimatory-App automatisch ausfüllen und sichern."
+	},
+	"extensionName": {
+		"message": "Mimatory Autofill"
+	},
+	"fillErrorFailed": {
+		"message": "Diese Anmeldung konnte nicht ausgefüllt werden."
+	},
+	"fillErrorLocked": {
+		"message": "Mimatory ist gesperrt. Entsperre die App und versuche es erneut."
+	},
+	"fillErrorTimeout": {
+		"message": "Mimatory hat nicht rechtzeitig geantwortet. Versuche es erneut."
+	},
+	"filledPage": {
+		"message": "Anmeldung auf dieser Seite ausgefüllt."
+	},
+	"fillLoading": {
+		"message": "Passwort wird ausgefüllt …"
+	},
+	"fillPage": {
+		"message": "Aktuelle Seite ausfüllen"
+	},
+	"floatClose": {
+		"message": "Schließen"
+	},
+	"floatLabel": {
+		"message": "Anmelden mit einem Klick"
+	},
+	"floatLockedTitle": {
+		"message": "Mimatory ist gesperrt"
+	},
+	"floatMore": {
+		"message": "Weitere Optionen"
+	},
+	"floatNever": {
+		"message": "Auf dieser Website nie anzeigen"
+	},
+	"floatOtherAccounts": {
+		"message": "Andere Accounts"
+	},
+	"floatSignIn": {
+		"message": "Anmelden"
+	},
+	"floatSigningIn": {
+		"message": "Anmeldung läuft …"
+	},
+	"floatUnlock": {
+		"message": "Mimatory entsperren"
+	},
+	"floatWaitingUnlock": {
+		"message": "In der Mimatory-App entsperren …"
+	},
+	"footerHint": {
+		"message": "Lass die Mimatory-App entsperrt, damit Ausfüllen und Sichern funktionieren."
+	},
+	"inlineMenuLabel": {
+		"description": "Logins saved in Mimatory for this site",
+		"message": "Mimatory"
+	},
+	"noLoginForm": {
+		"message": "Kein Anmeldeformular auf dieser Seite gefunden."
+	},
+	"noMatch": {
+		"message": "Keine gesicherte Anmeldung für diese Website."
+	},
+	"pairingFallbackHint": {
+		"message": "Nur nötig, wenn die native Verbindung nicht verfügbar ist: Füge den Kopplungscode aus Mimatory-Einstellungen ▸ Browsererweiterung ein."
+	},
+	"pairingTokenLabel": {
+		"message": "Kopplungscode"
+	},
+	"passkeyAddToItem": {
+		"message": "Zu „$TITLE$“ hinzufügen",
+		"placeholders": {
+			"title": {
+				"content": "$1",
+				"example": "GitHub"
+			}
+		}
+	},
+	"passkeyCancel": {
+		"message": "Abbrechen"
+	},
+	"passkeyDone": {
+		"message": "Fertig"
+	},
+	"passkeyMenuSub": {
+		"message": "Passkey"
+	},
+	"passkeyNewItem": {
+		"message": "Neues Objekt"
+	},
+	"passkeyNote": {
+		"message": "Mimatory erstellt den Passkey und bewahrt seinen privaten Schlüssel verschlüsselt in deinem Tresor auf."
+	},
+	"passkeyNotNow": {
+		"message": "Nicht jetzt"
+	},
+	"passkeySave": {
+		"message": "Sichern"
+	},
+	"passkeySaveDetail": {
+		"message": "$ACCOUNT$ auf $SITE$",
+		"placeholders": {
+			"account": {
+				"content": "$1",
+				"example": "rei@example.com"
+			},
+			"site": {
+				"content": "$2",
+				"example": "example.com"
+			}
+		}
+	},
+	"passkeySaved": {
+		"message": "In Mimatory gesichert."
+	},
+	"passkeySaveFailed": {
+		"message": "Mimatory ist nicht erreichbar. Entsperre die App und versuche es erneut."
+	},
+	"passkeySaveTitle": {
+		"message": "Passkey in Mimatory sichern?"
+	},
+	"passkeySignInTitle": {
+		"message": "Mit einem Passkey anmelden"
+	},
+	"passkeyUnknownAccount": {
+		"message": "Dieser Account"
+	},
+	"passkeyUseOther": {
+		"message": "Anderes Gerät verwenden"
+	},
+	"popupFloatClearNever": {
+		"message": "Auf ausgeblendeten Websites wieder anzeigen"
+	},
+	"popupFloatNeverCleared": {
+		"message": "Die Anmeldung mit einem Klick erscheint wieder auf allen Websites."
+	},
+	"popupFloatToggle": {
+		"message": "Anmelden mit einem Klick auf Anmeldeseiten anzeigen"
+	},
+	"providerButtonFound": {
+		"message": "Die Schaltfläche für $PROVIDER$ ist auf dieser Seite hervorgehoben.",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"providerButtonMissing": {
+		"message": "Keine Schaltfläche für $PROVIDER$ auf dieser Seite gefunden.",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"saveToken": {
+		"message": "Code sichern"
+	},
+	"signInWithProvider": {
+		"message": "Mit $PROVIDER$ anmelden",
+		"placeholders": {
+			"provider": {
+				"content": "$1",
+				"example": "Google"
+			}
+		}
+	},
+	"statusAppNotRunning": {
+		"message": "Mimatory läuft nicht. Öffne die App zum automatischen Ausfüllen."
+	},
+	"statusChecking": {
+		"message": "App wird geprüft …"
+	},
+	"statusConnected": {
+		"message": "Desktop-App verbunden"
+	},
+	"statusNativeConnected": {
+		"message": "Mit Mimatory verbunden"
+	},
+	"statusNativeLocked": {
+		"message": "Mit Mimatory verbunden – zum Ausfüllen entsperren"
+	},
+	"statusNotVerified": {
+		"message": "Mimatory hat diesen Browser abgelehnt: Seine Signatur konnte nicht überprüft werden."
+	},
+	"statusPairingNeeded": {
+		"message": "Kopplung nötig: Die native Verbindung ist nicht verfügbar."
+	},
+	"statusUnavailable": {
+		"message": "Desktop-App nicht verfügbar"
+	},
+	"tokenPlaceholder": {
+		"message": "Kopplungscode aus der App einfügen"
+	},
+	"tokenSaved": {
+		"message": "Kopplungscode gesichert"
+	}
+}

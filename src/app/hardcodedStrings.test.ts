@@ -279,7 +279,7 @@ describe('error codes', () => {
  */
 describe('browser extension strings', () => {
   const root = 'browser-extension'
-  const locales = ['en', 'zh_CN', 'ja']
+  const locales = ['en', 'zh_CN', 'ja', 'es', 'pt_BR', 'ru', 'de', 'fr', 'id']
   const messages = (locale: string) =>
     JSON.parse(readFileSync(join(root, '_locales', locale, 'messages.json'), 'utf8')) as Record<
       string,
@@ -290,15 +290,36 @@ describe('browser extension strings', () => {
     text: readFileSync(join(root, file), 'utf8'),
   }))
 
-  it('declares en as the default locale and ships en, zh_CN and ja', () => {
+  it('declares en as the default locale and ships every UI language', () => {
     const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8')) as { default_locale: string }
     expect(manifest.default_locale).toBe('en')
     expect(readdirSync(join(root, '_locales')).sort()).toEqual([...locales].sort())
   })
 
-  it('keeps the three locales on the same keys', () => {
+  it('keeps every locale on the same keys, placeholders and $NAMES$ as en, with nothing empty', () => {
     const [english, ...others] = locales.map((locale) => Object.keys(messages(locale)).sort())
     for (const keys of others) expect(keys).toEqual(english)
+    const reference = messages('en')
+    const names = (text: string) => [...text.matchAll(/\$([A-Z_]+)\$/g)].map((match) => match[1]).sort()
+    for (const locale of locales) {
+      const bundle = messages(locale) as Record<string, { message: string; placeholders?: Record<string, unknown> }>
+      const wrong = Object.entries(bundle)
+        .filter(
+          ([key, { message, placeholders }]) =>
+            !message.trim() ||
+            names(message).join() !== names(reference[key].message).join() ||
+            JSON.stringify(placeholders ?? null) !==
+              JSON.stringify((reference[key] as { placeholders?: unknown }).placeholders ?? null),
+        )
+        .map(([key]) => key)
+      expect({ locale, wrong }).toEqual({ locale, wrong: [] })
+    }
+  })
+
+  /* chrome.i18n picks the folder from the browser language; each app language has one (pt → pt_BR, zh → zh_CN). */
+  it('ships a folder for every app language', () => {
+    const folder: Record<string, string> = { pt: 'pt_BR', zh: 'zh_CN' }
+    expect(supportedLanguages.map((language) => folder[language] ?? language).sort()).toEqual([...locales].sort())
   })
 
   it('defines every key the extension names', () => {
