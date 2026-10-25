@@ -169,19 +169,24 @@ describe('i18n', () => {
     }
   })
 
+  /* es, fr and pt list a `many` form that only applies to exact millions ("1 000 000 d’éléments"), which reads
+     the same as the base ("other") form i18next falls back to, so it is never required. */
+  const otherCoversMany = new Set(['es', 'fr', 'pt'])
+
   it('gives a plural every form the language needs', () => {
     for (const language of supportedLanguages) {
       const map = strings(language)
       const categories: string[] = new Intl.PluralRules(language)
         .resolvedOptions()
         .pluralCategories.filter((c) => c !== 'other')
+      const required = categories.filter((c) => !(c === 'many' && otherCoversMany.has(language)))
       const plurals = new Set(
         [...map.keys()]
           .filter((key) => pluralSuffix.test(key) && map.has(key.replace(pluralSuffix, '')))
           .map((key) => key.replace(pluralSuffix, '')),
       )
       const missing = [...plurals].flatMap((base) =>
-        categories.filter((category) => !map.has(`${base}_${category}`)).map((category) => `${base}_${category}`),
+        required.filter((category) => !map.has(`${base}_${category}`)).map((category) => `${base}_${category}`),
       )
       const stray = [...map.keys()].filter((key) => {
         const match = key.match(pluralSuffix)
