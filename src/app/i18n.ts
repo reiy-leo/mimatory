@@ -4,6 +4,7 @@ import de from './locales/de'
 import en from './locales/en'
 import es from './locales/es'
 import ja from './locales/ja'
+import pt from './locales/pt'
 import ru from './locales/ru'
 import zh from './locales/zh'
 
@@ -13,7 +14,7 @@ import zh from './locales/zh'
  * an extension `_locales` folder — see AGENTS.md "Adding a language". `pt` is Brazilian Portuguese (pt-PT and
  * bare pt resolve to it); `zh` is Simplified Chinese.
  */
-export const supportedLanguages = ['en', 'zh', 'ja', 'es', 'ru', 'de'] as const
+export const supportedLanguages = ['en', 'zh', 'ja', 'es', 'pt', 'ru', 'de'] as const
 export type SupportedLanguage = (typeof supportedLanguages)[number]
 
 /** What Settings stores: a language the user picked, or `system` (the default) to follow the OS. */
@@ -27,6 +28,7 @@ export const languageNames: Record<SupportedLanguage, string> = {
   en: 'English',
   es: 'Español',
   ja: '日本語',
+  pt: 'Português',
   ru: 'Русский',
   zh: '简体中文',
 }
@@ -130,6 +132,7 @@ const resources = {
   en: { translation: en },
   es: { translation: es },
   ja: { translation: ja },
+  pt: { translation: pt },
   ru: { translation: ru },
   zh: { translation: zh },
 }
