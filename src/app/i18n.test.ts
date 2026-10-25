@@ -142,13 +142,13 @@ describe('i18n', () => {
       JSON.parse(
         readFileSync(join(process.cwd(), 'browser-extension/_locales', locale, 'messages.json'), 'utf8'),
       ) as Record<string, { description?: string; message: string }>
-    const zhExtension = Object.values(extension('zh')).flatMap(({ description, message }) => [
+    const zhExtension = Object.values(extension('zh_CN')).flatMap(({ description, message }) => [
       message,
       description ?? '',
     ])
     expect(zhExtension.filter((value) => /mimatory/i.test(value))).toEqual([])
-    expect(extension('zh').appName.message).toBe('密码库存')
-    expect(extension('zh').extensionName.message).toContain('密码库存')
+    expect(extension('zh_CN').appName.message).toBe('密码库存')
+    expect(extension('zh_CN').extensionName.message).toContain('密码库存')
     expect(extension('en').appName.message).toBe('Mimatory')
     expect(extension('ja').appName.message).toBe('Mimatory')
   })

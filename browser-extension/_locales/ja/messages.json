@@ -74,7 +74,7 @@
 		"message": "ネイティブ接続を利用できない場合のみ必要です：Mimatory の「設定 ▸ ブラウザ拡張」のペアリングコードを貼り付けてください。"
 	},
 	"pairingTokenLabel": {
-		"message": "ペアリングトークン"
+		"message": "ペアリングコード"
 	},
 	"passkeyAddToItem": {
 		"message": "「$TITLE$」に追加",
@@ -95,7 +95,7 @@
 		"message": "パスキー"
 	},
 	"passkeyNewItem": {
-		"message": "新規アイテム"
+		"message": "新しい項目"
 	},
 	"passkeyNote": {
 		"message": "Mimatory がパスキーを作成し、秘密鍵は保管庫に暗号化して保存します。"
@@ -165,7 +165,7 @@
 		}
 	},
 	"saveToken": {
-		"message": "トークンを保存"
+		"message": "ペアリングコードを保存"
 	},
 	"signInWithProvider": {
 		"message": "$PROVIDER$ でサインイン",
@@ -201,9 +201,9 @@
 		"message": "デスクトップアプリを利用できません"
 	},
 	"tokenPlaceholder": {
-		"message": "アプリのペアリングトークンを貼り付け"
+		"message": "アプリのペアリングコードを貼り付け"
 	},
 	"tokenSaved": {
-		"message": "ペアリングトークンを保存しました"
+		"message": "ペアリングコードを保存しました"
 	}
 }

@@ -74,7 +74,7 @@
 		"message": "Only needed when the native connection is unavailable: paste the pairing code from Mimatory Settings ▸ Browser Extension."
 	},
 	"pairingTokenLabel": {
-		"message": "Pairing token"
+		"message": "Pairing code"
 	},
 	"passkeyAddToItem": {
 		"message": "Add to “$TITLE$”",
@@ -165,7 +165,7 @@
 		}
 	},
 	"saveToken": {
-		"message": "Save Token"
+		"message": "Save Code"
 	},
 	"signInWithProvider": {
 		"message": "Sign in with $PROVIDER$",
@@ -201,9 +201,9 @@
 		"message": "Desktop app unavailable"
 	},
 	"tokenPlaceholder": {
-		"message": "Paste token from app"
+		"message": "Paste the pairing code from the app"
 	},
 	"tokenSaved": {
-		"message": "Pairing token saved"
+		"message": "Pairing code saved"
 	}
 }
