@@ -2,6 +2,7 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import de from './locales/de'
 import en from './locales/en'
+import es from './locales/es'
 import ja from './locales/ja'
 import ru from './locales/ru'
 import zh from './locales/zh'
@@ -12,7 +13,7 @@ import zh from './locales/zh'
  * an extension `_locales` folder — see AGENTS.md "Adding a language". `pt` is Brazilian Portuguese (pt-PT and
  * bare pt resolve to it); `zh` is Simplified Chinese.
  */
-export const supportedLanguages = ['en', 'zh', 'ja', 'ru', 'de'] as const
+export const supportedLanguages = ['en', 'zh', 'ja', 'es', 'ru', 'de'] as const
 export type SupportedLanguage = (typeof supportedLanguages)[number]
 
 /** What Settings stores: a language the user picked, or `system` (the default) to follow the OS. */
@@ -24,6 +25,7 @@ export const languageStorageKey = 'mimatory-language'
 export const languageNames: Record<SupportedLanguage, string> = {
   de: 'Deutsch',
   en: 'English',
+  es: 'Español',
   ja: '日本語',
   ru: 'Русский',
   zh: '简体中文',
@@ -126,6 +128,7 @@ export async function applyLanguagePreference(preference: LanguagePreference): P
 const resources = {
   de: { translation: de },
   en: { translation: en },
+  es: { translation: es },
   ja: { translation: ja },
   ru: { translation: ru },
   zh: { translation: zh },
