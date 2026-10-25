@@ -153,6 +153,7 @@ src/                  # React frontend
   app/itemPickers.tsx itemActionsMenu.tsx sidebarMenus.tsx vaultDialogs.tsx styleEditorDialog.tsx mobileTabBar.tsx  # sheets, menus, dialogs, phone tab bar
   app/vaultModel.ts   # form state + conversions, menu/column constants, `categoryItems` (the one item-type table)
   app/settingsTabs.ts # the Settings panes list
+  app/syncApi.ts syncSettingsPane.tsx syncErrors.ts  # sync: command wrappers + requestSync, Settings ▸ Sync, error/i18n + WebDAV URL rules
   styles.css          # Tailwind + all custom CSS + the token values in :root (~2380 lines)
   app/vaultApi.ts     # All Tauri invoke() calls — typed wrappers
   app/navigation.ts   # Sidebar nav rows (4 rows in 2 groups)
@@ -358,7 +359,11 @@ Everything was renamed: crate `mimatory` / `mimatory_lib`, binary `mimatory`, id
   restarts the round before anything local is touched. Sync writes rows with given ids/timestamps through
   `sync/local.rs`, not `VaultService` — **a new synced column or table must be added to `sync/records.rs` +
   `local.rs` read and write**, or it silently stops syncing (and LWW will overwrite it with the remote's value).
-  Errors cross the bridge as `SyncErrorInfo {code, status, message}`. Still no export and no backup file; a
+  Errors cross the bridge as `SyncErrorInfo {code, status, message}`; the UI translates `code` (never shows
+  `message`) and prints an HTTP status with its Chinese gloss in every language. **Every vault write must reach
+  `sync_request`**: in `vaultApi.ts` a synced write is declared with `write()` instead of `invoke()`, which calls
+  `requestSync()` once the command succeeds — a new write command (bulk selection actions included) that uses
+  plain `invoke()` is only picked up by the 15-minute round. Still no export and no backup file; a
   forgotten master password still has no recovery. Full-crate `cargo test` OOMs in the agent sandbox: sync tests
   run in the standalone crate described in `.agent/sync.md`.
 - **File permissions**: any file the app writes goes through `storage::set_private_permissions` (0600,

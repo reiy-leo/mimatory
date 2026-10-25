@@ -297,14 +297,15 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 - Done: macOS menu bar File ▸ Import ▸ 1Password (.1pux)… (shell.rs builds Tauri's default menu + Import; event `menu:import-1pux`), picker → read-only preview sheet (vaults, item/attachment counts) → import. Each 1Password vault goes to the non-archived Mimatory vault of the same name, else a new one. Category → Mimatory type (unknown → Secure Note); template fields stored with template `key`; other fields as custom fields / titled sections; OTP → otp rows (otpauth secret only); attachments + Document files imported; archived stays archived; trash skipped; created/updated times kept.
 - needs-owner-decision: Windows/Linux have no menu bar, so no entry point there yet; re-importing duplicates items (no dedupe); password history, `reference` (linked item) fields and extra login form fields are dropped; otpauth digits/period/algorithm are dropped; 1P field-id → template-key table is from the published 1pux schema, unverified against a real export.
 
-## Sync (2026-10-23) — branch `feat/sync`, not merged
+## Sync (2026-10-23; UI 2026-10-25)
 - Done: Rust core `src-tauri/src/sync/` (records, three-way merge with tombstones, SQLite snapshot/apply, sync key +
   manifest crypto, WebDAV and Drive appDataFolder stores, desktop Google OAuth loopback + PKCE), Tauri commands
   `sync_status / sync_connect_webdav / sync_connect_google / sync_cancel_connect / sync_unlock_remote /
   sync_disconnect / sync_now / sync_request`, `sync:status` event, background trigger (unlock, 3s debounce, 15 min),
-  `src/app/syncApi.ts`. 33 tests in the standalone crate incl. e2e against wsgidav.
-- **Next: the Settings ▸ Sync UI** (after the App.tsx split) — checklist in `.agent/sync.md` "Follow-up UI task";
-  the window must call `syncApi.request()` after every write.
+  `src/app/syncApi.ts`. 39 tests in the standalone crate incl. e2e against wsgidav.
+- Done 2026-10-25: Settings ▸ Sync pane (`syncSettingsPane.tsx`, `.agent/sync.md` "UI"), `write()` in `vaultApi.ts`
+  so every synced write sends `sync_request`, the same on the bridge's `vault:changed`; `build.yml` passes the
+  Google secrets to the package step.
 - **Owner: Google OAuth client** — create a "Desktop app" OAuth client (Google Cloud ▸ APIs & Services ▸ Credentials),
   enable the Drive API, consent screen with scope `drive.appdata`; build with `MIMATORY_GOOGLE_CLIENT_ID`
   (+ `MIMATORY_GOOGLE_CLIENT_SECRET`) in the environment (CI secrets for `build.yml`). Until then Google reports
@@ -313,4 +314,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
   password change re-wrap, all vaults sync, attachment size / orphan blobs, passkeys + TOTP seeds sync, tombstones
   forever, Google on phones). **Decided 2026-10-23 (owner):** two existing vaults are merged (two default
   "Personal" become one), and WebDAV without TLS stays refused (loopback only).
-- Never seen: a real Google Drive round, any of it in a running Tauri window, a real 坚果云/Nextcloud server.
+- Never seen: a real Google Drive round, any of it in a running Tauri window (the pane was only rendered in Vite
+  against a mock bridge — screenshots in `work/screens/sync-ui/`), a real 坚果云/Nextcloud server. On a Mac check:
+  connect 坚果云 with an app password, a second device asking for the remote master password, Sync Now after an edit
+  on the other side, the Google button opening the browser and Cancel ending the wait.

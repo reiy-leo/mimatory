@@ -75,6 +75,10 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Google Drive sync (src-tauri/src/sync/oauth.rs reads these at compile time). Unset secrets leave
+          # them empty, and the build then offers WebDAV only, with Google shown as not configured.
+          MIMATORY_GOOGLE_CLIENT_ID: ${{ secrets.MIMATORY_GOOGLE_CLIENT_ID }}
+          MIMATORY_GOOGLE_CLIENT_SECRET: ${{ secrets.MIMATORY_GOOGLE_CLIENT_SECRET }}
         with:
           tauriScript: npx tauri
           args: ${{ matrix.args }}

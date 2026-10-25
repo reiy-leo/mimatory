@@ -6,7 +6,8 @@ Owner request 2026-10-23: "添加google同步… 同时添加webdav，和navill�
 target and leaves the old target's data in place; merge, never overwrite; ETag / `If-Match`, and on 412 re-pull,
 merge, retry.
 
-Status: Rust core, Tauri commands and tests are done (branch `feat/sync`). **No UI yet** — see "Follow-up UI task".
+Status (2026-10-25): Rust core, Tauri commands, tests and the Settings ▸ Sync UI are done (see "UI" below). Never run
+in a real Tauri window, never against Google, never against a real Nextcloud/坚果云 server.
 
 ## Code
 
@@ -23,7 +24,9 @@ Status: Rust core, Tauri commands and tests are done (branch `feat/sync`). **No 
 | `sync/oauth.rs` | Desktop Google OAuth: system browser, loopback `127.0.0.1:<random>`, PKCE S256, refresh, revoke |
 | `sync/config.rs` | This device's config (provider, credentials, device id, sync key) — encrypted `settings` row |
 | `sync/commands.rs` | Tauri commands, `sync:status` event, background trigger thread |
-| `src/app/syncApi.ts` | Typed TS wrappers (no UI) |
+| `src/app/syncApi.ts` | Typed TS wrappers + `requestSync()` (fire-and-forget `sync_request`) |
+| `src/app/syncSettingsPane.tsx` | Settings ▸ Sync pane (the `sync` tab in `settingsTabs.ts`) |
+| `src/app/syncErrors.ts` | Error code → i18n, HTTP status + Chinese gloss, the WebDAV URL check mirrored from `normalize_url` |
 
 ## Remote layout
 
@@ -189,16 +192,58 @@ Not tested: Google Drive and OAuth against Google (needs Rei's client id), anyth
     not loopback). WebDAV works on every platform.
 11. **Recovery**: sync is also the first recovery path — a remote plus the master password restores a lost vault on
     a new device. Still no recovery without the master password.
+12. ~~**One service or both**~~ — **decided (owner): Google Drive or WebDAV, 二选一**, like Navill; the UI offers
+    one at a time and switching replaces the other.
 
-## Follow-up UI task (after the App.tsx split lands)
+## UI (Settings ▸ Sync, 2026-10-25)
 
-- Settings ▸ Sync pane: provider choice (Google Drive / WebDAV, 二选一), WebDAV form (URL, username, app password,
-  hint that `mimatory/` is created in the root), Google button (hidden or disabled with a note when
-  `google_available` is false), connected state (provider, URL/user, last sync, Sync Now, Disconnect / Switch).
-- `needs_remote_password` → a sheet asking for the remote vault's master password (`syncApi.unlockRemote`).
-- Errors: translate `SyncErrorInfo.code` in zh/en/ja (`i18n.ts`); show `status` with its gloss.
-- Call `syncApi.request()` after every successful write in the window (create/update/trash/purge/archive/restore,
-  favourite, tags, vaults, relations, attachments, icon mode) and on `vault:changed` from the bridge (ignore the
-  ones a round itself emits if that loops — it will not: a round with nothing new pulls 0).
-- Subscribe to `syncApi.onStatus` for a status line / spinner; Google connect needs a Cancel (`cancelConnect`).
-- i18n for every new string, in all three bundles.
+Owner: "设置里的界面也做一下". `src/app/syncSettingsPane.tsx`, a tab between General and Appearance.
+
+- **Disconnected**: a segmented control Google Drive / WebDAV (二选一). Opens on Google when it is usable, else WebDAV.
+  - Google: description, **Sign In with Google**, and while the browser is open a spinner + **Cancel**
+    (`cancelConnect`; the resulting `oauth_cancelled` is not shown as an error). The option stays visible but
+    disabled, with the reason, when the build has no client id (`google_available` false) or on a phone
+    (`platformFeatures.googleSync`, desktop only — decision 10).
+  - WebDAV: server address, user name, app password. The address is checked as it is typed with the same rules as
+    `normalize_url` (`checkWebdavUrl`): https only (loopback http allowed), a bare host gets `https://` (shown as
+    "Will connect to …"), no credentials in the URL. Captions say to use an app password and that `mimatory/` is
+    created in the server root (the folder name comes from `status.remote_folder`, never from a zh string — the
+    i18n test forbids "mimatory" in zh). Connect stays disabled until all three are valid.
+- **Connected**: status line from `sync:status` (spinner while `syncing`, green tick idle, orange when the remote
+  password is missing, red after a failed round), then label/value rows — service, server + account + folder for
+  WebDAV, "hidden app folder" for Drive (the `drive.appdata` scope gives no account email, so none is shown), last
+  synced (relative), last round's received/sent counts — and **Sync Now**, **Switch Service…**, **Disconnect**.
+  Switch and Disconnect each go through a confirmation sheet; switching then shows the chooser with the other
+  service preselected and a Cancel back to the connected view.
+- **`needs_remote_password`** opens a sheet once per transition (and a button reopens it): the remote vault's master
+  password → `unlockRemote`; `remote_password_wrong` is shown inside the sheet.
+- **Errors** are translated from `SyncErrorInfo.code` (`sync.errors.*`, zh/en/ja). `http` shows
+  `httpStatusLabel(status)` — the status with its **Chinese gloss in every language** (owner rule 2026-10-13,
+  "401 未授权") — plus a per-status hint (`sync.httpHints.<status>` for 301/302/307/308/401/403/404/405/409/412/423/507,
+  else the generic one). The Rust `message` is never shown.
+- **Locked**: the pane says to unlock in the main window; it re-reads `sync_status` on window focus because lock and
+  unlock emit no sync event.
+- **Write triggers**: every synced write in `vaultApi.ts` goes through `write()`, which calls `requestSync()` after
+  the command succeeds (items create/update/duplicate/move/trash/restore/purge/archive, favourite, icon mode,
+  parent/related/sign-in links, attachments, tags, vaults, the 1Password import). Reads, `record_item_use`, and the
+  website-icon cache do not ask. **A new write command must use `write()`** (the bulk selection commands too).
+  `useVaultWindow` also calls it on `vault:changed` (the browser bridge saved something; a round that pulled emits
+  it too, and the round it triggers then pulls nothing, so it does not loop).
+- Tests: `syncErrors.test.ts` (URL rules, every code/hint translated, gloss), `syncSettingsPane.test.tsx` (jsdom +
+  mockIPC: Google disabled with reason, https rule, connect args, connected rows, 401 with gloss, disconnect
+  confirmation, remote-password sheet, phone note), `App.itemMenu.test.tsx` (a favourite sends `sync_request`, a
+  read does not). Screenshots: `work/pwt/shoot-sync.mjs` + `sync-mock-init.js` (outside the repo).
+
+## Setting it up (owner)
+
+- **Google**: Google Cloud ▸ APIs & Services: enable the Google Drive API; OAuth consent screen with the scope
+  `https://www.googleapis.com/auth/drive.appdata` (add yourself as a test user while the app is in Testing);
+  Credentials ▸ Create OAuth client ID ▸ **Desktop app**. Build with `MIMATORY_GOOGLE_CLIENT_ID` (and
+  `MIMATORY_GOOGLE_CLIENT_SECRET`) in the environment — locally `export` them before `npm run tauri dev/build`
+  (they are compile-time, so a crate rebuild picks them up); in CI add them as repository secrets, which
+  `build.yml` already passes to the package step.
+- **WebDAV, e.g. 坚果云**: 账户信息 ▸ 安全选项 ▸ 第三方应用管理 ▸ 添加应用 → an app password; server
+  `https://dav.jianguoyun.com/dav/`, user = the account email. **Nextcloud**: Settings ▸ Security ▸ Devices &
+  sessions ▸ Create new app password; server `https://<host>/remote.php/dav/files/<user>/`. Connect on one device,
+  check that `mimatory/manifest.json` and `vault.enc` appear, then connect a second device (it asks for the first
+  device's master password if the two differ) and edit on each side.
