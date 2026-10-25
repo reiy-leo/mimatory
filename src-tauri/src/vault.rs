@@ -188,6 +188,11 @@ pub struct LoginItemSummary {
     /// are refused while it is true.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub has_relations: bool,
+    /// Some part of the row (title, username, address, "Sign in with" field) did not decrypt or
+    /// parse (bug 2026-10-25: one such item emptied the whole list). The row still lists, with
+    /// whatever did read; the window labels an untitled one "无法读取的条目".
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub unreadable: bool,
 }
 
 impl LoginItemSummary {
@@ -209,6 +214,7 @@ impl LoginItemSummary {
             sign_in_with: sign_in_field_value(&item.custom_fields),
             parent_id: None,
             has_relations: false,
+            unreadable: false,
         }
     }
 }
@@ -243,6 +249,73 @@ fn sign_in_field_value(fields: &[CustomField]) -> Option<String> {
         .iter()
         .find(|field| field.field_type == SIGN_IN_WITH_FIELD)
         .map(|field| field.value.clone())
+}
+
+/// What went wrong reading one part of an item, for the terminal log: the error's kind only, never
+/// its text — a JSON error's message can quote the decrypted value it choked on.
+fn read_error_kind(error: &VaultError) -> String {
+    match error {
+        VaultError::Crypto(CryptoError::Decryption) => "decryption failed".to_string(),
+        VaultError::Crypto(CryptoError::Serialization(error)) | VaultError::Serialization(error) => {
+            format!("json {:?} at {}:{}", error.classify(), error.line(), error.column())
+        }
+        VaultError::Crypto(other) => format!("crypto: {other}"),
+        VaultError::Database(error) => format!("database: {error}"),
+        other => other.to_string(),
+    }
+}
+
+/// One line on stderr (the `npm run tauri dev` terminal) naming the item and the part that failed.
+pub(crate) fn log_unreadable(item_id: &str, part: &str, error: &VaultError) {
+    eprintln!("[mimatory] unreadable item {item_id}: {part}: {}", read_error_kind(error));
+}
+
+/// Decrypts one part of an item, or logs it and returns `None`: one bad blob must not fail a list.
+fn decrypt_lenient(key: &VaultKey, blob: &[u8], item_id: &str, part: &str) -> Option<String> {
+    match decrypt_string_from_blob(key, blob) {
+        Ok(value) => Some(value),
+        Err(error) => {
+            log_unreadable(item_id, part, &VaultError::from(error));
+            None
+        }
+    }
+}
+
+/// The custom-field JSON read leniently: any array of objects, each field's missing or non-string
+/// keys defaulted, so an older or odd shape still opens instead of failing the item. `Err` only for
+/// text that is not a JSON array at all.
+fn parse_custom_fields_lenient(json: &str) -> Result<Vec<CustomField>, serde_json::Error> {
+    let value: serde_json::Value = serde_json::from_str(json)?;
+    let text = |field: &serde_json::Value, key: &str| match field.get(key) {
+        Some(serde_json::Value::String(text)) => text.clone(),
+        Some(serde_json::Value::Null) | None => String::new(),
+        Some(other) => other.to_string(),
+    };
+    Ok(match value {
+        serde_json::Value::Array(fields) => fields
+            .iter()
+            .filter(|field| field.is_object())
+            .map(|field| CustomField {
+                label: text(field, "label"),
+                value: text(field, "value"),
+                field_type: {
+                    let kind = text(field, "field_type");
+                    if kind.is_empty() { "text".to_string() } else { kind }
+                },
+            })
+            .collect(),
+        serde_json::Value::Null => Vec::new(),
+        _ => {
+            return Err(<serde_json::Error as serde::de::Error>::custom(
+                "custom fields are not a JSON array",
+            ))
+        }
+    })
+}
+
+/// The "Sign in with" value out of the custom-field JSON, without failing on any shape.
+fn sign_in_from_custom_json(json: &str) -> Result<Option<String>, serde_json::Error> {
+    Ok(sign_in_field_value(&parse_custom_fields_lenient(json)?))
 }
 
 fn default_icon_mode() -> String {
@@ -1957,10 +2030,15 @@ impl VaultService {
 
     /// One item, fully decrypted with its links resolved: what the detail pane opens.
     pub fn login_item_detail(&self, session: &Session, item_id: &str) -> Result<LoginItem, VaultError> {
+        // A failure is logged with the item id and reaches the detail pane as an error, never the list.
         let mut item = self
-            .get_login_item(session, item_id)?
+            .get_login_item(session, item_id)
+            .inspect_err(|error| log_unreadable(item_id, "detail", error))?
             .ok_or(VaultError::ItemNotFound)?;
-        item.relations = self.item_relations(session, item_id)?;
+        item.relations = self.item_relations(session, item_id).unwrap_or_else(|error| {
+            log_unreadable(item_id, "links", &error);
+            ItemRelations::default()
+        });
         Ok(item)
     }
 
@@ -2046,7 +2124,12 @@ impl VaultService {
                 let name = match names.get(&tag_id) {
                     Some(name) => name.clone(),
                     None => {
-                        let name = decrypt_string_from_blob(&session.key, &row.get::<_, Vec<u8>>(2)?)?;
+                        // A tag that does not decrypt is left off the row, never the row off the list.
+                        let blob = row.get::<_, Vec<u8>>(2)?;
+                        let Some(name) = decrypt_lenient(&session.key, &blob, &item_id, "tag name")
+                        else {
+                            continue;
+                        };
                         names.insert(tag_id, name.clone());
                         name
                     }
@@ -2059,30 +2142,40 @@ impl VaultService {
         for ((id, item_type, title_ciphertext), (favorite, updated_at, icon_mode), (created_at, use_count, last_used_at)) in
             rows
         {
+            // Every part is read leniently (bug 2026-10-25): an item that fails to decrypt or parse still
+            // lists, flagged `unreadable`, and the failure goes to the terminal with the item id.
+            let mut unreadable = false;
+            let mut read = |blob: &[u8], part: &str| {
+                let value = decrypt_lenient(&session.key, blob, &id, part);
+                unreadable |= value.is_none();
+                value
+            };
+            let title = read(&title_ciphertext, "title").unwrap_or_default();
             let (username_blob, custom_blob) = fields.remove(&id).unwrap_or_default();
             let username = username_blob
-                .map(|blob| decrypt_string_from_blob(&session.key, &blob))
-                .transpose()?
+                .and_then(|blob| read(&blob, "username"))
                 .unwrap_or_default();
-            let sign_in_with = match custom_blob {
-                Some(blob) => {
-                    let json = decrypt_string_from_blob(&session.key, &blob)?;
-                    // Most items have no "Sign in with" field; skip the parse for them.
-                    if json.contains(SIGN_IN_WITH_FIELD) {
-                        sign_in_field_value(&serde_json::from_str::<Vec<CustomField>>(&json)?)
-                    } else {
-                        None
-                    }
-                }
-                None => None,
-            };
+            let custom_json = custom_blob.and_then(|blob| read(&blob, "custom fields"));
             let website = first_urls
                 .remove(&id)
-                .map(|blob| decrypt_string_from_blob(&session.key, &blob))
-                .transpose()?
+                .and_then(|blob| read(&blob, "website"))
                 .unwrap_or_default();
+            let sign_in_with = match custom_json {
+                // Most items have no "Sign in with" field; skip the parse for them.
+                Some(json) if json.contains(SIGN_IN_WITH_FIELD) => {
+                    match sign_in_from_custom_json(&json) {
+                        Ok(value) => value,
+                        Err(error) => {
+                            log_unreadable(&id, "custom fields", &VaultError::from(error));
+                            unreadable = true;
+                            None
+                        }
+                    }
+                }
+                _ => None,
+            };
             summaries.push(LoginItemSummary {
-                title: decrypt_string_from_blob(&session.key, &title_ciphertext)?,
+                title,
                 tags: tags.remove(&id).unwrap_or_default(),
                 id,
                 vault_id: session.vault_id.clone(),
@@ -2098,6 +2191,7 @@ impl VaultService {
                 sign_in_with,
                 parent_id: None,
                 has_relations: false,
+                unreadable,
             });
         }
         self.attach_summary_relations(session, &mut summaries)?;
@@ -2172,13 +2266,21 @@ impl VaultService {
     ) -> Result<Vec<LoginItem>, VaultError> {
         let mut matches = Vec::new();
         for id in self.live_item_ids(session)? {
-            let urls = self.login_urls(session, &id)?;
+            let urls = match self.login_urls(session, &id) {
+                Ok(urls) => urls,
+                Err(error) => {
+                    log_unreadable(&id, "addresses", &error);
+                    continue;
+                }
+            };
             let website = urls.first().map(|url| url.url.clone()).unwrap_or_default();
             if !normalized_urls(&website, &urls).iter().any(&covers) {
                 continue;
             }
-            if let Some(item) = self.get_login_item(session, &id)? {
-                matches.push(item);
+            match self.get_login_item(session, &id) {
+                Ok(Some(item)) => matches.push(item),
+                Ok(None) => {}
+                Err(error) => log_unreadable(&id, "item", &error),
             }
         }
         Ok(matches)
@@ -2198,7 +2300,16 @@ impl VaultService {
             .filter(|value| !value.is_empty());
         let mut items = Vec::new();
         for id in ids {
-            if let Some(item) = self.get_login_item(session, &id)? {
+            // An item that does not read is logged and left out of the search, Watchtower and the
+            // bridge rather than failing them all (bug 2026-10-25); the summary list still shows it.
+            let item = match self.get_login_item(session, &id) {
+                Ok(item) => item,
+                Err(error) => {
+                    log_unreadable(&id, "item", &error);
+                    continue;
+                }
+            };
+            if let Some(item) = item {
                 if matches_query(&item, query.as_deref()) {
                     items.push(item);
                 }
@@ -2765,10 +2876,16 @@ impl VaultService {
             })?
             .collect::<Result<Vec<_>, _>>()?;
         let mut index = HashMap::new();
+        // A link record that does not read counts as no links (logged), so one bad record cannot fail
+        // every list that resolves links (bug 2026-10-25).
         for (id, blob) in rows {
-            let record: RelationRecord =
-                serde_json::from_str(&decrypt_string_from_blob(&session.key, &blob)?)?;
-            index.insert(id, record);
+            let Some(json) = decrypt_lenient(&session.key, &blob, &id, "links") else { continue };
+            match serde_json::from_str::<RelationRecord>(&json) {
+                Ok(record) => {
+                    index.insert(id, record);
+                }
+                Err(error) => log_unreadable(&id, "links", &VaultError::from(error)),
+            }
         }
         Ok(index)
     }
@@ -3114,9 +3231,10 @@ impl VaultService {
             .first()
             .map(|item_url| item_url.url.clone())
             .unwrap_or_default();
+        // Lenient (bug 2026-10-25): an older or odd field shape still opens the item.
         let custom_fields = fields
             .get("custom_fields")
-            .map(|value| serde_json::from_str(value))
+            .map(|value| parse_custom_fields_lenient(value))
             .transpose()?
             .unwrap_or_default();
 
@@ -3206,10 +3324,11 @@ impl VaultService {
             .query_map([item_id], |row| row.get::<_, Vec<u8>>(0))?
             .collect::<Result<Vec<_>, _>>()?;
 
-        blobs
+        // A tag name that does not decrypt is left off (logged) rather than failing the item.
+        Ok(blobs
             .iter()
-            .map(|blob| Ok(decrypt_string_from_blob(&session.key, blob)?))
-            .collect()
+            .filter_map(|blob| decrypt_lenient(&session.key, blob, item_id, "tag name"))
+            .collect())
     }
 
     fn replace_login_fields(
