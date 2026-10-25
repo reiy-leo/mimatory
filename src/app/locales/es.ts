@@ -396,7 +396,7 @@ const es: LocaleBundle = {
     api_credential: 'Credencial de API',
     bank_account: 'Cuenta bancaria',
     credit_card: 'Tarjeta de crédito',
-    crypto_wallet: 'Monedero de criptomonedas',
+    crypto_wallet: 'Monedero cripto',
     database: 'Base de datos',
     driver_license: 'Permiso de conducir',
     email: 'Correo electrónico',

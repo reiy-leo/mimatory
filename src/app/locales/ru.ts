@@ -401,7 +401,7 @@ const ru: LocaleBundle = {
     credit_card: 'Банковская карта',
     crypto_wallet: 'Криптокошелёк',
     database: 'База данных',
-    driver_license: 'Водительское удостоверение',
+    driver_license: 'Водительские права',
     email: 'Эл. почта',
     identity: 'Личность',
     login: 'Вход',

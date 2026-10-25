@@ -406,7 +406,7 @@ const id: LocaleBundle = {
     router: 'Router',
     secure_note: 'Catatan Aman',
     server: 'Server',
-    software_license: 'Lisensi Perangkat Lunak',
+    software_license: 'Lisensi Software',
     ssh_key: 'Kunci SSH',
     wifi: 'Wi-Fi',
   },
