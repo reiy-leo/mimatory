@@ -63,6 +63,7 @@ import {
 import { useSignInLabel } from './signInControls'
 import { summarySignInProvider, withSignInField } from './signInProviders'
 import { loadSiteIcons, siteIconDomain, uniqueIconDomains, useSiteIconsEnabled } from './siteIcons'
+import { requestSync } from './syncApi'
 import { buildOtpAuthUri, normalizeTotpSecret, otpSecretFieldIndexes } from './totpDisplay'
 import { useColumnWidths } from './useColumnWidths'
 import { useItemActions } from './useItemActions'
@@ -1760,6 +1761,9 @@ export function useVaultWindow() {
     let unsubscribed = false
     listen('vault:changed', () => {
       refreshItemsRef.current().catch(() => {})
+      // The browser bridge saved something: push it out like a write made here. A sync round that pulled
+      // changes emits this too; the round it asks for then finds nothing new, so this cannot loop.
+      requestSync()
     }).then((nextUnlisten) => {
       if (unsubscribed) nextUnlisten()
       else unlisten = nextUnlisten

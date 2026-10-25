@@ -30,6 +30,8 @@ const items = [item('a', 'Alpha'), item('b', 'Bravo'), item('c', 'Charlie')]
 const workItem = { ...item('d', 'Delta'), tags: ['shared'], vault_id: 'work' }
 
 const switchedTo: string[] = []
+// Every sync_request the window sent: a successful write asks for a sync round (vaultApi `write`).
+const syncRequests: string[] = []
 // Every get_login_item the window made: the list carries summaries, so a full item is read only when opened.
 const detailReads: Array<{ itemId: string; vaultId: string | null }> = []
 
@@ -104,6 +106,21 @@ function stubBridge() {
           return []
         case 'password_strength':
           return { bits: 60, level: 'strong' }
+        case 'sync_request':
+          syncRequests.push('request')
+          return null
+        case 'sync_status':
+          return {
+            google_available: false,
+            last_error: null,
+            last_report: null,
+            last_sync_at: null,
+            provider: null,
+            remote_folder: 'mimatory/',
+            state: 'disconnected',
+            webdav_url: null,
+            webdav_username: null,
+          }
         default:
           return null
       }
@@ -293,6 +310,19 @@ describe('vault window', () => {
     })
     await waitFor(() => expect(screen.getByRole('button', { name: 'Favorite' })).toHaveClass('active'))
     items[0].favorite = false
+  })
+
+  it('asks for a sync round after a write, and not after a read', async () => {
+    await renderUnlocked()
+    syncRequests.length = 0
+    fireEvent.click(screen.getByRole('button', { name: /Bravo/ }))
+    const star = await screen.findByRole('button', { name: 'Favorite' })
+    expect(syncRequests).toEqual([])
+    await act(async () => {
+      fireEvent.click(star)
+    })
+    await waitFor(() => expect(syncRequests).toEqual(['request']))
+    items[1].favorite = false
   })
 
   it('finds settings from the toolbar search as well as items', async () => {

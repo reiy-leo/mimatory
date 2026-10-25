@@ -4,6 +4,7 @@ export const settingsTabLabels: Record<SettingsTab, string> = {
   general: 'settings.tabs.general',
   security: 'settings.tabs.security',
   shortcuts: 'settings.tabs.shortcuts',
+  sync: 'settings.tabs.sync',
   watchtower: 'settings.tabs.watchtower',
 }
 
@@ -20,6 +21,7 @@ export const settingsSearchEntries: Array<{
   { key: 'settings.siteIcons', tab: 'general' },
   { key: 'settings.autostart', requires: 'autostart', tab: 'general' },
   { key: 'settings.vaultStatus', tab: 'general' },
+  { key: 'sync.title', tab: 'sync' },
   { key: 'settings.toastPosition', tab: 'appearance' },
   { key: 'integrations.browserExtension', requires: 'browserExtension', tab: 'browser' },
   { key: 'integrations.watchtower', tab: 'watchtower' },
@@ -36,6 +38,14 @@ export function isSettingsTab(value: unknown): value is SettingsTab {
   return typeof value === 'string' && (settingsTabs as string[]).includes(value)
 }
 
-export type SettingsTab = 'general' | 'appearance' | 'browser' | 'watchtower' | 'security' | 'shortcuts'
+export type SettingsTab = 'general' | 'sync' | 'appearance' | 'browser' | 'watchtower' | 'security' | 'shortcuts'
 
-export const settingsTabs: SettingsTab[] = ['general', 'appearance', 'browser', 'watchtower', 'security', 'shortcuts']
+export const settingsTabs: SettingsTab[] = [
+  'general',
+  'sync',
+  'appearance',
+  'browser',
+  'watchtower',
+  'security',
+  'shortcuts',
+]

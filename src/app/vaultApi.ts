@@ -1,4 +1,5 @@
-import { invoke } from '@tauri-apps/api/core'
+import { type InvokeArgs, invoke } from '@tauri-apps/api/core'
+import { requestSync } from './syncApi'
 
 export type AppStatus = {
   name: string
@@ -258,27 +259,40 @@ export function tagsToInput(tags: string[]): string {
   return tags.join(', ')
 }
 
+/*
+ * A write that changes synced data (items, vaults, tags, relations, attachments, icon mode — everything in
+ * sync/records.rs) asks for a sync round once it succeeds. `sync_request` is debounced in Rust (a round starts 3s
+ * after the last call) and does nothing while sync is off, so calling it after every write costs nothing. Reads,
+ * use counts and the website-icon cache do not sync and do not ask. A new write command belongs here too.
+ */
+function write<T>(command: string, args?: InvokeArgs): Promise<T> {
+  return invoke<T>(command, args).then((result) => {
+    requestSync()
+    return result
+  })
+}
+
 export const vaultApi = {
   // All (owner 2026-10-18): every open vault's live items, and the tags across them, not tied to the open vault.
   allItems: () => invoke<LoginItemSummary[]>('list_all_login_items'),
   allTags: () => invoke<Tag[]>('list_all_tags'),
-  archive: (id: string) => invoke<void>('archive_login_item', { id }),
+  archive: (id: string) => write<void>('archive_login_item', { id }),
   archived: () => invoke<LoginItemSummary[]>('list_archived_login_items'),
-  attachFileToItem: (id: string, path: string) => invoke<CustomField>('attach_file_to_item', { id, path }),
+  attachFileToItem: (id: string, path: string) => write<CustomField>('attach_file_to_item', { id, path }),
   // Website icons the vault already holds, for these sites. Never touches the network.
   cachedSiteIcons: (domains: string[]) => invoke<Record<string, CachedSiteIcon>>('cached_site_icons', { domains }),
   canUseBiometrics: () => invoke<boolean>('can_use_biometrics'),
   checkBreaches: () => invoke<BreachCheckResult>('check_breached_passwords'),
   clearSiteIcons: () => invoke<void>('clear_site_icons'),
-  create: (input: LoginItemInput) => invoke<LoginItem>('create_login_item', { input }),
-  createVault: (name: string) => invoke<VaultSummary>('create_vault', { name }),
-  deleteTag: (name: string) => invoke<void>('delete_tag', { name }),
+  create: (input: LoginItemInput) => write<LoginItem>('create_login_item', { input }),
+  createVault: (name: string) => write<VaultSummary>('create_vault', { name }),
+  deleteTag: (name: string) => write<void>('delete_tag', { name }),
   describeWebsite: (url: string) => invoke<WebsiteScope | null>('describe_website', { url }),
   // An empty vault needs nowhere to send its items, so `intoId` is null for that one case only.
-  dissolveVault: (id: string, intoId: string | null) => invoke<void>('dissolve_vault', { id, intoId }),
-  duplicate: (id: string, title: string) => invoke<LoginItem>('duplicate_login_item', { id, title }),
+  dissolveVault: (id: string, intoId: string | null) => write<void>('dissolve_vault', { id, intoId }),
+  duplicate: (id: string, title: string) => write<LoginItem>('duplicate_login_item', { id, title }),
   exportAttachmentToTemp: (id: string) => invoke<string>('export_attachment_to_temp', { id }),
-  favorite: (id: string, favorite: boolean) => invoke<void>('set_login_favorite', { favorite, id }),
+  favorite: (id: string, favorite: boolean) => write<void>('set_login_favorite', { favorite, id }),
   // Asks Google's favicon service, then the site (Rust, favicon.rs), and caches the answer; `force` ignores a recent one.
   fetchSiteIcon: (domain: string, force: boolean) => invoke<string | null>('fetch_site_icon', { domain, force }),
   focusVault: (id: string) => invoke<null>('focus_vault', { id }),
@@ -289,47 +303,47 @@ export const vaultApi = {
   getItem: (itemId: string, vaultId?: string) =>
     invoke<LoginItem>('get_login_item', { itemId, vaultId: vaultId || null }),
   hideQuickAccess: () => invoke<void>('hide_quick_access'),
-  import1pux: (path: string) => invoke<OnePuxSummary>('import_1pux_file', { path }),
+  import1pux: (path: string) => write<OnePuxSummary>('import_1pux_file', { path }),
   initialize: () => invoke<AppStatus>('initialize_database'),
   isAutostartEnabled: () => invoke<boolean>('is_autostart_enabled'),
   // Peer links are stored on both items, so either end unlinks both.
-  linkRelated: (id: string, otherId: string) => invoke<void>('link_related_items', { id, otherId }),
+  linkRelated: (id: string, otherId: string) => write<void>('link_related_items', { id, otherId }),
   // Summaries only. A query is searched in Rust over the decrypted items (every field value), not here.
   list: (query?: string) => invoke<LoginItemSummary[]>('list_login_items', { query: query || null }),
   listVaults: () => invoke<VaultSummary[]>('list_vaults'),
   lock: () => invoke<void>('lock_vault'),
   // The item leaves the vault the session is reading; this does not switch the app to the target.
-  move: (id: string, vaultId: string) => invoke<void>('move_login_item', { id, vaultId }),
+  move: (id: string, vaultId: string) => write<void>('move_login_item', { id, vaultId }),
   passwordStrength: (password: string) => invoke<PasswordStrength>('password_strength', { password }),
   pickAttachmentFile: () => invoke<string | null>('pick_attachment_file'),
   // File ▸ Import ▸ 1Password: the picker and a read-only look at the file (null when cancelled), then the import.
   preview1pux: () => invoke<OnePuxPreview | null>('preview_1pux_import'),
-  purge: (id: string) => invoke<void>('purge_login_item', { id }),
+  purge: (id: string) => write<void>('purge_login_item', { id }),
   // Decrypted in memory only, unlike exportAttachmentToTemp, which writes a file.
   readAttachmentText: (id: string) => invoke<AttachmentText>('read_attachment_text', { id }),
   // One use (a field copied, Open & Fill), for the Frequently / Recently Used sorts.
   recordUse: (id: string) => invoke<void>('record_item_use', { id }),
-  restore: (id: string) => invoke<void>('restore_login_item', { id }),
-  restoreFromTrash: (id: string) => invoke<void>('restore_trashed_login_item', { id }),
+  restore: (id: string) => write<void>('restore_login_item', { id }),
+  restoreFromTrash: (id: string) => write<void>('restore_trashed_login_item', { id }),
   setAutostart: (enabled: boolean) => invoke<void>('set_autostart', { enabled }),
   // `parentId: null` clears the parent. Rust refuses itself, a cycle, and an item in the trash.
-  setIconMode: (id: string, mode: ItemIconMode) => invoke<void>('set_item_icon_mode', { id, mode }),
-  setParent: (id: string, parentId: string | null) => invoke<void>('set_item_parent', { id, parentId }),
+  setIconMode: (id: string, mode: ItemIconMode) => write<void>('set_item_icon_mode', { id, mode }),
+  setParent: (id: string, parentId: string | null) => write<void>('set_item_parent', { id, parentId }),
   // `accountId: null` clears it. Rust refuses itself and an item outside this vault or in the trash.
-  setSignIn: (id: string, accountId: string | null) => invoke<void>('set_item_sign_in', { accountId, id }),
+  setSignIn: (id: string, accountId: string | null) => write<void>('set_item_sign_in', { accountId, id }),
   setup: (password: string) => invoke<LoginItemSummary[]>('setup_master_password', { password }),
   // Archiving a vault archives what is in it too, so the items land in the view that already exists.
-  setVaultArchived: (archived: boolean, id: string) => invoke<void>('set_vault_archived', { archived, id }),
+  setVaultArchived: (archived: boolean, id: string) => write<void>('set_vault_archived', { archived, id }),
   switchVault: (id: string) => invoke<LoginItemSummary[]>('switch_vault', { id }),
   tags: () => invoke<Tag[]>('list_tags'),
-  trash: (id: string) => invoke<void>('trash_login_item', { id }),
+  trash: (id: string) => write<void>('trash_login_item', { id }),
   trashed: () => invoke<LoginItemSummary[]>('list_trashed_login_items'),
-  unlinkRelated: (id: string, otherId: string) => invoke<void>('unlink_related_items', { id, otherId }),
+  unlinkRelated: (id: string, otherId: string) => write<void>('unlink_related_items', { id, otherId }),
   unlock: (password: string) => invoke<LoginItemSummary[]>('unlock_vault', { password }),
   unlockWithBiometrics: () => invoke<LoginItemSummary[]>('unlock_with_biometrics'),
-  update: (id: string, input: LoginItemInput) => invoke<LoginItem>('update_login_item', { input: { id, ...input } }),
-  updateTag: (patch: Tag & { from: string }) => invoke<void>('update_tag', patch),
+  update: (id: string, input: LoginItemInput) => write<LoginItem>('update_login_item', { input: { id, ...input } }),
+  updateTag: (patch: Tag & { from: string }) => write<void>('update_tag', patch),
   // One patch object rather than four positionals, for the same reason the tag editor takes one.
-  updateVault: (patch: Pick<VaultSummary, 'color' | 'icon' | 'id' | 'name'>) => invoke<void>('update_vault', patch),
+  updateVault: (patch: Pick<VaultSummary, 'color' | 'icon' | 'id' | 'name'>) => write<void>('update_vault', patch),
   watchtower: () => invoke<WatchtowerReport>('watchtower_report'),
 }

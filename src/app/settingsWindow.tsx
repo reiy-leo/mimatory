@@ -20,6 +20,7 @@ import {
 } from './securityPreferences'
 import { isSettingsTab, type SettingsTab, settingsTabEvent, settingsTabLabels, settingsTabs } from './settingsTabs'
 import { forgetSiteIcons, readSiteIconsEnabled, writeSiteIconsEnabled } from './siteIcons'
+import { SyncSettingsPane } from './syncSettingsPane'
 import { followSystemAppearance } from './theme'
 import { Toast, toastPositions, useToastPosition, writeToastPosition } from './toast'
 import { type AppStatus, type BreachCheckResult, vaultApi, type WatchtowerReport } from './vaultApi'
@@ -325,6 +326,8 @@ export function SettingsWindow({ embedded = false }: { embedded?: boolean }) {
             </div>
           </div>
         ) : null}
+
+        {activeTab === 'sync' ? <SyncSettingsPane googleSync={features.googleSync} /> : null}
 
         {activeTab === 'appearance' ? (
           <div className="settings-section">

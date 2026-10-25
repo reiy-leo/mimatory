@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
-// Typed wrappers for the Rust sync commands (src-tauri/src/sync/commands.rs). Design and remote
+// Typed wrappers for the Rust sync commands (src-tauri/src/sync/commands.rs); the UI is syncSettingsPane.tsx. Design and remote
 // layout: .agent/sync.md. Every command rejects with a SyncErrorInfo object, never a string, so the
 // UI can translate `code` (and show `status` with its gloss) instead of parsing Rust prose.
 
@@ -75,4 +75,12 @@ export const syncApi = {
   status: () => invoke<SyncStatus>('sync_status'),
   /** The remote was created by a vault with another master password / salt. */
   unlockRemote: (masterPassword: string) => invoke<SyncStatus>('sync_unlock_remote', { masterPassword }),
+}
+
+/**
+ * Fire-and-forget `sync_request` after a local write. Never throws: a window without the command (an older
+ * backend, the browser preview) or a locked vault must not turn a saved edit into an error.
+ */
+export function requestSync(): void {
+  syncApi.request().catch(() => {})
 }

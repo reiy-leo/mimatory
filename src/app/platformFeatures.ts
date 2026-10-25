@@ -14,6 +14,8 @@ export interface PlatformFeatures {
   biometrics: 'touch-id' | 'biometrics' | null
   /** The browser extension's loopback bridge on 127.0.0.1:17891: desktop only. */
   browserExtension: boolean
+  /** Google Drive sync signs in through the system browser and a loopback redirect: desktop only for now. */
+  googleSync: boolean
   /** The ⌘/Ctrl shortcuts are meaningful (a hardware keyboard is the norm). */
   keyboardShortcuts: boolean
   /** Quick Access: a tray + overlay window, desktop only. How it is summoned differs (see quickAccessKeys). */
@@ -29,6 +31,7 @@ const desktop: PlatformFeatures = {
   autostart: true,
   biometrics: null,
   browserExtension: true,
+  googleSync: true,
   keyboardShortcuts: true,
   quickAccess: true,
   settingsWindow: true,
@@ -40,6 +43,7 @@ const phone: PlatformFeatures = {
   autostart: false,
   biometrics: 'biometrics',
   browserExtension: false,
+  googleSync: false,
   keyboardShortcuts: false,
   quickAccess: false,
   settingsWindow: false,

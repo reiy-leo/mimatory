@@ -23,6 +23,7 @@ const windowSources = [
   'src/app/styleEditorDialog.tsx',
   'src/app/otpFieldView.tsx',
   'src/app/settingsWindow.tsx',
+  'src/app/syncSettingsPane.tsx',
   'src/app/quickAccessWindow.tsx',
 ]
 const app = [

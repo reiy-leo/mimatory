@@ -2317,6 +2317,71 @@
     @apply text-callout;
   }
 
+  /* Settings ▸ Sync (syncSettingsPane.tsx): the connection as label/value rows divided by separators, a status
+     line whose glyph carries the state hue, and captions under the WebDAV fields. `p.` matches the specificity of
+     `.integration-card p`, which would otherwise reset them to body text. */
+  .sync-provider-choice {
+    @apply m-0 min-w-0 border-0 p-0;
+  }
+
+  .sync-form {
+    @apply grid gap-150;
+  }
+
+  p.sync-field-message,
+  p.sync-note {
+    color: var(--color-text-subtle);
+    @apply text-callout;
+  }
+
+  p.sync-field-message.is-error {
+    color: var(--color-text-danger);
+  }
+
+  p.sync-status {
+    color: var(--color-text-subtle);
+    @apply flex items-center gap-075 text-callout;
+  }
+
+  .sync-status svg {
+    @apply shrink-0;
+  }
+
+  .sync-status.is-ok svg {
+    color: var(--color-icon-success);
+  }
+
+  .sync-status.is-warning svg {
+    color: var(--color-icon-warning);
+  }
+
+  .sync-status.is-error svg {
+    color: var(--color-icon-danger);
+  }
+
+  .sync-details {
+    @apply m-0 grid;
+  }
+
+  .sync-details div {
+    border-color: var(--color-border);
+    @apply flex min-h-400 items-center justify-between gap-200 border-t py-050;
+  }
+
+  .sync-details div:first-child {
+    @apply border-t-0;
+  }
+
+  .sync-details dt {
+    color: var(--color-text);
+    @apply shrink-0 text-body;
+  }
+
+  .sync-details dd {
+    color: var(--color-text-subtle);
+    @apply m-0 min-w-0 truncate text-body;
+  }
+
   code,
   .shortcut-row kbd {
     color: var(--color-text);
