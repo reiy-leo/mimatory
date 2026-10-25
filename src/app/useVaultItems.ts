@@ -103,3 +103,31 @@ export function openingVaultId(vaults: VaultSummary[], current: string): string 
 export function isLastOpenVaultIn(vaults: VaultSummary[], vault: VaultSummary): boolean {
   return !vault.archived && !vaults.some((other) => other.id !== vault.id && !other.archived)
 }
+
+/**
+ * The vault rows with each open vault's count taken from `allItems` — the live rows its list shows — instead of
+ * `list_vaults`' snapshot, which went stale after a write that did not re-read the vaults (bug 2026-10-25, Rei:
+ * bulk Move to Trash / Empty Trash left "Personal 838" over an empty list until a restart). An archived vault's
+ * items are not in `allItems`, so its row keeps the Rust count; before All loads every row does.
+ */
+export function withLiveCounts(vaults: VaultSummary[], allItems: LoginItemSummary[] | null): VaultSummary[] {
+  if (!allItems) return vaults
+  const counts = new Map<string, number>()
+  for (const item of allItems) {
+    if (item.vault_id) counts.set(item.vault_id, (counts.get(item.vault_id) ?? 0) + 1)
+  }
+  let changed = false
+  const next = vaults.map((vault) => {
+    if (vault.archived) return vault
+    const count = counts.get(vault.id) ?? 0
+    if (count === vault.item_count) return vault
+    changed = true
+    return { ...vault, item_count: count }
+  })
+  return changed ? next : vaults
+}
+
+/** Whether a re-read of the vault rows changed anything the sidebar shows (so an unchanged read sets no state). */
+export function sameVaults(a: VaultSummary[], b: VaultSummary[]): boolean {
+  return a.length === b.length && a.every((vault, index) => JSON.stringify(vault) === JSON.stringify(b[index]))
+}

@@ -82,7 +82,7 @@ import { useItemDetail } from './useItemDetail'
 import { useItemFormFields } from './useItemFormFields'
 import { useItemSort } from './useItemSort'
 import { useTotpPreviews } from './useTotpPreviews'
-import { isLastOpenVaultIn, useVaultItems } from './useVaultItems'
+import { isLastOpenVaultIn, sameVaults, useVaultItems, withLiveCounts } from './useVaultItems'
 import { useVaultSession } from './useVaultSession'
 import { useWindowAppearance } from './useWindowAppearance'
 import {
@@ -497,6 +497,27 @@ export function useVaultWindow() {
       stale = true
     }
   }, [items, mode, vaults])
+
+  // Every write — single or bulk, an import, a sync — ends by re-reading `items`, so the vault rows (their counts,
+  // which the dissolve sheet reads too) are re-read with them; an unchanged read sets no state, so this cannot
+  // loop with the effect above (bug 2026-10-25: the counts only refreshed on vault commands or a restart).
+  useEffect(() => {
+    if (mode !== 'unlocked') return
+    let stale = false
+    vaultApi
+      .listVaults()
+      .then((nextVaults) => {
+        if (!stale && Array.isArray(nextVaults))
+          setVaults((current) => (sameVaults(current, nextVaults) ? current : nextVaults))
+      })
+      .catch((nextError: unknown) => setError(String(nextError)))
+    return () => {
+      stale = true
+    }
+  }, [items, archivedItems, trashedItems, mode])
+
+  // What the vault rows show: each open vault's count read off the same rows its list shows.
+  const countedVaults = useMemo(() => withLiveCounts(vaults, allItems), [allItems, vaults])
 
   const sidebarTags = useMemo(() => tagRows(tagCounts, tagRecords), [tagCounts, tagRecords])
   // A folded section still shows the rows the user asked to keep, so a highlight is what survives the
@@ -1227,8 +1248,14 @@ export function useVaultWindow() {
   // After a bulk command: re-read every list it can have changed, say what happened, and keep selected only what
   // stayed behind because of its links (so the user sees which ones).
   async function finishBulk(outcome: BulkOutcome, message: string) {
-    const [nextItems] = await Promise.all([vaultApi.list(), loadArchivedItems(), loadTrashedItems()])
+    const [nextItems, nextVaults] = await Promise.all([
+      vaultApi.list(),
+      vaultApi.listVaults(),
+      loadArchivedItems(),
+      loadTrashedItems(),
+    ])
     setItems(nextItems)
+    setVaults(nextVaults)
     replaceSelection(outcome.held)
     setOperationMessage(
       outcome.held.length ? `${message} · ${t('messages.heldLinked', { count: outcome.held.length })}` : message,
@@ -2290,6 +2317,7 @@ export function useVaultWindow() {
     copySecretText,
     copyTotpSecret,
     copyTotpSetupLink,
+    countedVaults,
     customFieldEntries,
     detailCustomFields,
     detailFieldIndexes,

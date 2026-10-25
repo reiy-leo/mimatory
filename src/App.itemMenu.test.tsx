@@ -39,6 +39,9 @@ type StubItem = ReturnType<typeof item> & { vault_id?: string }
 
 // Per-test knobs for the bridge (reset after each test), and every bulk command the window sent with its ids.
 const scenario = {
+  // Items a bulk trash took out of the live lists (when `liveTrash` is on, the stub's bridge really moves them).
+  gone: new Set<string>(),
+  liveTrash: false,
   // The Rust session on another (empty) vault while the window names Personal — the 2026-10-25 "838, empty" bug.
   sessionOnEmptyVault: false,
   switchFails: false,
@@ -60,6 +63,8 @@ function summary({ custom_fields: _fields, notes: _notes, password: _password, u
   return structuredClone(rest)
 }
 
+const live = () => items.filter((entry) => !scenario.gone.has(entry.id))
+
 function stubBridge() {
   mockWindows('main')
   mockIPC(
@@ -67,6 +72,7 @@ function stubBridge() {
       if (bulkCommands.includes(cmd)) {
         const { ids, vaultId } = args as { ids: string[]; vaultId?: string }
         bulkCalls.push({ cmd, ids: [...ids], vaultId })
+        if (cmd === 'trash_login_items' && scenario.liveTrash) for (const id of ids) scenario.gone.add(id)
         if (cmd === 'purge_login_items') scenario.trashed = scenario.trashed.filter((entry) => !ids.includes(entry.id))
         return { done: ids.length, held: [] }
       }
@@ -97,9 +103,12 @@ function stubBridge() {
           return { database_ready: true, has_master_password: true, name: 'Mimatory', unlocked: false }
         case 'unlock_vault':
         case 'list_login_items':
-          return scenario.sessionOnEmptyVault ? [] : items.map(summary)
+          return scenario.sessionOnEmptyVault ? [] : live().map(summary)
         case 'list_all_login_items':
-          return [...items.map((entry) => summary({ ...entry, vault_id: 'personal' })), summary(workItem)]
+          return [
+            ...live().map((entry) => summary({ ...entry, vault_id: 'personal' })),
+            ...(scenario.gone.has(workItem.id) ? [] : [summary(workItem)]),
+          ]
         case 'list_vaults':
           return [
             {
@@ -108,7 +117,7 @@ function stubBridge() {
               created_at: '2026-01-01T00:00:00Z',
               icon: 'vault',
               id: 'personal',
-              item_count: items.length,
+              item_count: live().length,
               name: 'Personal',
               updated_at: '2026-10-18T00:00:00Z',
             },
@@ -193,7 +202,14 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   clearMocks()
-  Object.assign(scenario, { sessionOnEmptyVault: false, switchFails: false, trashed: [], workArchived: false })
+  Object.assign(scenario, {
+    gone: new Set<string>(),
+    liveTrash: false,
+    sessionOnEmptyVault: false,
+    switchFails: false,
+    trashed: [],
+    workArchived: false,
+  })
   bulkCalls.length = 0
 })
 
@@ -492,6 +508,25 @@ describe('vault window', () => {
     await waitFor(() => expect(bulkCalls).toHaveLength(1))
     expect(bulkCalls[0].cmd).toBe('trash_login_items')
     expect([...bulkCalls[0].ids].sort()).toEqual(['a', 'b', 'c', 'd'])
+  })
+
+  it('drops every count to 0 once a bulk Move to Trash empties the vault, without a restart', async () => {
+    // Rei 2026-10-25: after deleting everything the list was empty but "Personal" still said 838 until a restart.
+    scenario.liveTrash = true
+    await renderUnlocked()
+    await screen.findByRole('button', { name: /Delta/ })
+    const countOf = (label: string) => sidebarButton(label).querySelector('.nav-count')?.textContent
+    expect(countOf('Personal')).toBe('3')
+    fireEvent.keyDown(document.body, { ...primary, code: 'KeyA', key: 'a' })
+    await screen.findByText('4 Items Selected')
+    fireEvent.keyDown(document.body, { ...primary, key: 'Backspace' })
+    const alert = await screen.findByRole('alertdialog')
+    await act(async () => {
+      fireEvent.click(within(alert).getByRole('button', { name: 'Move to Trash' }))
+    })
+    await waitFor(() => expect(countOf('Personal')).toBe('0'))
+    expect(countOf('All')).toBe('0')
+    expect(document.querySelectorAll('.item-row')).toHaveLength(0)
   })
 
   it('archives a selection from the pane and from the right-click menu', async () => {

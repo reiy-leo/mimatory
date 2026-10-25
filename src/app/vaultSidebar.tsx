@@ -44,6 +44,7 @@ export function VaultSidebar({ vw }: { vw: VaultWindowModel }) {
     beginSidebarResize,
     categoriesCollapsed,
     categoryListRef,
+    countedVaults,
     handleSwitchVault,
     highlights,
     isMobileLayout,
@@ -94,6 +95,9 @@ export function VaultSidebar({ vw }: { vw: VaultWindowModel }) {
 
   // A vault row is the same row a tag or a category is, and clicking it changes which vault the whole
   // window reads. The right-click carries the rest: styling, parking, and the one way to lose a vault.
+  // The count beside a vault is read off the same live rows its list shows (`countedVaults`), so a write can never
+  // leave a stale number over a changed list (bug 2026-10-25: "Personal 838" after deleting everything).
+  const liveCounts = new Map(countedVaults.map((vault) => [vault.id, vault.item_count]))
   function sidebarVaultRows(list: VaultSummary[]) {
     return list.map((vault) => {
       const Icon = tagIconComponent(vault.icon)
@@ -112,7 +116,7 @@ export function VaultSidebar({ vw }: { vw: VaultWindowModel }) {
         >
           <Icon className={tagColorClass(vault.color)} size={16} />
           <span>{vault.name}</span>
-          <span className="nav-count">{vault.item_count}</span>
+          <span className="nav-count">{liveCounts.get(vault.id) ?? vault.item_count}</span>
         </button>
       )
     })
