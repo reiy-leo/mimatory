@@ -721,6 +721,15 @@ as `{ id, status, data }` with the HTTP bridge's status codes (content.js reads 
   while open, else the oldest open one) and both unlock paths use it; after an unlock the window switches the
   session if its list came from another vault. The cross-vault follow effect is off on the vault row (it
   ping-ponged with the switch).
+- **A vault row's count is read off `allItems`, not `list_vaults`** (bug 2026-10-25, the real cause of "Personal 838,
+  empty list": Rei had just deleted everything with the bulk commands; a restart showed 0). `item_count` was a
+  snapshot only vault commands re-read. Now the row shows `withLiveCounts(vaults, allItems)` (the same rows its list
+  shows; an archived vault keeps the Rust count), and the vault rows are re-read whenever `items`/archive/trash change
+  (`sameVaults` keeps an unchanged read from setting state — the allItems effect depends on `vaults`, so a fresh array
+  every time would loop) and in `finishBulk`. Any new count must come from the same rows its list shows.
+- **One unreadable item never fails a list** (same day): summary lists, search, Watchtower and the bridge read each
+  part leniently; a failure prints `[mimatory] unreadable item <id>: <part>: <kind>` on stderr (kind only — a JSON
+  error's text can quote decrypted content) and the row lists with `unreadable: true`. The detail read still errors.
 - **The last open vault stays** (Rei 2026-10-25: "如果只剩下一个保险库了，这个保险库不能archive，不能删，只能编辑"):
   `set_vault_archived(true)` and `dissolve_vault` return `VaultLastOpen` for it; its menu keeps 归档保险库 and 解散保险库
   disabled with 至少要保留一个保险库 under them (`isLastOpenVaultIn`). Restoring an archived vault always works.
