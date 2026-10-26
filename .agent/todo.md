@@ -7,6 +7,7 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
 
 ## Open
 
+- **Homepage (2026-10-26)** — live at https://mimatory.rei8t.dev, source in reiy-leo/mimatory-web (separate repo). When a user-visible feature lands or the extension reaches a store, update its copy (`web/i18n.js`, 9 languages) and screenshots there.
 - **Native messaging (2026-10-24) — never run on a real Mac or Windows.** Proven on Linux only: the host/IPC unit
   tests and a real 0600-socket round trip (`work/nmcheck`), and apt Chromium driving the unpacked extension through
   the real host code against a stand-in app (fixed ID, popup states, `/match` with the page origin, app restart,

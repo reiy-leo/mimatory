@@ -41,6 +41,8 @@ the binary, paths, `productName` and the bundle id stay `mimatory`/`Mimatory`. W
   `productName`. iOS/Android home-screen name: `src-tauri/gen/` is generated in CI, so an
   `InfoPlist.strings` / `values-zh/strings.xml` has to be injected after `tauri ios|android init` — not done yet.
 
+**Homepage**: https://mimatory.rei8t.dev lives in its own repo, [reiy-leo/mimatory-web](https://github.com/reiy-leo/mimatory-web) (Worker `mimatory-web`) — never add the site to this repo.
+
 ## Languages and adding a language
 
 UI languages: en, zh (Simplified), ja, es, pt (Brazilian; pt-PT and bare pt resolve to it), ru, de, fr, id.
