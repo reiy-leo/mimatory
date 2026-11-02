@@ -1,5 +1,7 @@
 # AGENTS.md
 
+> New session: read `.agent/status.md` first (Chinese handoff: progress, open work, code map), then this file.
+
 ## Project
 
 **Mimatory** (renamed from Passless on 2026-10-23, owner: "名称以后都统一成mimatory，不再使用passless" — never

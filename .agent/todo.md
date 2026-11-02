@@ -41,10 +41,6 @@ Dates are absolute. `needs-owner-decision` marks an item nobody should quietly i
   unpersisted (see AGENTS.md), which is why it is a decision and not a task.
 - **⌘K should become search / command palette.** It currently locks the vault; `⌘F` only focuses the list
   search. Carried over from the pre-2026-10-08 rulings.
-- **Rust errors are not translated.** Every `catch` in the window code (`useVaultWindow.tsx` and its hooks) does `setError(String(nextError))`, so a
-  backend failure renders as `Error: invalid master password` in zh and ja. The locale bundles themselves are
-  clean. The fix is error **codes** across the bridge, not more strings — do not paper over it with
-  per-message lookups in the frontend.
 - **At-rest audit, remaining items** (the 2026-10-08 audit's #1 export encryption, #2 file permissions and
   #4 CSP + constant-time pairing are done): #3 attachment temp-file cleanup, #5 no rate limiting on the bridge
   or on master-password attempts, #6 default security preferences / master-password strength enforced in Rust /
@@ -315,7 +311,7 @@ Closed work, kept so nobody re-derives it. How each of these behaves today is de
 
 ## 1Password import (.1pux) — 2026-10-21
 - Done: macOS menu bar File ▸ Import ▸ 1Password (.1pux)… (shell.rs builds Tauri's default menu + Import; event `menu:import-1pux`), picker → read-only preview sheet (vaults, item/attachment counts) → import. Each 1Password vault goes to the non-archived Mimatory vault of the same name, else a new one. Category → Mimatory type (unknown → Secure Note); template fields stored with template `key`; other fields as custom fields / titled sections; OTP → otp rows (otpauth secret only); attachments + Document files imported; archived stays archived; trash skipped; created/updated times kept.
-- needs-owner-decision: Windows/Linux have no menu bar, so no entry point there yet; re-importing duplicates items (no dedupe); password history, `reference` (linked item) fields and extra login form fields are dropped; otpauth digits/period/algorithm are dropped; 1P field-id → template-key table is from the published 1pux schema, unverified against a real export.
+- needs-owner-decision: Windows/Linux have no menu bar, so no entry point there yet; re-importing duplicates items (no dedupe); password history and extra login form fields are dropped (Related Items `reference` fields import as peer links since 1b95c0e); otpauth digits/period/algorithm are dropped; 1P field-id → template-key table is from the published 1pux schema, unverified against a real export.
 
 ## Sync (2026-10-23; UI 2026-10-25)
 - Done: Rust core `src-tauri/src/sync/` (records, three-way merge with tombstones, SQLite snapshot/apply, sync key +
