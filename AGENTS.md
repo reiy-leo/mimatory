@@ -1009,11 +1009,11 @@ as `{ id, status, data }` with the HTTP bridge's status codes (content.js reads 
 
 ## The brand icon
 
-One artwork in three places, plus one separate glyph. The blue squircle with a white half-open safe and three drawers (Rei, 2026-10-21) is the app icon anywhere the OS
+One artwork in three places, plus one separate glyph. The teal-to-blue squircle with a pale padlock (Rei, 2026-11-11; replaced the blue safe of 2026-10-21; source `https://m.rei8t.dev/i/W3nwk1ul.png`) is the app icon anywhere the OS
 or the UI can carry colour: the lock screen and the sidebar's brand block (`src/assets/app-icon.png`, a 256px
 RGBA import used as `<img alt="">` inside `.brand-mark.is-artwork`, so it stays decorative and needs no locale
 key), and Dock/Finder/Taskbar (`src-tauri/icons/app-icon-source.png` → `npx tauri icon
-src-tauri/icons/app-icon-source.png`, which rewrites all 52 files including `icon.icns` and `icon.ico`). The menu
+src-tauri/icons/app-icon-source.png`, which rewrites all 52 files including `icon.icns` and `icon.ico`). iOS and the Android adaptive foreground are then overwritten with a **full-bleed** square (the squircle's gradient fitted as a plane and extended into the corners), because iOS and Android apply their own mask and `tauri icon` would leave white corners; the adaptive background colour is `#1A7FB0`. The script is `work/icon2/make.py` in the Hark project dir (outside the repo). The menu
 bar is **not** that image: `shell.rs` uses `tauri::include_image!("icons/tray-icon-template.png")` with
 `.icon_as_template(true)`, a hand-drawn black-on-transparent 36×36 lock, because `tray-icon` forces the tile to
 18pt and a colour square is unreadable there — the template is what lets macOS tint it for light and dark chrome.
